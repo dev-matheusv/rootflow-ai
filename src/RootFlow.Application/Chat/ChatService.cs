@@ -5,12 +5,14 @@ using RootFlow.Application.Abstractions.Time;
 using RootFlow.Application.Chat.Commands;
 using RootFlow.Application.Chat.Dtos;
 using RootFlow.Domain.Conversations;
+using Microsoft.Extensions.Logging;
 
 namespace RootFlow.Application.Chat;
 
 public sealed class ChatService
 {
     private const int MaxHistoryMessages = 12;
+    private const string InsufficientContextAnswer = "I do not know based on the current knowledge base.";
 
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IConversationRepository _conversationRepository;
@@ -18,6 +20,7 @@ public sealed class ChatService
     private readonly IKnowledgeSearchService _knowledgeSearchService;
     private readonly IChatCompletionService _chatCompletionService;
     private readonly IClock _clock;
+    private readonly ILogger<ChatService> _logger;
 
     public ChatService(
         IWorkspaceRepository workspaceRepository,
@@ -25,7 +28,8 @@ public sealed class ChatService
         IEmbeddingService embeddingService,
         IKnowledgeSearchService knowledgeSearchService,
         IChatCompletionService chatCompletionService,
-        IClock clock)
+        IClock clock,
+        ILogger<ChatService> logger)
     {
         _workspaceRepository = workspaceRepository;
         _conversationRepository = conversationRepository;
@@ -33,6 +37,7 @@ public sealed class ChatService
         _knowledgeSearchService = knowledgeSearchService;
         _chatCompletionService = chatCompletionService;
         _clock = clock;
+        _logger = logger;
     }
 
     public async Task<ChatAnswerDto> AskAsync(
@@ -69,16 +74,21 @@ public sealed class ChatService
         var queryEmbedding = await _embeddingService.GenerateEmbeddingAsync(command.Question, cancellationToken);
         var searchResults = await _knowledgeSearchService.SearchAsync(
             command.WorkspaceId,
+            command.Question,
             queryEmbedding,
             Math.Clamp(command.MaxContextChunks, 1, 10),
             cancellationToken);
 
+        LogSearchResults(conversation.Id, command.Question, searchResults);
+
+        var hasSufficientGrounding = HasSufficientGrounding(searchResults);
+
         string answer;
         string? modelName = null;
 
-        if (searchResults.Count == 0)
+        if (!hasSufficientGrounding)
         {
-            answer = "I could not find relevant information in the current knowledge base.";
+            answer = InsufficientContextAnswer;
         }
         else
         {
@@ -101,18 +111,40 @@ public sealed class ChatService
         conversation.Touch(_clock.UtcNow);
         await _conversationRepository.UpdateAsync(conversation, cancellationToken);
 
+        var citedResults = hasSufficientGrounding
+            ? searchResults
+            : Array.Empty<KnowledgeSearchMatch>();
+
         return new ChatAnswerDto(
             conversation.Id,
             answer,
             modelName,
-            searchResults
+            citedResults
                 .Select(x => new ChatSourceDto(
                     x.DocumentId,
                     x.ChunkId,
                     x.DocumentName,
+                    x.SourceLabel,
                     x.Content,
                     x.Score))
-                .ToArray());
+                .ToArray(),
+            new ChatRagDebugDto(
+                command.Question,
+                Math.Min(existingMessages.Count, MaxHistoryMessages),
+                searchResults.Count,
+                searchResults
+                    .Select((x, index) => new ChatRetrievedChunkDebugDto(
+                        index + 1,
+                        x.ChunkId,
+                        x.DocumentName,
+                        x.SourceLabel,
+                        x.Sequence,
+                        x.Score,
+                        x.VectorScore,
+                        x.KeywordScore,
+                        x.MatchedTerms,
+                        BuildRankingReason(x)))
+                    .ToArray()));
     }
 
     private async Task<Conversation> GetOrCreateConversationAsync(
@@ -149,7 +181,19 @@ public sealed class ChatService
         string question,
         IReadOnlyList<KnowledgeSearchMatch> searchResults)
     {
-        var messages = new List<ChatPromptMessage>(MaxHistoryMessages + 1);
+        var messages = new List<ChatPromptMessage>(MaxHistoryMessages + 2)
+        {
+            new(
+                MessageRole.System,
+                """
+                You are RootFlow, a business knowledge assistant.
+                Answer only with information supported by the provided context blocks.
+                If the context is not enough, reply exactly: "I do not know based on the current knowledge base."
+                Keep the answer concise, practical, and factual.
+                Cite supporting blocks like [1] after each factual statement or step.
+                If the answer is a process, use a short bullet list.
+                """)
+        };
 
         foreach (var message in existingMessages.TakeLast(MaxHistoryMessages))
         {
@@ -157,16 +201,18 @@ public sealed class ChatService
         }
 
         var contextBuilder = new System.Text.StringBuilder();
-        contextBuilder.AppendLine("Use the context below to answer the user's question.");
-        contextBuilder.AppendLine("If the context is not enough, say that you do not know based on the current knowledge base.");
-        contextBuilder.AppendLine("Do not invent policies, facts, or numbers.");
+        contextBuilder.AppendLine("Use the context blocks below to answer the user's question.");
+        contextBuilder.AppendLine("Do not invent policies, facts, dates, or numbers.");
         contextBuilder.AppendLine();
-        contextBuilder.AppendLine("Context:");
+        contextBuilder.AppendLine("Context Blocks:");
 
         for (var i = 0; i < searchResults.Count; i++)
         {
             var result = searchResults[i];
-            contextBuilder.AppendLine($"[{i + 1}] {result.DocumentName}");
+            contextBuilder.AppendLine($"[{i + 1}] Document: {result.DocumentName}");
+            contextBuilder.AppendLine($"Section: {result.SourceLabel}");
+            contextBuilder.AppendLine($"Relevance: combined={result.Score:F3}, vector={result.VectorScore:F3}, keyword={result.KeywordScore:F3}");
+            contextBuilder.AppendLine("Content:");
             contextBuilder.AppendLine(result.Content);
             contextBuilder.AppendLine();
         }
@@ -174,7 +220,8 @@ public sealed class ChatService
         contextBuilder.AppendLine("Question:");
         contextBuilder.AppendLine(question);
         contextBuilder.AppendLine();
-        contextBuilder.AppendLine("Answer in clear business English and cite the source blocks like [1] when relevant.");
+        contextBuilder.AppendLine("Write the final answer in clear business English.");
+        contextBuilder.AppendLine("Add citations like [1] directly after supported statements.");
 
         messages.Add(new ChatPromptMessage(MessageRole.User, contextBuilder.ToString()));
 
@@ -190,5 +237,57 @@ public sealed class ChatService
         }
 
         return $"{title[..77]}...";
+    }
+
+    private void LogSearchResults(
+        Guid conversationId,
+        string question,
+        IReadOnlyList<KnowledgeSearchMatch> searchResults)
+    {
+        var rankedResults = searchResults
+            .Select((result, index) => new
+            {
+                Rank = index + 1,
+                result.DocumentName,
+                result.SourceLabel,
+                result.Sequence,
+                Score = Math.Round(result.Score, 4),
+                VectorScore = Math.Round(result.VectorScore, 4),
+                KeywordScore = Math.Round(result.KeywordScore, 4),
+                result.MatchedTerms
+            })
+            .ToArray();
+
+        _logger.LogInformation(
+            "RAG retrieval for conversation {ConversationId} and question {Question} returned {@Results}",
+            conversationId,
+            question,
+            rankedResults);
+    }
+
+    private static string BuildRankingReason(KnowledgeSearchMatch result)
+    {
+        if (result.MatchedTerms.Count == 0)
+        {
+            return $"Vector score {result.VectorScore:F3} with no keyword matches.";
+        }
+
+        return $"Matched terms: {string.Join(", ", result.MatchedTerms)}. Vector score {result.VectorScore:F3}, keyword score {result.KeywordScore:F3}, combined score {result.Score:F3}.";
+    }
+
+    private static bool HasSufficientGrounding(IReadOnlyList<KnowledgeSearchMatch> searchResults)
+    {
+        if (searchResults.Count == 0)
+        {
+            return false;
+        }
+
+        var topResult = searchResults[0];
+        if (topResult.KeywordScore >= 0.2)
+        {
+            return true;
+        }
+
+        return topResult.Score >= 0.35 && topResult.VectorScore >= 0.4;
     }
 }
