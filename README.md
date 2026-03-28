@@ -1,138 +1,155 @@
 # RootFlow
 
-RootFlow is a standalone AI assistant platform for businesses.
+RootFlow is an AI-powered assistant platform designed to help businesses turn their knowledge into intelligent, automated interactions.
 
-The goal of the product is simple: let a business upload its knowledge, search that knowledge with AI, and get grounded answers through chat using RAG.
+It allows companies to upload their internal data, search it using AI, and generate grounded responses through chat using Retrieval-Augmented Generation (RAG).
 
-This repository is the baseline for the MVP. It currently contains the clean solution scaffold and repository setup. Product features will be added step by step.
+This repository contains the foundation of the RootFlow MVP — a clean, scalable, and SaaS-ready architecture.
 
-## Project Description
+---
 
-RootFlow is being built as a reusable and sellable SaaS-ready foundation.
+## 🚀 Overview
 
-It is not tied to any single company or system. The platform is designed so it can later support:
+RootFlow is being built as a reusable and commercial-ready platform, not tied to any specific business.
 
-- multiple companies
-- different AI providers
-- business integrations
-- admin and automation features
+The goal is to provide a flexible foundation that can evolve into:
 
-## MVP Scope
+- multi-tenant SaaS platform
+- AI assistants for different industries
+- business automation workflows
+- integrations with external systems (e.g. WhatsApp, CRMs, ERPs)
 
-The MVP is focused on a small and practical feature set:
+---
+
+## 🎯 MVP Scope
+
+The initial version focuses on a simple but powerful core:
 
 - document upload
 - text extraction
 - text chunking
-- embeddings generation through API
+- embeddings generation via API
 - PostgreSQL storage with vector search
-- chat endpoint with grounded answers
+- chat endpoint with grounded responses (RAG)
 - conversation history
 
-## Tech Stack
+---
+
+## 🧱 Tech Stack
 
 - .NET 9
 - ASP.NET Core Web API
 - C#
 - PostgreSQL
-- `pgvector` for vector storage and semantic search
-- xUnit for tests
+- pgvector for vector storage and semantic search
+- xUnit for testing
 
-Planned infrastructure for the MVP:
+Planned integrations:
 
-- OpenAI-compatible embeddings and chat provider integration
-- local or cloud file storage abstraction
+- OpenAI-compatible providers (embeddings + chat)
+- file storage abstraction (local/cloud)
 - EF Core for persistence
 
-## High-Level Architecture
+---
 
-RootFlow follows a simple Clean Architecture approach:
+## 🧠 Architecture
 
-```text
+RootFlow follows a Clean Architecture approach with a modular monolith design:
+
 Client
-  -> RootFlow.Api
-  -> RootFlow.Application
-  -> RootFlow.Domain
-  -> RootFlow.Infrastructure
-  -> PostgreSQL / File Storage / AI Provider
-```
+  → RootFlow.Api
+  → RootFlow.Application
+  → RootFlow.Domain
+  → RootFlow.Infrastructure
+  → PostgreSQL / File Storage / AI Provider
 
-Layer roles:
+### Layer Responsibilities
 
-- `RootFlow.Domain`: business entities and core rules
-- `RootFlow.Application`: use cases, contracts, DTOs, orchestration
-- `RootFlow.Infrastructure`: database, AI, file storage, external services
-- `RootFlow.Api`: HTTP endpoints, dependency injection, configuration
+- Domain: core business entities and rules
+- Application: use cases, contracts, orchestration
+- Infrastructure: database, AI providers, external services
+- API: HTTP endpoints, configuration, dependency injection
 
-## Project Structure
+---
 
-```text
+## 📁 Project Structure
+
 rootflow-ai/
 ├─ src/
 │  ├─ RootFlow.Api/
 │  ├─ RootFlow.Application/
 │  ├─ RootFlow.Domain/
 │  └─ RootFlow.Infrastructure/
-├─ .github/
-│  └─ workflows/
-│     └─ ci.yml
 ├─ tests/
 │  └─ RootFlow.UnitTests/
+├─ .github/workflows/
 ├─ RootFlow.sln
 ├─ README.md
 ├─ .gitignore
 ├─ .editorconfig
 ├─ .gitattributes
 └─ global.json
-```
 
-## Getting Started
+---
+
+## ⚙️ Getting Started
 
 ### Prerequisites
 
-- .NET SDK 9.0.308 or compatible 9.0 SDK
+- .NET SDK 9.x
 
 ### Run locally
 
-```powershell
 git clone <your-repository-url>
 cd rootflow-ai
 dotnet restore
 dotnet build
 dotnet test
 dotnet run --project src/RootFlow.Api
-```
 
-### Current baseline behavior
+### Current Endpoints
 
-The API currently exposes simple baseline endpoints:
+- GET / → basic API check
+- GET /health → health check
 
-- `GET /`
-- `GET /health`
+Swagger/OpenAPI is available in development mode.
 
-OpenAPI is available in development mode.
+---
 
-## Roadmap / Next Steps
+## 🗺️ Roadmap
 
-Planned next steps for the MVP:
+### MVP
 
 1. Define domain entities and application contracts
-2. Add persistence abstractions and PostgreSQL setup
-3. Implement document ingestion flow
+2. Add persistence layer and PostgreSQL setup
+3. Implement document ingestion pipeline
 4. Implement chunking and embeddings
-5. Implement semantic search and chat with RAG
+5. Implement semantic search + RAG
 6. Persist conversation history
 
-Later phases:
+### Future
 
 - multi-tenant support
-- admin features
-- workflow automations
+- admin dashboard
+- automation workflows (agents)
 - external integrations
-- guardrails and operational hardening
+- guardrails and observability
 
-## Repository Status
+---
 
-This is the professional baseline for the RootFlow MVP.
+## 📦 Status
 
-The repository is prepared to grow into a commercial product with a clean structure, clear boundaries, and minimal unnecessary complexity.
+This repository represents the baseline of the RootFlow MVP.
+
+It is designed to evolve into a production-ready SaaS platform, with a strong focus on simplicity, scalability, and real-world applicability.
+
+---
+
+## 🤝 Vision
+
+RootFlow aims to become a platform where businesses can:
+
+- plug in their knowledge
+- automate interactions
+- build intelligent assistants
+- reduce operational effort with AI
