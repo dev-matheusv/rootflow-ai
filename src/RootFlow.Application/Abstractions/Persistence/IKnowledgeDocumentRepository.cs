@@ -6,6 +6,8 @@ public interface IKnowledgeDocumentRepository
 {
     Task AddAsync(KnowledgeDocument document, CancellationToken cancellationToken = default);
 
+    Task UpdateAsync(KnowledgeDocument document, CancellationToken cancellationToken = default);
+
     Task<KnowledgeDocument?> GetByIdAsync(
         Guid workspaceId,
         Guid documentId,

@@ -6,6 +6,8 @@ public interface IConversationRepository
 {
     Task AddAsync(Conversation conversation, CancellationToken cancellationToken = default);
 
+    Task UpdateAsync(Conversation conversation, CancellationToken cancellationToken = default);
+
     Task AddMessageAsync(ConversationMessage message, CancellationToken cancellationToken = default);
 
     Task<Conversation?> GetByIdAsync(
