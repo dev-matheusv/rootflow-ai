@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "fSlBRnkJnOk=",
+  "success": true,
+  "projectFilePath": "C:\\RootFlow\\src\\RootFlow.Api\\RootFlow.Api.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\devma\\.nuget\\packages\\microsoft.aspnetcore.openapi\\9.0.11\\microsoft.aspnetcore.openapi.9.0.11.nupkg.sha512",
+    "C:\\Users\\devma\\.nuget\\packages\\microsoft.openapi\\1.6.17\\microsoft.openapi.1.6.17.nupkg.sha512"
+  ],
+  "logs": []
+}
