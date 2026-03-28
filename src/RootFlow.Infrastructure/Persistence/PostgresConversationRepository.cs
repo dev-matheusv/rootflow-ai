@@ -1,4 +1,5 @@
 using Npgsql;
+using NpgsqlTypes;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Domain.Conversations;
 
@@ -78,8 +79,11 @@ public sealed class PostgresConversationRepository : IConversationRepository
         command.Parameters.AddWithValue("conversationId", message.ConversationId);
         command.Parameters.AddWithValue("role", message.Role.ToString());
         command.Parameters.AddWithValue("content", message.Content);
-        command.Parameters.AddWithValue("modelName", (object?)message.ModelName ?? DBNull.Value);
         command.Parameters.AddWithValue("createdAtUtc", message.CreatedAtUtc);
+        command.Parameters.Add(new NpgsqlParameter("modelName", NpgsqlDbType.Text)
+        {
+            Value = (object?)message.ModelName ?? DBNull.Value
+        });
 
         await command.ExecuteNonQueryAsync(cancellationToken);
     }

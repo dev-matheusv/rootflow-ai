@@ -25,7 +25,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseExceptionHandler();
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("IntegrationTesting"))
+{
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler();
+}
+
 app.UseHttpsRedirection();
 
 await using (var scope = app.Services.CreateAsyncScope())
@@ -50,7 +58,7 @@ app.MapGet("/health", () => Results.Ok(new
 
 var documents = app.MapGroup("/api/documents");
 
-documents.MapPost("/", async (
+documents.MapPost("", async (
     IFormFile file,
     DocumentService documentService,
     IOptions<RootFlowOptions> rootFlowOptions,
@@ -74,9 +82,10 @@ documents.MapPost("/", async (
         cancellationToken);
 
     return Results.Created($"/api/documents/{document.Id}", document);
-});
+})
+.DisableAntiforgery();
 
-documents.MapGet("/", async (
+documents.MapGet("", async (
     DocumentService documentService,
     IOptions<RootFlowOptions> rootFlowOptions,
     CancellationToken cancellationToken) =>
@@ -137,3 +146,7 @@ app.MapGet("/api/conversations/{conversationId:guid}", async (
 });
 
 app.Run();
+
+public partial class Program
+{
+}

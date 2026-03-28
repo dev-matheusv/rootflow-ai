@@ -34,6 +34,7 @@ public static class InfrastructureServiceCollectionExtensions
             throw new InvalidOperationException("Connection string 'Postgres' is not configured.");
         }
 
+        services.Configure<AiOptions>(configuration.GetSection("AI"));
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
         services.Configure<TextChunkingOptions>(configuration.GetSection("Chunking"));
@@ -64,8 +65,17 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IKnowledgeSearchService, PostgresKnowledgeSearchService>();
         services.AddScoped<IUnitOfWork, ImmediateUnitOfWork>();
 
-        services.AddHttpClient<IEmbeddingService, OpenAiEmbeddingService>(ConfigureOpenAiClient);
-        services.AddHttpClient<IChatCompletionService, OpenAiChatCompletionService>(ConfigureOpenAiClient);
+        var aiMode = configuration.GetValue<string>("AI:Mode") ?? "OpenAI";
+        if (string.Equals(aiMode, "Fake", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton<IEmbeddingService, FakeEmbeddingService>();
+            services.AddSingleton<IChatCompletionService, FakeChatCompletionService>();
+        }
+        else
+        {
+            services.AddHttpClient<IEmbeddingService, OpenAiEmbeddingService>(ConfigureOpenAiClient);
+            services.AddHttpClient<IChatCompletionService, OpenAiChatCompletionService>(ConfigureOpenAiClient);
+        }
 
         services.AddScoped<DocumentService>();
         services.AddScoped<ChatService>();

@@ -1,4 +1,5 @@
 @RootFlow.Api_HostAddress = http://localhost:5011
+@conversationId = REPLACE_WITH_CONVERSATION_ID
 
 GET {{RootFlow.Api_HostAddress}}/
 Accept: application/json
@@ -6,6 +7,40 @@ Accept: application/json
 ###
 
 GET {{RootFlow.Api_HostAddress}}/health
+Accept: application/json
+
+###
+
+POST {{RootFlow.Api_HostAddress}}/api/documents
+Content-Type: multipart/form-data; boundary=RootFlowBoundary
+
+--RootFlowBoundary
+Content-Disposition: form-data; name="file"; filename="rootflow-smoke.txt"
+Content-Type: text/plain
+
+RootFlow helps businesses answer questions from internal knowledge.
+It stores uploaded content, retrieves relevant context, and returns grounded responses.
+--RootFlowBoundary--
+
+###
+
+GET {{RootFlow.Api_HostAddress}}/api/documents
+Accept: application/json
+
+###
+
+POST {{RootFlow.Api_HostAddress}}/api/chat
+Content-Type: application/json
+
+{
+  "question": "How does RootFlow answer questions?",
+  "maxContextChunks": 3
+}
+
+###
+
+# Replace @conversationId with the value returned from POST /api/chat.
+GET {{RootFlow.Api_HostAddress}}/api/conversations/{{conversationId}}
 Accept: application/json
 
 ###

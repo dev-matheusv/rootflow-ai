@@ -1,155 +1,205 @@
 # RootFlow
 
-RootFlow is an AI-powered assistant platform designed to help businesses turn their knowledge into intelligent, automated interactions.
+RootFlow is a standalone AI assistant platform for businesses.
 
-It allows companies to upload their internal data, search it using AI, and generate grounded responses through chat using Retrieval-Augmented Generation (RAG).
+It lets a business upload knowledge, store it, search it with embeddings, and answer questions through a grounded chat flow using RAG.
 
-This repository contains the foundation of the RootFlow MVP — a clean, scalable, and SaaS-ready architecture.
+## MVP Scope
 
----
-
-## 🚀 Overview
-
-RootFlow is being built as a reusable and commercial-ready platform, not tied to any specific business.
-
-The goal is to provide a flexible foundation that can evolve into:
-
-- multi-tenant SaaS platform
-- AI assistants for different industries
-- business automation workflows
-- integrations with external systems (e.g. WhatsApp, CRMs, ERPs)
-
----
-
-## 🎯 MVP Scope
-
-The initial version focuses on a simple but powerful core:
+The current MVP includes:
 
 - document upload
-- text extraction
-- text chunking
-- embeddings generation via API
-- PostgreSQL storage with vector search
-- chat endpoint with grounded responses (RAG)
+- text extraction for text files and PDF
+- chunking
+- embeddings generation
+- PostgreSQL + pgvector storage
+- semantic search
+- chat endpoint with grounded answers
 - conversation history
 
----
+This repository is focused on a practical MVP foundation, not a finished product.
 
-## 🧱 Tech Stack
+## Tech Stack
 
 - .NET 9
-- ASP.NET Core Web API
-- C#
+- ASP.NET Core minimal API
 - PostgreSQL
-- pgvector for vector storage and semantic search
-- xUnit for testing
+- pgvector
+- xUnit
+- Docker Compose for local database setup
 
-Planned integrations:
+## High-Level Architecture
 
-- OpenAI-compatible providers (embeddings + chat)
-- file storage abstraction (local/cloud)
-- EF Core for persistence
+RootFlow uses a simple Clean Architecture modular monolith:
 
----
+`Client -> RootFlow.Api -> RootFlow.Application -> RootFlow.Domain -> RootFlow.Infrastructure -> PostgreSQL / File Storage / AI Provider`
 
-## 🧠 Architecture
+Layer responsibilities:
 
-RootFlow follows a Clean Architecture approach with a modular monolith design:
+- `RootFlow.Domain`: core entities and business rules
+- `RootFlow.Application`: use cases, DTOs, and contracts
+- `RootFlow.Infrastructure`: PostgreSQL, file storage, AI integrations, and search
+- `RootFlow.Api`: HTTP endpoints and application startup
 
-Client
-  → RootFlow.Api
-  → RootFlow.Application
-  → RootFlow.Domain
-  → RootFlow.Infrastructure
-  → PostgreSQL / File Storage / AI Provider
+## Project Structure
 
-### Layer Responsibilities
-
-- Domain: core business entities and rules
-- Application: use cases, contracts, orchestration
-- Infrastructure: database, AI providers, external services
-- API: HTTP endpoints, configuration, dependency injection
-
----
-
-## 📁 Project Structure
-
+```text
 rootflow-ai/
-├─ src/
-│  ├─ RootFlow.Api/
-│  ├─ RootFlow.Application/
-│  ├─ RootFlow.Domain/
-│  └─ RootFlow.Infrastructure/
-├─ tests/
-│  └─ RootFlow.UnitTests/
-├─ .github/workflows/
-├─ RootFlow.sln
-├─ README.md
-├─ .gitignore
-├─ .editorconfig
-├─ .gitattributes
-└─ global.json
+|-- src/
+|   |-- RootFlow.Api/
+|   |-- RootFlow.Application/
+|   |-- RootFlow.Domain/
+|   `-- RootFlow.Infrastructure/
+|-- tests/
+|   |-- RootFlow.UnitTests/
+|   `-- RootFlow.Api.IntegrationTests/
+|-- docs/
+|-- docker-compose.yml
+|-- RootFlow.sln
+`-- README.md
+```
 
----
-
-## ⚙️ Getting Started
+## Local Development
 
 ### Prerequisites
 
 - .NET SDK 9.x
+- Docker Desktop or Docker Engine with Docker Compose
 
-### Run locally
+### 1. Start PostgreSQL with pgvector
 
-git clone <your-repository-url>
-cd rootflow-ai
-dotnet restore
-dotnet build
-dotnet test
-dotnet run --project src/RootFlow.Api
+```powershell
+docker compose up -d
+```
 
-### Current Endpoints
+This starts:
 
-- GET / → basic API check
-- GET /health → health check
+- PostgreSQL on `localhost:5432`
+- persistent local volume for database data
 
-Swagger/OpenAPI is available in development mode.
+### 2. Run the API locally
 
----
+Development mode is configured to use:
 
-## 🗺️ Roadmap
+- the local Docker PostgreSQL database
+- deterministic fake AI mode
 
-### MVP
+This means you can run and validate the main flow without a real OpenAI key.
 
-1. Define domain entities and application contracts
-2. Add persistence layer and PostgreSQL setup
-3. Implement document ingestion pipeline
-4. Implement chunking and embeddings
-5. Implement semantic search + RAG
-6. Persist conversation history
+```powershell
+dotnet run --project src/RootFlow.Api --launch-profile http
+```
 
-### Future
+The API will be available at:
+
+- `http://localhost:5011`
+
+### 3. Manual API smoke test
+
+Use:
+
+- [RootFlow.Api.http](C:/RootFlow/src/RootFlow.Api/RootFlow.Api.http)
+
+That file includes requests for:
+
+- health check
+- document upload
+- list documents
+- ask question
+- conversation history
+
+## AI Modes
+
+RootFlow supports two AI modes:
+
+### Fake mode
+
+Used by default in `Development`.
+
+Characteristics:
+
+- deterministic embeddings
+- deterministic chat output
+- no external API dependency
+- stable for local testing and integration tests
+
+### OpenAI mode
+
+Used by default in the base config.
+
+To run with OpenAI, set:
+
+```powershell
+$env:OPENAI_API_KEY="your-key"
+$env:AI__Mode="OpenAI"
+dotnet run --project src/RootFlow.Api --launch-profile http
+```
+
+## Testing
+
+### Unit tests
+
+```powershell
+dotnet test tests/RootFlow.UnitTests/RootFlow.UnitTests.csproj
+```
+
+### Integration tests
+
+The integration tests use:
+
+- the real API pipeline
+- PostgreSQL
+- fake AI mode
+- a dedicated test database: `rootflow_test`
+- table cleanup before each test run
+
+Before running them, make sure Docker Compose is running.
+
+```powershell
+dotnet test tests/RootFlow.Api.IntegrationTests/RootFlow.Api.IntegrationTests.csproj
+```
+
+### Full solution test run
+
+```powershell
+dotnet test RootFlow.sln
+```
+
+## Configuration Summary
+
+Base settings are in:
+
+- [appsettings.json](C:/RootFlow/src/RootFlow.Api/appsettings.json)
+
+Local development overrides are in:
+
+- [appsettings.Development.json](C:/RootFlow/src/RootFlow.Api/appsettings.Development.json)
+
+Important settings:
+
+- `ConnectionStrings:Postgres`
+- `AI:Mode`
+- `OpenAI:BaseUrl`
+- `OpenAI:ChatModel`
+- `OpenAI:EmbeddingModel`
+- `Storage:RootPath`
+
+## Current Local Validation Flow
+
+1. Start Docker Compose.
+2. Run the API in Development.
+3. Use the `.http` file to upload a document.
+4. Ask a question against the uploaded knowledge.
+5. Check the saved conversation history.
+
+## Roadmap
+
+The next product phases may add:
 
 - multi-tenant support
-- admin dashboard
-- automation workflows (agents)
+- admin tools
 - external integrations
-- guardrails and observability
+- guardrails
+- better retrieval quality
 
----
-
-## 📦 Status
-
-This repository represents the baseline of the RootFlow MVP.
-
-It is designed to evolve into a production-ready SaaS platform, with a strong focus on simplicity, scalability, and real-world applicability.
-
----
-
-## 🤝 Vision
-
-RootFlow aims to become a platform where businesses can:
-
-- plug in their knowledge
-- automate interactions
-- build intelligent assistants
-- reduce operational effort with AI
+Those are intentionally out of scope for the current developer-experience phase.

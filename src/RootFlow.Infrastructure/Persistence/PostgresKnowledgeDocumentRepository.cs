@@ -1,4 +1,5 @@
 using Npgsql;
+using NpgsqlTypes;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Domain.Knowledge;
 
@@ -151,11 +152,20 @@ public sealed class PostgresKnowledgeDocumentRepository : IKnowledgeDocumentRepo
         command.Parameters.AddWithValue("sizeBytes", document.SizeBytes);
         command.Parameters.AddWithValue("storagePath", document.StoragePath);
         command.Parameters.AddWithValue("checksum", document.Checksum);
-        command.Parameters.AddWithValue("extractedText", (object?)document.ExtractedText ?? DBNull.Value);
         command.Parameters.AddWithValue("status", document.Status.ToString());
         command.Parameters.AddWithValue("createdAtUtc", document.CreatedAtUtc);
-        command.Parameters.AddWithValue("processedAtUtc", (object?)document.ProcessedAtUtc ?? DBNull.Value);
-        command.Parameters.AddWithValue("failureReason", (object?)document.FailureReason ?? DBNull.Value);
+        command.Parameters.Add(new NpgsqlParameter("extractedText", NpgsqlDbType.Text)
+        {
+            Value = (object?)document.ExtractedText ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("processedAtUtc", NpgsqlDbType.TimestampTz)
+        {
+            Value = (object?)document.ProcessedAtUtc ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("failureReason", NpgsqlDbType.Text)
+        {
+            Value = (object?)document.FailureReason ?? DBNull.Value
+        });
 
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
