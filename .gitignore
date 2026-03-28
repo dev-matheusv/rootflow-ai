@@ -1,0 +1,41 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+[Aa]rtifacts/
+
+# Test and coverage output
+[Tt]est[Rr]esult*/
+coverage/
+coverage-*/
+*.coverage
+*.coveragexml
+
+# .NET user-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# IDE folders
+.idea/
+.vs/
+.vscode/
+
+# Package output
+*.nupkg
+*.snupkg
+packages/
+
+# Local environment files
+.env
+.env.*
+appsettings.Local.json
+appsettings.*.local.json
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store

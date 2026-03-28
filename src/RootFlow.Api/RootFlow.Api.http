@@ -1,6 +1,11 @@
 @RootFlow.Api_HostAddress = http://localhost:5011
 
-GET {{RootFlow.Api_HostAddress}}/weatherforecast/
+GET {{RootFlow.Api_HostAddress}}/
+Accept: application/json
+
+###
+
+GET {{RootFlow.Api_HostAddress}}/health
 Accept: application/json
 
 ###
