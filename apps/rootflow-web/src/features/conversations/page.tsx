@@ -1,26 +1,43 @@
 import { Clock3, MessageCircleMore, Pin, Sparkles } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 
+import { EmptyState } from "@/components/feedback/empty-state";
+import { ErrorState } from "@/components/feedback/error-state";
+import { LoadingState } from "@/components/feedback/loading-state";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-
-const sessions = [
-  { title: "Remote work policy", summary: "Policy clarification with citations", time: "2m ago", active: true },
-  { title: "Billing cancellation notice", summary: "Answered with finance source blocks", time: "19m ago", active: false },
-  { title: "Enterprise password reset", summary: "Operational runbook walkthrough", time: "Yesterday", active: false },
-] as const;
-
-const transcript = [
-  { role: "User", content: "How do support leads reset an enterprise customer password?" },
-  {
-    role: "Assistant",
-    content:
-      "Open the Admin Portal, go to Users, select the customer record, then click Reset Password and confirm the action. Only support leads can perform this for enterprise accounts. [1]",
-  },
-] as const;
+import { useConversationsByIds, useConversationQuery } from "@/hooks/use-rootflow-data";
+import { useRecentConversations } from "@/hooks/use-recent-conversations";
+import { formatRelativeDate } from "@/lib/formatting/formatters";
 
 export function ConversationsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { items } = useRecentConversations();
+  const histories = useConversationsByIds(items.map((item) => item.id));
+
+  const selectedConversationId = searchParams.get("conversationId") ?? items[0]?.id ?? null;
+  const conversationQuery = useConversationQuery(selectedConversationId);
+
+  useEffect(() => {
+    if (!searchParams.get("conversationId") && items[0]?.id) {
+      setSearchParams({ conversationId: items[0].id }, { replace: true });
+    }
+  }, [items, searchParams, setSearchParams]);
+
+  const historyMap = useMemo(
+    () =>
+      new Map(
+        histories
+          .filter((query) => query.data)
+          .map((query) => [query.data!.conversationId, query.data!]),
+      ),
+    [histories],
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -33,29 +50,44 @@ export function ConversationsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Recent sessions</CardTitle>
-            <CardDescription>Polished conversation navigation for business users.</CardDescription>
+            <CardDescription>Recent conversations created from the live assistant flow on this device.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {sessions.map((session) => (
-              <div
-                key={session.title}
-                className={`rounded-[24px] border p-4 transition-colors ${
-                  session.active ? "border-primary/18 bg-primary/8" : "border-border/70 bg-background/60 hover:bg-secondary/35"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="text-sm font-semibold text-foreground">{session.title}</div>
-                    <p className="text-sm leading-6 text-muted-foreground">{session.summary}</p>
-                  </div>
-                  {session.active ? <Pin className="size-4 text-primary" /> : null}
-                </div>
-                <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock3 className="size-3.5" />
-                  {session.time}
-                </div>
-              </div>
-            ))}
+            {items.length === 0 ? (
+              <EmptyState
+                icon={MessageCircleMore}
+                title="No conversations yet"
+                description="Ask a real question in the Assistant page and the resulting conversation will appear here automatically."
+              />
+            ) : (
+              items.map((session) => {
+                const history = historyMap.get(session.id);
+                const isActive = session.id === selectedConversationId;
+
+                return (
+                  <button
+                    key={session.id}
+                    type="button"
+                    onClick={() => setSearchParams({ conversationId: session.id })}
+                    className={`w-full rounded-[24px] border p-4 text-left transition-colors ${
+                      isActive ? "border-primary/18 bg-primary/8" : "border-border/70 bg-background/60 hover:bg-secondary/35"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="text-sm font-semibold text-foreground">{history?.title ?? session.title}</div>
+                        <p className="text-sm leading-6 text-muted-foreground">{session.preview}</p>
+                      </div>
+                      {isActive ? <Pin className="size-4 text-primary" /> : null}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                      <Clock3 className="size-3.5" />
+                      {formatRelativeDate(session.updatedAt)}
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </CardContent>
         </Card>
 
@@ -73,36 +105,66 @@ export function ConversationsPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {transcript.map((message) => (
-              <div key={`${message.role}-${message.content}`} className="flex gap-4 rounded-[28px] border border-border/70 bg-background/60 p-4">
-                <Avatar className="size-11">
-                  <AvatarFallback>{message.role === "User" ? "U" : "AI"}</AvatarFallback>
-                </Avatar>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm font-semibold text-foreground">{message.role}</div>
-                    <Badge variant={message.role === "Assistant" ? "default" : "secondary"}>
-                      {message.role === "Assistant" ? "Grounded" : "Question"}
-                    </Badge>
-                  </div>
-                  <p className="text-sm leading-7 text-muted-foreground">{message.content}</p>
-                </div>
-              </div>
-            ))}
+            {!selectedConversationId ? (
+              <EmptyState
+                icon={Sparkles}
+                title="Select a conversation"
+                description="When you create real assistant sessions, this page will show the stored history from the RootFlow backend."
+              />
+            ) : conversationQuery.isLoading ? (
+              <LoadingState
+                title="Loading conversation history"
+                description="Fetching the selected session from the RootFlow conversation endpoint."
+              />
+            ) : conversationQuery.isError ? (
+              <ErrorState
+                title="Could not load this conversation"
+                description="The selected session could not be retrieved from the backend. Try another conversation or ask a new question."
+                onRetry={() => conversationQuery.refetch()}
+              />
+            ) : (
+              <>
+                {conversationQuery.data?.messages.map((message) => {
+                  const isUser = message.role === 2;
 
-            <div className="rounded-[24px] border border-dashed border-border/80 bg-secondary/25 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <MessageCircleMore className="size-[18px]" />
+                  return (
+                    <div key={message.id} className="flex gap-4 rounded-[28px] border border-border/70 bg-background/60 p-4">
+                      <Avatar className="size-11">
+                        <AvatarFallback>{isUser ? "U" : "AI"}</AvatarFallback>
+                      </Avatar>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-semibold text-foreground">{isUser ? "User" : "Assistant"}</div>
+                          <Badge variant={isUser ? "secondary" : "default"}>{isUser ? "Question" : "Grounded"}</Badge>
+                          <span className="text-xs text-muted-foreground">{formatRelativeDate(message.createdAtUtc)}</span>
+                        </div>
+                        <p className="text-sm leading-7 text-muted-foreground">{message.content}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className="rounded-[24px] border border-dashed border-border/80 bg-secondary/25 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <MessageCircleMore className="size-[18px]" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold text-foreground">Live conversation loaded</div>
+                      <p className="text-sm leading-6 text-muted-foreground">
+                        The detail view now comes from the existing backend history endpoint and uses local recent-session memory for navigation.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <div className="text-sm font-semibold text-foreground">Ready for live history integration</div>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    This page maps naturally to the existing conversation endpoint and can later support filters, favorites, and shared review.
-                  </p>
-                </div>
-              </div>
-            </div>
+              </>
+            )}
+
+            {items.length > 0 ? (
+              <Button variant="outline" className="w-full" onClick={() => setSearchParams({ conversationId: items[0].id })}>
+                Jump to latest session
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       </section>

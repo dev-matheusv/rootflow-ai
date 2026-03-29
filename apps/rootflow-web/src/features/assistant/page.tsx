@@ -1,25 +1,79 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bot, CornerDownLeft, MessageSquareQuote, Microscope, SendHorizonal } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
+import { z } from "zod";
 
+import { EmptyState } from "@/components/feedback/empty-state";
+import { ErrorState } from "@/components/feedback/error-state";
+import { LoadingState } from "@/components/feedback/loading-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Textarea } from "@/components/ui/textarea";
+import { useAskQuestionMutation, useConversationQuery, useDocumentsQuery } from "@/hooks/use-rootflow-data";
+import { useRecentConversations } from "@/hooks/use-recent-conversations";
+import type { ChatAnswer } from "@/lib/api/contracts";
+import { queryKeys } from "@/lib/api/query-keys";
+import { formatRelativeDate } from "@/lib/formatting/formatters";
 
-const sources = [
-  {
-    title: "employee-handbook-2026.pdf",
-    section: "Remote Work Policy - Paragraph 2",
-    excerpt: "Employees may work remotely up to three days per week with manager approval.",
-  },
-  {
-    title: "support-escalation-policy.docx",
-    section: "Enterprise Access - Paragraph 1",
-    excerpt: "Only support leads can perform password resets for enterprise accounts.",
-  },
-] as const;
+const assistantSchema = z.object({
+  question: z.string().trim().min(3, "Ask a fuller question so RootFlow can retrieve the right context."),
+});
+
+type AssistantFormValues = z.infer<typeof assistantSchema>;
 
 export function AssistantPage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [latestAnswer, setLatestAnswer] = useState<ChatAnswer | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+
+  const documentsQuery = useDocumentsQuery();
+  const conversationQuery = useConversationQuery(conversationId);
+  const askQuestionMutation = useAskQuestionMutation();
+  const { upsertConversation } = useRecentConversations();
+
+  const form = useForm<AssistantFormValues>({
+    resolver: zodResolver(assistantSchema),
+    defaultValues: {
+      question: "",
+    },
+  });
+
+  const messages = useMemo(() => conversationQuery.data?.messages ?? [], [conversationQuery.data?.messages]);
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    const answer = await askQuestionMutation.mutateAsync({
+      question: values.question,
+      conversationId,
+      maxContextChunks: 5,
+    });
+
+    setConversationId(answer.conversationId);
+    setLatestAnswer(answer);
+    setShowDebug(false);
+    upsertConversation({
+      id: answer.conversationId,
+      title: values.question.length > 52 ? `${values.question.slice(0, 49)}...` : values.question,
+      preview: answer.answer,
+      updatedAt: new Date().toISOString(),
+    });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.conversation(answer.conversationId) });
+    form.reset();
+  });
+
+  const handleNewSession = () => {
+    setConversationId(null);
+    setLatestAnswer(null);
+    setShowDebug(false);
+    form.reset();
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -28,13 +82,17 @@ export function AssistantPage() {
         description="The assistant surface should feel like the center of the product: comfortable for daily business use, elegant for demos, and explicit about where each answer comes from."
         actions={
           <>
-            <Button>
+            <Button onClick={handleNewSession}>
               <Bot />
               New session
             </Button>
-            <Button variant="outline">
+            <Button
+              variant="outline"
+              onClick={() => setShowDebug((value) => !value)}
+              disabled={!latestAnswer?.debug?.retrievedChunks.length}
+            >
               <Microscope />
-              Review retrieval
+              {showDebug ? "Hide retrieval" : "Review retrieval"}
             </Button>
           </>
         }
@@ -58,36 +116,88 @@ export function AssistantPage() {
               </div>
 
               <div className="grid gap-4">
-                <div className="ml-auto max-w-[80%] rounded-[28px] rounded-br-md border border-primary/12 bg-primary px-5 py-4 text-sm leading-7 text-primary-foreground shadow-[0_18px_40px_-26px_rgba(21,91,255,0.72)]">
-                  How many remote days are allowed each week for employees?
-                </div>
-                <div className="max-w-[86%] rounded-[28px] rounded-bl-md border border-border/70 bg-background/82 px-5 py-4 text-sm leading-7 text-foreground shadow-[0_20px_44px_-32px_rgba(12,39,84,0.4)]">
-                  Employees may work remotely up to three days per week with manager approval. [1]
-                </div>
+                {documentsQuery.isLoading ? (
+                  <LoadingState
+                    title="Checking knowledge readiness"
+                    description="RootFlow is verifying the current document base before it answers with grounded context."
+                  />
+                ) : documentsQuery.isError ? (
+                  <ErrorState
+                    title="Could not reach the knowledge base"
+                    description="The assistant needs the RootFlow API and document endpoint available before it can answer with live data."
+                    onRetry={() => documentsQuery.refetch()}
+                  />
+                ) : documentsQuery.data?.length ? (
+                  <>
+                    {messages.length === 0 ? (
+                      <EmptyState
+                        icon={Bot}
+                        title="Ask the first real question"
+                        description="The assistant is now connected to the backend. Ask a business question and RootFlow will create a live conversation, return grounded answers, and save the history."
+                      />
+                    ) : (
+                      messages.map((message) => {
+                        const isUser = message.role === 2;
+
+                        return (
+                          <div
+                            key={message.id}
+                            className={`max-w-[86%] rounded-[28px] px-5 py-4 text-sm leading-7 shadow-[0_20px_44px_-32px_rgba(12,39,84,0.4)] ${
+                              isUser
+                                ? "ml-auto rounded-br-md border border-primary/12 bg-primary text-primary-foreground shadow-[0_18px_40px_-26px_rgba(21,91,255,0.72)]"
+                                : "rounded-bl-md border border-border/70 bg-background/82 text-foreground"
+                            }`}
+                          >
+                            {message.content}
+                          </div>
+                        );
+                      })
+                    )}
+
+                    {askQuestionMutation.isPending ? (
+                      <div className="max-w-[86%] rounded-[28px] rounded-bl-md border border-border/70 bg-background/82 px-5 py-4 text-sm leading-7 text-muted-foreground">
+                        RootFlow is preparing a grounded answer...
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <EmptyState
+                    icon={MessageSquareQuote}
+                    title="Upload documents before chatting"
+                    description="The assistant is connected, but the workspace has no documents yet. Add knowledge in the Knowledge Base page to activate grounded answers."
+                  />
+                )}
               </div>
 
-              <div className="rounded-[28px] border border-border/70 bg-background/78 p-4">
+              <form className="rounded-[28px] border border-border/70 bg-background/78 p-4" onSubmit={onSubmit}>
                 <div className="mb-3 flex items-center justify-between">
                   <div className="text-sm font-semibold text-foreground">Ask a business question</div>
-                  <div className="text-xs text-muted-foreground">Prepared for live API binding</div>
+                  <div className="text-xs text-muted-foreground">
+                    {conversationId ? "Continuing a live conversation" : "Creates a new live conversation"}
+                  </div>
                 </div>
                 <Textarea
                   className="min-h-[120px] resize-none border-none bg-transparent px-0 py-0 shadow-none focus-visible:ring-0"
                   placeholder="What can I help your team answer today?"
-                  readOnly
-                  value=""
+                  {...form.register("question")}
                 />
+                {form.formState.errors.question ? (
+                  <p className="mt-2 text-sm text-destructive">{form.formState.errors.question.message}</p>
+                ) : null}
+                {askQuestionMutation.isError ? (
+                  <p className="mt-2 text-sm text-destructive">{askQuestionMutation.error.message}</p>
+                ) : null}
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <CornerDownLeft className="size-4" />
                     Compose with grounded context and citations
                   </div>
-                  <Button>
+                  <Button type="submit" disabled={askQuestionMutation.isPending || documentsQuery.data?.length === 0}>
                     <SendHorizonal />
-                    Send
+                    {askQuestionMutation.isPending ? "Thinking..." : "Send"}
                   </Button>
                 </div>
-              </div>
+              </form>
             </div>
           </CardContent>
         </Card>
@@ -95,34 +205,62 @@ export function AssistantPage() {
         <Card>
           <CardHeader>
             <CardTitle>Supporting sources</CardTitle>
-            <CardDescription>The right-side panel should make answer provenance obvious at a glance.</CardDescription>
+            <CardDescription>The right-side panel now reflects the last live answer from the current backend.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {sources.map((source, index) => (
-              <div key={source.title} className="rounded-[24px] border border-border/70 bg-secondary/30 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <Badge variant="secondary">[{index + 1}]</Badge>
-                  <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Source block</div>
+            {latestAnswer?.sources.length ? (
+              latestAnswer.sources.map((source, index) => (
+                <div key={source.chunkId} className="rounded-[24px] border border-border/70 bg-secondary/30 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <Badge variant="secondary">[{index + 1}]</Badge>
+                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Score {source.score.toFixed(2)}</div>
+                  </div>
+                  <div className="mt-3 text-sm font-semibold text-foreground">{source.documentName}</div>
+                  <div className="mt-1 text-sm text-primary">{source.sourceLabel}</div>
+                  <p className="mt-3 text-sm leading-7 text-muted-foreground">{source.excerpt}</p>
                 </div>
-                <div className="mt-3 text-sm font-semibold text-foreground">{source.title}</div>
-                <div className="mt-1 text-sm text-primary">{source.section}</div>
-                <p className="mt-3 text-sm leading-7 text-muted-foreground">{source.excerpt}</p>
-              </div>
-            ))}
+              ))
+            ) : (
+              <EmptyState
+                icon={MessageSquareQuote}
+                title="Sources will appear here"
+                description="After a live answer, RootFlow will show the supporting source blocks and their retrieval score in this panel."
+              />
+            )}
 
-            <div className="rounded-[24px] border border-dashed border-border/80 bg-background/55 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <MessageSquareQuote className="size-[18px]" />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-sm font-semibold text-foreground">Future debug drawer</div>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    Retrieval signals and ranking reasons can surface here for operators without cluttering the normal client view.
-                  </p>
+            {showDebug && latestAnswer?.debug?.retrievedChunks.length ? (
+              <div className="rounded-[24px] border border-dashed border-border/80 bg-background/55 p-4">
+                <div className="space-y-3">
+                  <div className="text-sm font-semibold text-foreground">Retrieval review</div>
+                  {latestAnswer.debug.retrievedChunks.map((chunk) => (
+                    <div key={chunk.chunkId} className="rounded-2xl border border-border/70 bg-background/70 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-foreground">
+                          #{chunk.rank} {chunk.documentName}
+                        </div>
+                        <Badge variant="secondary">{chunk.score.toFixed(2)}</Badge>
+                      </div>
+                      <div className="mt-1 text-sm text-primary">{chunk.sourceLabel}</div>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{chunk.reason}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
+            ) : null}
+
+            {conversationId ? (
+              <div className="rounded-[24px] border border-dashed border-border/80 bg-background/55 p-4">
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-foreground">Current live conversation</div>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    Updated {latestAnswer ? formatRelativeDate(new Date()) : "recently"} and ready to open in the Conversations page.
+                  </p>
+                  <Button variant="outline" className="w-full" onClick={() => navigate(`/conversations?conversationId=${conversationId}`)}>
+                    Open conversation history
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </section>

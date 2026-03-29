@@ -1,19 +1,38 @@
 import { Activity, ArrowUpRight, BookOpenText, Bot, DatabaseZap, MessagesSquare } from "lucide-react";
+import { Link } from "react-router-dom";
 
+import { EmptyState } from "@/components/feedback/empty-state";
+import { ErrorState } from "@/components/feedback/error-state";
+import { LoadingState } from "@/components/feedback/loading-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Separator } from "@/components/ui/separator";
-
-const metrics = [
-  { label: "Knowledge sources", value: "24", note: "+3 imported this week", icon: BookOpenText },
-  { label: "Answer success", value: "92%", note: "Grounded responses with citations", icon: Bot },
-  { label: "Active sessions", value: "18", note: "Live conversations across teams", icon: MessagesSquare },
-  { label: "Retrieval health", value: "Strong", note: "Signals aligned across ranking layers", icon: DatabaseZap },
-] as const;
+import { useHealthQuery, useDocumentsQuery } from "@/hooks/use-rootflow-data";
+import { useRecentConversations } from "@/hooks/use-recent-conversations";
 
 export function DashboardPage() {
+  const healthQuery = useHealthQuery();
+  const documentsQuery = useDocumentsQuery();
+  const { items } = useRecentConversations();
+
+  const documents = documentsQuery.data ?? [];
+  const processedCount = documents.filter((document) => document.status === 3).length;
+  const processingCount = documents.filter((document) => document.status === 2).length;
+
+  const metrics = [
+    { label: "Knowledge sources", value: String(documents.length), note: "Live count from /api/documents", icon: BookOpenText },
+    { label: "Processed documents", value: String(processedCount), note: "Ready for grounded retrieval", icon: Bot },
+    { label: "Recent sessions", value: String(items.length), note: "Stored from the current assistant flow", icon: MessagesSquare },
+    {
+      label: "API health",
+      value: healthQuery.data?.status === "healthy" ? "Healthy" : "Checking",
+      note: "Derived from the RootFlow health endpoint",
+      icon: DatabaseZap,
+    },
+  ] as const;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -22,8 +41,12 @@ export function DashboardPage() {
         description="RootFlow is positioned as a premium AI workspace for grounded business answers, reusable knowledge operations, and client-facing demos that already look polished."
         actions={
           <>
-            <Button>Open assistant</Button>
-            <Button variant="outline">Review documents</Button>
+            <Button asChild>
+              <Link to="/assistant">Open assistant</Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link to="/knowledge-base">Review documents</Link>
+            </Button>
           </>
         }
       />
@@ -48,9 +71,9 @@ export function DashboardPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 {[
-                  ["Fast onboarding", "Clear product shell and route system"],
-                  ["Trustworthy answers", "Citations and debug visibility ready for operators"],
-                  ["Scalable foundation", "Feature folders, providers, and typed contracts"],
+                  ["Fast onboarding", "The frontend shell and navigation are live and ready for demos."],
+                  ["Trustworthy answers", "The assistant now talks to the real backend and returns live sources."],
+                  ["Scalable foundation", "Feature folders, query hooks, and typed contracts support growth."],
                 ].map(([title, detail]) => (
                   <div key={title} className="rounded-[24px] border border-border/70 bg-background/72 p-4 backdrop-blur-sm">
                     <div className="text-sm font-semibold text-foreground">{title}</div>
@@ -71,12 +94,12 @@ export function DashboardPage() {
             {[
               ["Frontend shell", "Complete", "The design system and app shell are live and consistent."],
               ["RAG quality", "Improving", "Retrieval grounding and evaluation are already in place."],
-              ["API integration", "Next", "Pages are structured to bind to the current .NET endpoints."],
+              ["API integration", "Live", "Documents, chat, and conversation history now connect to real endpoints."],
             ].map(([title, status, detail]) => (
               <div key={title} className="space-y-2 rounded-[22px] border border-border/70 bg-secondary/35 p-4">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold text-foreground">{title}</div>
-                  <Badge variant={status === "Complete" ? "success" : status === "Next" ? "secondary" : "warning"}>
+                  <Badge variant={status === "Complete" || status === "Live" ? "success" : "warning"}>
                     {status}
                   </Badge>
                 </div>
@@ -88,27 +111,47 @@ export function DashboardPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {metrics.map((metric) => {
-          const Icon = metric.icon;
+        {documentsQuery.isLoading || healthQuery.isLoading ? (
+          <div className="md:col-span-2 xl:col-span-4">
+            <LoadingState
+              title="Loading product metrics"
+              description="Gathering live dashboard signals from the current RootFlow API."
+            />
+          </div>
+        ) : documentsQuery.isError || healthQuery.isError ? (
+          <div className="md:col-span-2 xl:col-span-4">
+            <ErrorState
+              title="Could not load dashboard metrics"
+              description="The dashboard needs the health and document endpoints available to display live product data."
+              onRetry={() => {
+                void documentsQuery.refetch();
+                void healthQuery.refetch();
+              }}
+            />
+          </div>
+        ) : (
+          metrics.map((metric) => {
+            const Icon = metric.icon;
 
-          return (
-            <Card key={metric.label}>
-              <CardContent className="space-y-4 p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <Icon className="size-5" />
+            return (
+              <Card key={metric.label}>
+                <CardContent className="space-y-4 p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <Icon className="size-5" />
+                    </div>
+                    <Activity className="size-4 text-muted-foreground" />
                   </div>
-                  <Activity className="size-4 text-muted-foreground" />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="text-sm text-muted-foreground">{metric.label}</div>
-                  <div className="font-display text-3xl tracking-[-0.05em] text-foreground">{metric.value}</div>
-                </div>
-                <p className="text-sm leading-6 text-muted-foreground">{metric.note}</p>
-              </CardContent>
-            </Card>
-          );
-        })}
+                  <div className="space-y-1.5">
+                    <div className="text-sm text-muted-foreground">{metric.label}</div>
+                    <div className="font-display text-3xl tracking-[-0.05em] text-foreground">{metric.value}</div>
+                  </div>
+                  <p className="text-sm leading-6 text-muted-foreground">{metric.note}</p>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
@@ -119,9 +162,9 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {[
-              ["1. Capture knowledge", "Upload documents, policies, runbooks, or help-center content into a single workspace."],
-              ["2. Ground the assistant", "Process chunks, evaluate retrieval quality, and make sources visible inside the answer flow."],
-              ["3. Operate confidently", "Give teams a premium interface where they can trust the answer trail, not just the response."],
+              ["1. Capture knowledge", "Upload real documents into the current workspace from the Knowledge Base page."],
+              ["2. Ground the assistant", "Ask live questions and inspect the source-backed answer flow in the Assistant page."],
+              ["3. Operate confidently", "Review stored session history in Conversations without losing the premium client-facing experience."],
             ].map(([title, description], index) => (
               <div key={title} className="flex gap-4 rounded-[24px] border border-border/70 bg-background/60 p-4">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">{index + 1}</div>
@@ -136,27 +179,45 @@ export function DashboardPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>What this shell already solves</CardTitle>
-            <CardDescription>High-signal foundations that make the product immediately presentable.</CardDescription>
+            <CardTitle>Live operating summary</CardTitle>
+            <CardDescription>Real signals derived from the current API and frontend session memory.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              "Blue-first premium visual identity with intentional light and dark themes",
-              "Separate frontend architecture with feature-driven organization",
-              "Dashboard, knowledge, assistant, and conversations areas mapped from the start",
-              "Future auth routes prepared without adding backend auth complexity yet",
-            ].map((item, index) => (
-              <div key={item} className="flex items-start gap-3">
-                <div className="mt-1 flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                  {index + 1}
-                </div>
-                <p className="text-sm leading-7 text-muted-foreground">{item}</p>
-              </div>
-            ))}
+            <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">
+              <div className="text-sm font-semibold text-foreground">API status</div>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {healthQuery.data?.status === "healthy"
+                  ? "The backend health endpoint is responding normally."
+                  : "Waiting for the health endpoint response."}
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">
+              <div className="text-sm font-semibold text-foreground">Documents still processing</div>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {processingCount} document{processingCount === 1 ? "" : "s"} currently reported as processing.
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">
+              <div className="text-sm font-semibold text-foreground">Recent conversation memory</div>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {items.length === 0
+                  ? "No assistant sessions have been created on this device yet."
+                  : `${items.length} recent conversation${items.length === 1 ? "" : "s"} available for quick reopening.`}
+              </p>
+            </div>
+            {documents.length === 0 ? (
+              <EmptyState
+                icon={BookOpenText}
+                title="No live documents yet"
+                description="Upload documents first so the rest of the product can demonstrate grounded AI behavior with real data."
+              />
+            ) : null}
             <Separator />
-            <Button variant="outline" className="w-full justify-between">
-              View page architecture
-              <ArrowUpRight />
+            <Button variant="outline" className="w-full justify-between" asChild>
+              <Link to="/knowledge-base">
+                Open live knowledge base
+                <ArrowUpRight />
+              </Link>
             </Button>
           </CardContent>
         </Card>

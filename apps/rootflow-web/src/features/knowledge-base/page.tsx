@@ -1,18 +1,38 @@
+import { useRef, useState, type ChangeEvent } from "react";
 import { FileText, FileUp, Filter, FolderKanban, Sparkles, UploadCloud } from "lucide-react";
 
-import { EmptyState } from "@/components/feedback/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-
-const documents = [
-  { name: "employee-handbook-2026.pdf", type: "PDF", status: "Processed", updated: "2 hours ago", chunks: 48 },
-  { name: "billing-runbook.md", type: "Markdown", status: "Processed", updated: "Today", chunks: 12 },
-  { name: "support-escalation-policy.docx", type: "DOCX", status: "Processing", updated: "Just now", chunks: 0 },
-] as const;
+import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/feedback/empty-state";
+import { ErrorState } from "@/components/feedback/error-state";
+import { LoadingState } from "@/components/feedback/loading-state";
+import { useDocumentsQuery, useUploadDocumentMutation } from "@/hooks/use-rootflow-data";
+import { formatFileSize, formatRelativeDate } from "@/lib/formatting/formatters";
 
 export function KnowledgeBasePage() {
+  const [filterProcessedOnly, setFilterProcessedOnly] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const documentsQuery = useDocumentsQuery();
+  const uploadMutation = useUploadDocumentMutation();
+
+  const documents = documentsQuery.data ?? [];
+  const visibleDocuments = filterProcessedOnly ? documents.filter((document) => document.status === 3) : documents;
+  const processedCount = documents.filter((document) => document.status === 3).length;
+  const failedCount = documents.filter((document) => document.status === 4).length;
+
+  const handleFileSelection = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    await uploadMutation.mutateAsync({ file });
+    event.target.value = "";
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -21,13 +41,20 @@ export function KnowledgeBasePage() {
         description="Design the knowledge experience around trust: clear ingestion states, elegant upload patterns, and confidence that every answer can be traced back to a document."
         actions={
           <>
-            <Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileSelection}
+              accept=".txt,.md,.pdf,.doc,.docx"
+            />
+            <Button onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
               <UploadCloud />
-              Upload documents
+              {uploadMutation.isPending ? "Uploading..." : "Upload documents"}
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => setFilterProcessedOnly((value) => !value)}>
               <Filter />
-              Filter library
+              {filterProcessedOnly ? "Show all documents" : "Show processed only"}
             </Button>
           </>
         }
@@ -61,7 +88,9 @@ export function KnowledgeBasePage() {
                       </p>
                     </div>
                   </div>
-                  <Button size="lg">Choose files</Button>
+                  <Button size="lg" onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
+                    {uploadMutation.isPending ? "Uploading..." : "Choose files"}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -71,19 +100,26 @@ export function KnowledgeBasePage() {
         <Card>
           <CardHeader>
             <CardTitle>Knowledge operating standards</CardTitle>
-            <CardDescription>What the product should communicate to business users while they ingest content.</CardDescription>
+            <CardDescription>
+              Live product signals from the current backend, paired with a calm ingestion experience.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              ["Clear processing states", "Make ingestion progress visible without exposing technical noise."],
-              ["Client-friendly explanations", "Use supportive language that explains what happens after upload."],
-              ["Traceable source quality", "Each document should reinforce the feeling of grounded, auditable answers."],
-            ].map(([title, description]) => (
-              <div key={title} className="rounded-[24px] border border-border/70 bg-secondary/35 p-4">
-                <div className="text-sm font-semibold text-foreground">{title}</div>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
-              </div>
-            ))}
+            <div className="rounded-[24px] border border-border/70 bg-secondary/35 p-4">
+              <div className="text-sm font-semibold text-foreground">Documents available</div>
+              <p className="mt-2 text-3xl font-display tracking-[-0.04em] text-foreground">{documents.length}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Live count from the current RootFlow document endpoint.</p>
+            </div>
+            <div className="rounded-[24px] border border-border/70 bg-secondary/35 p-4">
+              <div className="text-sm font-semibold text-foreground">Processed and ready</div>
+              <p className="mt-2 text-3xl font-display tracking-[-0.04em] text-foreground">{processedCount}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Documents already prepared for retrieval and grounded answers.</p>
+            </div>
+            <div className="rounded-[24px] border border-border/70 bg-secondary/35 p-4">
+              <div className="text-sm font-semibold text-foreground">Attention needed</div>
+              <p className="mt-2 text-3xl font-display tracking-[-0.04em] text-foreground">{failedCount}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Failed ingestions surface clearly so operators can intervene quickly.</p>
+            </div>
           </CardContent>
         </Card>
       </section>
@@ -94,51 +130,84 @@ export function KnowledgeBasePage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <CardTitle>Current library</CardTitle>
-                <CardDescription>First-pass document states for the product shell.</CardDescription>
+                <CardDescription>Live data from the RootFlow backend with strong loading and empty states.</CardDescription>
               </div>
               <Badge variant="secondary">
                 <FolderKanban className="size-3.5" />
-                3 assets
+                {visibleDocuments.length} shown
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
-            {documents.map((document) => (
-              <div
-                key={document.name}
-                className="grid gap-3 rounded-[24px] border border-border/70 bg-background/65 p-4 md:grid-cols-[minmax(0,1fr)_120px_120px_90px]"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <FileText className="size-5" />
+            {documentsQuery.isLoading ? (
+              <LoadingState
+                title="Loading document library"
+                description="Fetching the current knowledge base so the interface reflects live ingestion data."
+              />
+            ) : documentsQuery.isError ? (
+              <ErrorState
+                title="Could not load the knowledge base"
+                description="The frontend could not reach the RootFlow document endpoint. Check the API and try again."
+                onRetry={() => documentsQuery.refetch()}
+              />
+            ) : visibleDocuments.length === 0 ? (
+              <EmptyState
+                icon={Sparkles}
+                title={filterProcessedOnly ? "No processed documents yet" : "Your knowledge base is empty"}
+                description={
+                  filterProcessedOnly
+                    ? "Documents are uploaded, but none are processed yet. Keep this page open and the status will reflect the backend state."
+                    : "Upload your first document to turn this polished shell into a live knowledge workspace."
+                }
+              />
+            ) : (
+              visibleDocuments.map((document) => (
+                <div
+                  key={document.id}
+                  className="grid gap-3 rounded-[24px] border border-border/70 bg-background/65 p-4 md:grid-cols-[minmax(0,1fr)_160px_140px_110px]"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <FileText className="size-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-foreground">{document.originalFileName}</div>
+                      <div className="text-sm text-muted-foreground">{formatFileSize(document.sizeBytes)}</div>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-foreground">{document.name}</div>
-                    <div className="text-sm text-muted-foreground">{document.type}</div>
+                  <div className="text-sm text-muted-foreground">
+                    <div className="font-medium text-foreground">Status</div>
+                    <div className="mt-1">
+                      <StatusBadge status={document.status} />
+                    </div>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <div className="font-medium text-foreground">Updated</div>
+                    <div>{formatRelativeDate(document.processedAtUtc ?? document.createdAtUtc)}</div>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <div className="font-medium text-foreground">Type</div>
+                    <div>{document.contentType}</div>
                   </div>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  <div className="font-medium text-foreground">Status</div>
-                  <div>{document.status}</div>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  <div className="font-medium text-foreground">Updated</div>
-                  <div>{document.updated}</div>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  <div className="font-medium text-foreground">Chunks</div>
-                  <div>{document.chunks}</div>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
 
-        <EmptyState
-          icon={Sparkles}
-          title="Semantic structure comes next"
-          description="This page is ready to connect to live upload and listing endpoints, but the visual model is already polished enough for demos and internal reviews."
-        />
+        {uploadMutation.isError ? (
+          <ErrorState
+            title="Upload failed"
+            description={uploadMutation.error.message}
+            onRetry={() => fileInputRef.current?.click()}
+          />
+        ) : (
+          <EmptyState
+            icon={Sparkles}
+            title="Upload flow is live"
+            description="Document uploads now call the real backend endpoint, refresh the list automatically, and preserve the polished SaaS feel."
+          />
+        )}
       </section>
     </div>
   );

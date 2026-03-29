@@ -1,3 +1,3 @@
 export const env = {
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "https://localhost:7067",
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL ?? "https://localhost:7088",
 };

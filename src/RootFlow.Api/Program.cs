@@ -13,9 +13,24 @@ using RootFlow.Infrastructure.DependencyInjection;
 using RootFlow.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+const string FrontendCorsPolicy = "RootFlowFrontend";
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(FrontendCorsPolicy, policy =>
+    {
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "https://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:4173",
+                "https://localhost:4173")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 builder.Services.AddRootFlowInfrastructure(builder.Configuration);
 
 var app = builder.Build();
@@ -35,6 +50,7 @@ else
 }
 
 app.UseHttpsRedirection();
+app.UseCors(FrontendCorsPolicy);
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

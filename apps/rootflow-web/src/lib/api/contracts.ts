@@ -1,3 +1,7 @@
+export interface HealthResponse {
+  status: string;
+}
+
 export interface DocumentSummary {
   id: string;
   workspaceId: string;
@@ -10,6 +14,16 @@ export interface DocumentSummary {
   failureReason?: string | null;
 }
 
+export interface UploadDocumentPayload {
+  file: File;
+}
+
+export interface AskQuestionPayload {
+  question: string;
+  conversationId?: string | null;
+  maxContextChunks?: number;
+}
+
 export interface ChatSource {
   documentId: string;
   chunkId: string;
@@ -19,11 +33,32 @@ export interface ChatSource {
   score: number;
 }
 
+export interface ChatRetrievedChunkDebug {
+  rank: number;
+  chunkId: string;
+  documentName: string;
+  sourceLabel: string;
+  sequence: number;
+  score: number;
+  vectorScore: number;
+  keywordScore: number;
+  matchedTerms: string[];
+  reason: string;
+}
+
+export interface ChatRagDebug {
+  query: string;
+  historyMessageCount: number;
+  retrievedChunkCount: number;
+  retrievedChunks: ChatRetrievedChunkDebug[];
+}
+
 export interface ChatAnswer {
   conversationId: string;
   answer: string;
   modelName?: string | null;
   sources: ChatSource[];
+  debug?: ChatRagDebug | null;
 }
 
 export interface ConversationMessage {
