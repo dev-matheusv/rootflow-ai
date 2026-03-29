@@ -1,9 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient } from "@tanstack/react-query";
-import { Bot, CornerDownLeft, MessageSquareQuote, Microscope, SendHorizonal } from "lucide-react";
+import { Bot, CheckCircle2, CornerDownLeft, MessageSquareQuote, Microscope, SendHorizonal } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { useForm, useWatch } from "react-hook-form";
+import { Link, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
 import { EmptyState } from "@/components/feedback/empty-state";
@@ -15,9 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader } from "@/components/ui/page-header";
 import { Textarea } from "@/components/ui/textarea";
 import { useAskQuestionMutation, useConversationQuery, useDocumentsQuery } from "@/hooks/use-rootflow-data";
-import { useRecentConversations } from "@/hooks/use-recent-conversations";
 import type { ChatAnswer } from "@/lib/api/contracts";
-import { queryKeys } from "@/lib/api/query-keys";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 
 const assistantSchema = z.object({
@@ -27,25 +24,33 @@ const assistantSchema = z.object({
 type AssistantFormValues = z.infer<typeof assistantSchema>;
 
 export function AssistantPage() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const conversationId = searchParams.get("conversationId");
   const [latestAnswer, setLatestAnswer] = useState<ChatAnswer | null>(null);
   const [showDebug, setShowDebug] = useState(false);
 
-  const documentsQuery = useDocumentsQuery();
+  const documentsQuery = useDocumentsQuery({ autoRefreshProcessing: true });
   const conversationQuery = useConversationQuery(conversationId);
   const askQuestionMutation = useAskQuestionMutation();
-  const { upsertConversation } = useRecentConversations();
 
   const form = useForm<AssistantFormValues>({
     resolver: zodResolver(assistantSchema),
+    mode: "onChange",
     defaultValues: {
       question: "",
     },
   });
 
+  const question = useWatch({
+    control: form.control,
+    name: "question",
+  }) ?? "";
   const messages = useMemo(() => conversationQuery.data?.messages ?? [], [conversationQuery.data?.messages]);
+  const readyDocumentCount = documentsQuery.data?.filter((document) => document.status === 3).length ?? 0;
+  const activeLatestAnswer = latestAnswer?.conversationId === conversationId ? latestAnswer : null;
+  const canReviewRetrieval = Boolean(activeLatestAnswer?.debug?.retrievedChunks.length);
+  const isDebugVisible = showDebug && canReviewRetrieval;
+  const canAsk = question.trim().length >= 3 && !askQuestionMutation.isPending && readyDocumentCount > 0;
 
   const onSubmit = form.handleSubmit(async (values) => {
     const answer = await askQuestionMutation.mutateAsync({
@@ -54,23 +59,17 @@ export function AssistantPage() {
       maxContextChunks: 5,
     });
 
-    setConversationId(answer.conversationId);
+    setSearchParams({ conversationId: answer.conversationId });
     setLatestAnswer(answer);
     setShowDebug(false);
-    upsertConversation({
-      id: answer.conversationId,
-      title: values.question.length > 52 ? `${values.question.slice(0, 49)}...` : values.question,
-      preview: answer.answer,
-      updatedAt: new Date().toISOString(),
-    });
-    await queryClient.invalidateQueries({ queryKey: queryKeys.conversation(answer.conversationId) });
     form.reset();
   });
 
   const handleNewSession = () => {
-    setConversationId(null);
+    setSearchParams({}, { replace: true });
     setLatestAnswer(null);
     setShowDebug(false);
+    askQuestionMutation.reset();
     form.reset();
   };
 
@@ -89,10 +88,10 @@ export function AssistantPage() {
             <Button
               variant="outline"
               onClick={() => setShowDebug((value) => !value)}
-              disabled={!latestAnswer?.debug?.retrievedChunks.length}
+              disabled={!canReviewRetrieval}
             >
               <Microscope />
-              {showDebug ? "Hide retrieval" : "Review retrieval"}
+              {isDebugVisible ? "Hide retrieval" : "Review retrieval"}
             </Button>
           </>
         }
@@ -127,13 +126,28 @@ export function AssistantPage() {
                     description="The assistant needs the RootFlow API and document endpoint available before it can answer with live data."
                     onRetry={() => documentsQuery.refetch()}
                   />
-                ) : documentsQuery.data?.length ? (
+                ) : readyDocumentCount > 0 ? (
                   <>
-                    {messages.length === 0 ? (
+                    {conversationId && conversationQuery.isLoading ? (
+                      <LoadingState
+                        title="Loading live conversation"
+                        description="Rehydrating the stored conversation so the assistant can continue the current session."
+                      />
+                    ) : conversationId && conversationQuery.isError ? (
+                      <ErrorState
+                        title="Could not load the current conversation"
+                        description="The assistant could not restore this session from the backend. Start a new one or try the existing conversation again."
+                        onRetry={() => conversationQuery.refetch()}
+                      />
+                    ) : messages.length === 0 ? (
                       <EmptyState
                         icon={Bot}
                         title="Ask the first real question"
-                        description="The assistant is now connected to the backend. Ask a business question and RootFlow will create a live conversation, return grounded answers, and save the history."
+                        description={
+                          conversationId
+                            ? "This conversation is open and ready to continue. Ask the next question to keep the same session flowing."
+                            : "The assistant is connected to the backend. Ask a business question and RootFlow will create a live conversation, return grounded answers, and save the history."
+                        }
                       />
                     ) : (
                       messages.map((message) => {
@@ -163,8 +177,12 @@ export function AssistantPage() {
                 ) : (
                   <EmptyState
                     icon={MessageSquareQuote}
-                    title="Upload documents before chatting"
-                    description="The assistant is connected, but the workspace has no documents yet. Add knowledge in the Knowledge Base page to activate grounded answers."
+                    title={documentsQuery.data?.length ? "Wait for processing to finish" : "Upload documents before chatting"}
+                    description={
+                      documentsQuery.data?.length
+                        ? "The workspace has uploads in progress, but no processed knowledge is ready yet. RootFlow will enable grounded chat as soon as processing completes."
+                        : "The assistant is connected, but the workspace has no documents yet. Add knowledge in the Knowledge Base page to activate grounded answers."
+                    }
                   />
                 )}
               </div>
@@ -187,12 +205,17 @@ export function AssistantPage() {
                 {askQuestionMutation.isError ? (
                   <p className="mt-2 text-sm text-destructive">{askQuestionMutation.error.message}</p>
                 ) : null}
+                {readyDocumentCount === 0 && !documentsQuery.isLoading ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    RootFlow needs at least one processed document before it can return grounded answers.
+                  </p>
+                ) : null}
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <CornerDownLeft className="size-4" />
                     Compose with grounded context and citations
                   </div>
-                  <Button type="submit" disabled={askQuestionMutation.isPending || documentsQuery.data?.length === 0}>
+                  <Button type="submit" disabled={!canAsk}>
                     <SendHorizonal />
                     {askQuestionMutation.isPending ? "Thinking..." : "Send"}
                   </Button>
@@ -205,11 +228,28 @@ export function AssistantPage() {
         <Card>
           <CardHeader>
             <CardTitle>Supporting sources</CardTitle>
-            <CardDescription>The right-side panel now reflects the last live answer from the current backend.</CardDescription>
+            <CardDescription>Live answer support stays visible without breaking the premium conversation flow.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {latestAnswer?.sources.length ? (
-              latestAnswer.sources.map((source, index) => (
+            {activeLatestAnswer ? (
+              <div className="rounded-[24px] border border-emerald-500/20 bg-emerald-500/10 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex size-10 items-center justify-center rounded-2xl bg-emerald-500/14 text-emerald-600 dark:text-emerald-300">
+                    <CheckCircle2 className="size-[18px]" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-semibold text-foreground">Live answer stored</div>
+                    <p className="text-sm leading-6 text-muted-foreground">
+                      RootFlow saved this answer in the current conversation and returned {activeLatestAnswer.sources.length} source
+                      {activeLatestAnswer.sources.length === 1 ? "" : "s"} for review.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {activeLatestAnswer?.sources.length ? (
+              activeLatestAnswer.sources.map((source, index) => (
                 <div key={source.chunkId} className="rounded-[24px] border border-border/70 bg-secondary/30 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <Badge variant="secondary">[{index + 1}]</Badge>
@@ -220,19 +260,29 @@ export function AssistantPage() {
                   <p className="mt-3 text-sm leading-7 text-muted-foreground">{source.excerpt}</p>
                 </div>
               ))
+            ) : activeLatestAnswer ? (
+              <EmptyState
+                icon={MessageSquareQuote}
+                title="No source blocks were returned"
+                description="The latest live answer did not include supporting chunks. This usually means the model chose a low-confidence fallback."
+              />
             ) : (
               <EmptyState
                 icon={MessageSquareQuote}
                 title="Sources will appear here"
-                description="After a live answer, RootFlow will show the supporting source blocks and their retrieval score in this panel."
+                description={
+                  conversationId
+                    ? "When you ask the next question in this conversation, RootFlow will show the latest supporting source blocks here."
+                    : "After a live answer, RootFlow will show the supporting source blocks and their retrieval score in this panel."
+                }
               />
             )}
 
-            {showDebug && latestAnswer?.debug?.retrievedChunks.length ? (
+            {isDebugVisible && activeLatestAnswer?.debug?.retrievedChunks.length ? (
               <div className="rounded-[24px] border border-dashed border-border/80 bg-background/55 p-4">
                 <div className="space-y-3">
                   <div className="text-sm font-semibold text-foreground">Retrieval review</div>
-                  {latestAnswer.debug.retrievedChunks.map((chunk) => (
+                  {activeLatestAnswer.debug.retrievedChunks.map((chunk) => (
                     <div key={chunk.chunkId} className="rounded-2xl border border-border/70 bg-background/70 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-semibold text-foreground">
@@ -253,10 +303,12 @@ export function AssistantPage() {
                 <div className="space-y-2">
                   <div className="text-sm font-semibold text-foreground">Current live conversation</div>
                   <p className="text-sm leading-6 text-muted-foreground">
-                    Updated {latestAnswer ? formatRelativeDate(new Date()) : "recently"} and ready to open in the Conversations page.
+                    {activeLatestAnswer
+                      ? `Updated ${formatRelativeDate(new Date())} and ready to review in the conversation index.`
+                      : "This session is restored from the backend and ready to continue."}
                   </p>
-                  <Button variant="outline" className="w-full" onClick={() => navigate(`/conversations?conversationId=${conversationId}`)}>
-                    Open conversation history
+                  <Button variant="outline" className="w-full" asChild>
+                    <Link to={`/conversations?conversationId=${conversationId}`}>Open conversation history</Link>
                   </Button>
                 </div>
               </div>

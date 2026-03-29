@@ -92,6 +92,17 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
         Assert.Equal(2, history.Messages.Count);
         Assert.Equal("How does RootFlow answer questions?", history.Messages[0].Content);
         Assert.Contains("RootFlow helps businesses answer questions", history.Messages[1].Content, StringComparison.OrdinalIgnoreCase);
+
+        var conversationsResponse = await client.GetAsync("/api/conversations");
+        conversationsResponse.EnsureSuccessStatusCode();
+
+        var conversations = await conversationsResponse.Content.ReadFromJsonAsync<List<ConversationSummaryResponse>>();
+        Assert.NotNull(conversations);
+        Assert.Single(conversations!);
+        Assert.Equal(chat.ConversationId, conversations[0].ConversationId);
+        Assert.Equal(2, conversations[0].MessageCount);
+        Assert.Equal("How does RootFlow answer questions?", conversations[0].Title);
+        Assert.Contains("RootFlow helps businesses answer questions", conversations[0].LastMessagePreview, StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record HealthResponse(string Status);
@@ -105,4 +116,12 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
     private sealed record ConversationHistoryResponse(Guid ConversationId, Guid WorkspaceId, string Title, List<ConversationMessageResponse> Messages);
 
     private sealed record ConversationMessageResponse(Guid Id, int Role, string Content, string? ModelName, DateTime CreatedAtUtc);
+
+    private sealed record ConversationSummaryResponse(
+        Guid ConversationId,
+        string Title,
+        DateTime CreatedAtUtc,
+        DateTime UpdatedAtUtc,
+        int MessageCount,
+        string? LastMessagePreview);
 }

@@ -1,6 +1,7 @@
 using Npgsql;
 using NpgsqlTypes;
 using RootFlow.Application.Abstractions.Persistence;
+using RootFlow.Application.Conversations.Dtos;
 using RootFlow.Domain.Conversations;
 
 namespace RootFlow.Infrastructure.Persistence;
@@ -160,5 +161,50 @@ public sealed class PostgresConversationRepository : IConversationRepository
         }
 
         return messages;
+    }
+
+    public async Task<IReadOnlyList<ConversationSummaryDto>> ListSummariesAsync(
+        Guid workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT c.id,
+                                  c.title,
+                                  c.created_at_utc,
+                                  c.updated_at_utc,
+                                  COUNT(m.id)::int AS message_count,
+                                  (
+                                      SELECT LEFT(m2.content, 240)
+                                      FROM conversation_messages AS m2
+                                      WHERE m2.conversation_id = c.id
+                                      ORDER BY m2.created_at_utc DESC, m2.id DESC
+                                      LIMIT 1
+                                  ) AS last_message_preview
+                           FROM conversations AS c
+                           LEFT JOIN conversation_messages AS m ON m.conversation_id = c.id
+                           WHERE c.workspace_id = @workspaceId
+                           GROUP BY c.id, c.title, c.created_at_utc, c.updated_at_utc
+                           ORDER BY c.updated_at_utc DESC, c.id DESC;
+                           """;
+
+        var conversations = new List<ConversationSummaryDto>();
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("workspaceId", workspaceId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            conversations.Add(new ConversationSummaryDto(
+                reader.GetGuid(0),
+                reader.GetString(1),
+                reader.GetFieldValue<DateTime>(2),
+                reader.GetFieldValue<DateTime>(3),
+                reader.GetInt32(4),
+                reader.IsDBNull(5) ? null : reader.GetString(5)));
+        }
+
+        return conversations;
     }
 }

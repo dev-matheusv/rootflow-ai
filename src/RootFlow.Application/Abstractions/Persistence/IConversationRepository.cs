@@ -1,4 +1,5 @@
 using RootFlow.Domain.Conversations;
+using RootFlow.Application.Conversations.Dtos;
 
 namespace RootFlow.Application.Abstractions.Persistence;
 
@@ -18,5 +19,9 @@ public interface IConversationRepository
     Task<IReadOnlyList<ConversationMessage>> GetMessagesAsync(
         Guid workspaceId,
         Guid conversationId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ConversationSummaryDto>> ListSummariesAsync(
+        Guid workspaceId,
         CancellationToken cancellationToken = default);
 }

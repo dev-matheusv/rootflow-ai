@@ -1,6 +1,6 @@
 import { Clock3, MessageCircleMore, Pin, Sparkles } from "lucide-react";
-import { useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
@@ -10,33 +10,38 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { useConversationsByIds, useConversationQuery } from "@/hooks/use-rootflow-data";
-import { useRecentConversations } from "@/hooks/use-recent-conversations";
+import { useConversationQuery, useConversationsQuery } from "@/hooks/use-rootflow-data";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
+
+const emptyConversations: Array<{
+  conversationId: string;
+  title: string;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  messageCount: number;
+  lastMessagePreview?: string | null;
+}> = [];
 
 export function ConversationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { items } = useRecentConversations();
-  const histories = useConversationsByIds(items.map((item) => item.id));
-
-  const selectedConversationId = searchParams.get("conversationId") ?? items[0]?.id ?? null;
+  const conversationsQuery = useConversationsQuery();
+  const conversations = conversationsQuery.data ?? emptyConversations;
+  const requestedConversationId = searchParams.get("conversationId");
+  const selectedConversationId =
+    requestedConversationId && conversations.some((conversation) => conversation.conversationId === requestedConversationId)
+      ? requestedConversationId
+      : conversations[0]?.conversationId ?? null;
   const conversationQuery = useConversationQuery(selectedConversationId);
 
   useEffect(() => {
-    if (!searchParams.get("conversationId") && items[0]?.id) {
-      setSearchParams({ conversationId: items[0].id }, { replace: true });
+    if (!conversations.length) {
+      return;
     }
-  }, [items, searchParams, setSearchParams]);
 
-  const historyMap = useMemo(
-    () =>
-      new Map(
-        histories
-          .filter((query) => query.data)
-          .map((query) => [query.data!.conversationId, query.data!]),
-      ),
-    [histories],
-  );
+    if (!requestedConversationId || !conversations.some((conversation) => conversation.conversationId === requestedConversationId)) {
+      setSearchParams({ conversationId: conversations[0].conversationId }, { replace: true });
+    }
+  }, [conversations, requestedConversationId, setSearchParams]);
 
   return (
     <div className="space-y-6">
@@ -50,39 +55,55 @@ export function ConversationsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Recent sessions</CardTitle>
-            <CardDescription>Recent conversations created from the live assistant flow on this device.</CardDescription>
+            <CardDescription>Live conversation summaries from the RootFlow backend, ordered by most recent activity.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {items.length === 0 ? (
+            {conversationsQuery.isLoading ? (
+              <LoadingState
+                title="Loading conversations"
+                description="Fetching the stored session list so navigation reflects the real backend state."
+              />
+            ) : conversationsQuery.isError ? (
+              <ErrorState
+                title="Could not load conversation list"
+                description="The frontend could not reach the RootFlow conversation summary endpoint."
+                onRetry={() => conversationsQuery.refetch()}
+              />
+            ) : conversations.length === 0 ? (
               <EmptyState
                 icon={MessageCircleMore}
                 title="No conversations yet"
-                description="Ask a real question in the Assistant page and the resulting conversation will appear here automatically."
+                description="Ask a real question in the Assistant page and RootFlow will store the conversation here automatically."
               />
             ) : (
-              items.map((session) => {
-                const history = historyMap.get(session.id);
-                const isActive = session.id === selectedConversationId;
+              conversations.map((conversation) => {
+                const isActive = conversation.conversationId === selectedConversationId;
 
                 return (
                   <button
-                    key={session.id}
+                    key={conversation.conversationId}
                     type="button"
-                    onClick={() => setSearchParams({ conversationId: session.id })}
+                    onClick={() => setSearchParams({ conversationId: conversation.conversationId })}
                     className={`w-full rounded-[24px] border p-4 text-left transition-colors ${
                       isActive ? "border-primary/18 bg-primary/8" : "border-border/70 bg-background/60 hover:bg-secondary/35"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="space-y-1">
-                        <div className="text-sm font-semibold text-foreground">{history?.title ?? session.title}</div>
-                        <p className="text-sm leading-6 text-muted-foreground">{session.preview}</p>
+                        <div className="text-sm font-semibold text-foreground">{conversation.title}</div>
+                        <p className="text-sm leading-6 text-muted-foreground">
+                          {conversation.lastMessagePreview ?? "This conversation is stored and ready to inspect."}
+                        </p>
                       </div>
-                      {isActive ? <Pin className="size-4 text-primary" /> : null}
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{conversation.messageCount} messages</Badge>
+                        {isActive ? <Pin className="size-4 text-primary" /> : null}
+                      </div>
                     </div>
-                    <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       <Clock3 className="size-3.5" />
-                      {formatRelativeDate(session.updatedAt)}
+                      <span>Updated {formatRelativeDate(conversation.updatedAtUtc)}</span>
+                      <span>Created {formatRelativeDate(conversation.createdAtUtc)}</span>
                     </div>
                   </button>
                 );
@@ -119,7 +140,7 @@ export function ConversationsPage() {
             ) : conversationQuery.isError ? (
               <ErrorState
                 title="Could not load this conversation"
-                description="The selected session could not be retrieved from the backend. Try another conversation or ask a new question."
+                description="The selected session could not be retrieved from the backend. Try another conversation or continue from the Assistant page."
                 onRetry={() => conversationQuery.refetch()}
               />
             ) : (
@@ -152,7 +173,7 @@ export function ConversationsPage() {
                     <div className="space-y-1">
                       <div className="text-sm font-semibold text-foreground">Live conversation loaded</div>
                       <p className="text-sm leading-6 text-muted-foreground">
-                        The detail view now comes from the existing backend history endpoint and uses local recent-session memory for navigation.
+                        This detail view and the session list both come from live RootFlow endpoints, so the conversation trail stays consistent across navigation.
                       </p>
                     </div>
                   </div>
@@ -160,9 +181,9 @@ export function ConversationsPage() {
               </>
             )}
 
-            {items.length > 0 ? (
-              <Button variant="outline" className="w-full" onClick={() => setSearchParams({ conversationId: items[0].id })}>
-                Jump to latest session
+            {selectedConversationId ? (
+              <Button variant="outline" className="w-full" asChild>
+                <Link to={`/assistant?conversationId=${selectedConversationId}`}>Continue in assistant</Link>
               </Button>
             ) : null}
           </CardContent>

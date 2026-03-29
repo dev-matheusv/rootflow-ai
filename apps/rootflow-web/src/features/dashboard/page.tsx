@@ -9,22 +9,24 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Separator } from "@/components/ui/separator";
-import { useHealthQuery, useDocumentsQuery } from "@/hooks/use-rootflow-data";
-import { useRecentConversations } from "@/hooks/use-recent-conversations";
+import { useConversationsQuery, useHealthQuery, useDocumentsQuery } from "@/hooks/use-rootflow-data";
+import { formatRelativeDate } from "@/lib/formatting/formatters";
 
 export function DashboardPage() {
   const healthQuery = useHealthQuery();
-  const documentsQuery = useDocumentsQuery();
-  const { items } = useRecentConversations();
+  const documentsQuery = useDocumentsQuery({ autoRefreshProcessing: true });
+  const conversationsQuery = useConversationsQuery();
 
   const documents = documentsQuery.data ?? [];
+  const conversations = conversationsQuery.data ?? [];
   const processedCount = documents.filter((document) => document.status === 3).length;
   const processingCount = documents.filter((document) => document.status === 2).length;
+  const latestConversation = conversations[0];
 
   const metrics = [
     { label: "Knowledge sources", value: String(documents.length), note: "Live count from /api/documents", icon: BookOpenText },
     { label: "Processed documents", value: String(processedCount), note: "Ready for grounded retrieval", icon: Bot },
-    { label: "Recent sessions", value: String(items.length), note: "Stored from the current assistant flow", icon: MessagesSquare },
+    { label: "Stored sessions", value: String(conversations.length), note: "Live count from /api/conversations", icon: MessagesSquare },
     {
       label: "API health",
       value: healthQuery.data?.status === "healthy" ? "Healthy" : "Checking",
@@ -111,21 +113,22 @@ export function DashboardPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {documentsQuery.isLoading || healthQuery.isLoading ? (
+        {documentsQuery.isLoading || healthQuery.isLoading || conversationsQuery.isLoading ? (
           <div className="md:col-span-2 xl:col-span-4">
             <LoadingState
               title="Loading product metrics"
               description="Gathering live dashboard signals from the current RootFlow API."
             />
           </div>
-        ) : documentsQuery.isError || healthQuery.isError ? (
+        ) : documentsQuery.isError || healthQuery.isError || conversationsQuery.isError ? (
           <div className="md:col-span-2 xl:col-span-4">
             <ErrorState
               title="Could not load dashboard metrics"
-              description="The dashboard needs the health and document endpoints available to display live product data."
+              description="The dashboard needs the health, document, and conversation endpoints available to display live product data."
               onRetry={() => {
                 void documentsQuery.refetch();
                 void healthQuery.refetch();
+                void conversationsQuery.refetch();
               }}
             />
           </div>
@@ -180,7 +183,7 @@ export function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Live operating summary</CardTitle>
-            <CardDescription>Real signals derived from the current API and frontend session memory.</CardDescription>
+            <CardDescription>Real signals derived from the current RootFlow API without local-only session shortcuts.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">
@@ -198,12 +201,15 @@ export function DashboardPage() {
               </p>
             </div>
             <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">
-              <div className="text-sm font-semibold text-foreground">Recent conversation memory</div>
+              <div className="text-sm font-semibold text-foreground">Latest stored conversation</div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                {items.length === 0
-                  ? "No assistant sessions have been created on this device yet."
-                  : `${items.length} recent conversation${items.length === 1 ? "" : "s"} available for quick reopening.`}
+                {latestConversation
+                  ? `${latestConversation.title} was updated ${formatRelativeDate(latestConversation.updatedAtUtc)} and contains ${latestConversation.messageCount} messages.`
+                  : "No assistant sessions have been stored by the backend yet."}
               </p>
+              {latestConversation?.lastMessagePreview ? (
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{latestConversation.lastMessagePreview}</p>
+              ) : null}
             </div>
             {documents.length === 0 ? (
               <EmptyState

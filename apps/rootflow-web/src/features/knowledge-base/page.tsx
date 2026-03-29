@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from "react";
-import { FileText, FileUp, Filter, FolderKanban, Sparkles, UploadCloud } from "lucide-react";
+import { CheckCircle2, Clock3, FileText, FileUp, Filter, FolderKanban, Sparkles, UploadCloud } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,13 @@ import { formatFileSize, formatRelativeDate } from "@/lib/formatting/formatters"
 
 export function KnowledgeBasePage() {
   const [filterProcessedOnly, setFilterProcessedOnly] = useState(false);
+  const [lastUploadedDocumentName, setLastUploadedDocumentName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const documentsQuery = useDocumentsQuery();
+  const documentsQuery = useDocumentsQuery({ autoRefreshProcessing: true });
   const uploadMutation = useUploadDocumentMutation();
 
   const documents = documentsQuery.data ?? [];
+  const processingCount = documents.filter((document) => document.status === 2).length;
   const visibleDocuments = filterProcessedOnly ? documents.filter((document) => document.status === 3) : documents;
   const processedCount = documents.filter((document) => document.status === 3).length;
   const failedCount = documents.filter((document) => document.status === 4).length;
@@ -29,8 +31,15 @@ export function KnowledgeBasePage() {
       return;
     }
 
-    await uploadMutation.mutateAsync({ file });
-    event.target.value = "";
+    uploadMutation.reset();
+    setLastUploadedDocumentName(null);
+
+    try {
+      const uploadedDocument = await uploadMutation.mutateAsync({ file });
+      setLastUploadedDocumentName(uploadedDocument.originalFileName);
+    } finally {
+      event.target.value = "";
+    }
   };
 
   return (
@@ -120,6 +129,15 @@ export function KnowledgeBasePage() {
               <p className="mt-2 text-3xl font-display tracking-[-0.04em] text-foreground">{failedCount}</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">Failed ingestions surface clearly so operators can intervene quickly.</p>
             </div>
+            <div className="rounded-[24px] border border-border/70 bg-secondary/35 p-4">
+              <div className="text-sm font-semibold text-foreground">Still processing</div>
+              <p className="mt-2 text-3xl font-display tracking-[-0.04em] text-foreground">{processingCount}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {processingCount > 0
+                  ? "The page is auto-refreshing while these documents finish processing."
+                  : "Auto-refresh stays off until a new upload enters processing."}
+              </p>
+            </div>
           </CardContent>
         </Card>
       </section>
@@ -132,10 +150,18 @@ export function KnowledgeBasePage() {
                 <CardTitle>Current library</CardTitle>
                 <CardDescription>Live data from the RootFlow backend with strong loading and empty states.</CardDescription>
               </div>
-              <Badge variant="secondary">
-                <FolderKanban className="size-3.5" />
-                {visibleDocuments.length} shown
-              </Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                {processingCount > 0 ? (
+                  <Badge variant="secondary">
+                    <Clock3 className="size-3.5" />
+                    Auto-refreshing
+                  </Badge>
+                ) : null}
+                <Badge variant="secondary">
+                  <FolderKanban className="size-3.5" />
+                  {visibleDocuments.length} shown
+                </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -179,6 +205,13 @@ export function KnowledgeBasePage() {
                     <div className="font-medium text-foreground">Status</div>
                     <div className="mt-1">
                       <StatusBadge status={document.status} />
+                      {document.status === 4 && document.failureReason ? (
+                        <p className="mt-2 text-xs leading-5 text-destructive">{document.failureReason}</p>
+                      ) : document.status === 2 ? (
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          RootFlow is still preparing this file for retrieval.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   <div className="text-sm text-muted-foreground">
@@ -195,19 +228,57 @@ export function KnowledgeBasePage() {
           </CardContent>
         </Card>
 
-        {uploadMutation.isError ? (
-          <ErrorState
-            title="Upload failed"
-            description={uploadMutation.error.message}
-            onRetry={() => fileInputRef.current?.click()}
-          />
-        ) : (
-          <EmptyState
-            icon={Sparkles}
-            title="Upload flow is live"
-            description="Document uploads now call the real backend endpoint, refresh the list automatically, and preserve the polished SaaS feel."
-          />
-        )}
+        <div className="space-y-4">
+          {uploadMutation.isError ? (
+            <ErrorState
+              title="Upload failed"
+              description={uploadMutation.error.message}
+              onRetry={() => fileInputRef.current?.click()}
+            />
+          ) : lastUploadedDocumentName ? (
+            <Card className="border-emerald-500/20 bg-emerald-500/8">
+              <CardHeader>
+                <div className="flex size-12 items-center justify-center rounded-2xl bg-emerald-500/12 text-emerald-600 dark:text-emerald-300">
+                  <CheckCircle2 className="size-5" />
+                </div>
+                <CardTitle>Upload accepted</CardTitle>
+                <CardDescription>{lastUploadedDocumentName} was sent to RootFlow and is now tracked in the live library.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-7 text-muted-foreground">
+                  {processingCount > 0
+                    ? "This page will keep polling automatically until every processing document reaches a final state."
+                    : "The document list is up to date and polling stays idle until a new upload enters processing."}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <EmptyState
+              icon={Sparkles}
+              title="Upload flow is live"
+              description="Document uploads now call the real backend endpoint, show clear processing states, and only auto-refresh while work is still running."
+            />
+          )}
+
+          {processingCount > 0 ? (
+            <Card className="bg-card/72">
+              <CardHeader>
+                <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <Clock3 className="size-5" />
+                </div>
+                <CardTitle>Processing in progress</CardTitle>
+                <CardDescription>
+                  {processingCount} document{processingCount === 1 ? "" : "s"} still need chunking, embeddings, or final storage.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-7 text-muted-foreground">
+                  The page is polling every few seconds while these jobs remain in progress, then it stops automatically when all documents finish.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
       </section>
     </div>
   );

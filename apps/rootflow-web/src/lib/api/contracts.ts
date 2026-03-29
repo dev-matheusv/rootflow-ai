@@ -75,3 +75,12 @@ export interface ConversationHistory {
   title: string;
   messages: ConversationMessage[];
 }
+
+export interface ConversationSummary {
+  conversationId: string;
+  title: string;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  messageCount: number;
+  lastMessagePreview?: string | null;
+}

@@ -73,6 +73,7 @@ app.MapGet("/health", () => Results.Ok(new
 .WithName("GetHealth");
 
 var documents = app.MapGroup("/api/documents");
+var conversations = app.MapGroup("/api/conversations");
 
 documents.MapPost("", async (
     IFormFile file,
@@ -148,7 +149,19 @@ app.MapPost("/api/chat", async (
     return Results.Ok(answer);
 });
 
-app.MapGet("/api/conversations/{conversationId:guid}", async (
+conversations.MapGet("", async (
+    ConversationService conversationService,
+    IOptions<RootFlowOptions> rootFlowOptions,
+    CancellationToken cancellationToken) =>
+{
+    var conversationList = await conversationService.ListAsync(
+        new ListConversationsQuery(rootFlowOptions.Value.DefaultWorkspaceId),
+        cancellationToken);
+
+    return Results.Ok(conversationList);
+});
+
+conversations.MapGet("/{conversationId:guid}", async (
     Guid conversationId,
     ConversationService conversationService,
     IOptions<RootFlowOptions> rootFlowOptions,

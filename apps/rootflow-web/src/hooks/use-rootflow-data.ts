@@ -1,8 +1,12 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { AskQuestionPayload, UploadDocumentPayload } from "@/lib/api/contracts";
+import type { AskQuestionPayload, DocumentSummary, UploadDocumentPayload } from "@/lib/api/contracts";
 import { rootflowApi } from "@/lib/api/rootflow-api";
 import { queryKeys } from "@/lib/api/query-keys";
+
+interface UseDocumentsQueryOptions {
+  autoRefreshProcessing?: boolean;
+}
 
 export function useHealthQuery() {
   return useQuery({
@@ -11,10 +15,23 @@ export function useHealthQuery() {
   });
 }
 
-export function useDocumentsQuery() {
+export function useDocumentsQuery(options?: UseDocumentsQueryOptions) {
   return useQuery({
     queryKey: queryKeys.documents,
     queryFn: rootflowApi.listDocuments,
+    refetchInterval: options?.autoRefreshProcessing
+      ? (query) => {
+          const documents = query.state.data as DocumentSummary[] | undefined;
+          return documents?.some((document) => document.status === 2) ? 3_000 : false;
+        }
+      : false,
+  });
+}
+
+export function useConversationsQuery() {
+  return useQuery({
+    queryKey: queryKeys.conversations,
+    queryFn: rootflowApi.listConversations,
   });
 }
 
@@ -30,8 +47,16 @@ export function useUploadDocumentMutation() {
 }
 
 export function useAskQuestionMutation() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: (payload: AskQuestionPayload) => rootflowApi.askQuestion(payload),
+    onSuccess: async (answer) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversation(answer.conversationId) }),
+      ]);
+    },
   });
 }
 
@@ -40,15 +65,5 @@ export function useConversationQuery(conversationId?: string | null) {
     queryKey: conversationId ? queryKeys.conversation(conversationId) : ["conversation", "none"],
     queryFn: () => rootflowApi.getConversationHistory(conversationId!),
     enabled: Boolean(conversationId),
-  });
-}
-
-export function useConversationsByIds(conversationIds: string[]) {
-  return useQueries({
-    queries: conversationIds.map((conversationId) => ({
-      queryKey: queryKeys.conversation(conversationId),
-      queryFn: () => rootflowApi.getConversationHistory(conversationId),
-      staleTime: 30_000,
-    })),
   });
 }

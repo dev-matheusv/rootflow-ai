@@ -2,6 +2,7 @@ import type {
   AskQuestionPayload,
   ChatAnswer,
   ConversationHistory,
+  ConversationSummary,
   DocumentSummary,
   HealthResponse,
   UploadDocumentPayload,
@@ -11,6 +12,7 @@ import { apiRequest } from "@/lib/api/client";
 export const rootflowApi = {
   getHealth: () => apiRequest<HealthResponse>("/health"),
   listDocuments: () => apiRequest<DocumentSummary[]>("/api/documents"),
+  listConversations: () => apiRequest<ConversationSummary[]>("/api/conversations"),
   uploadDocument: async ({ file }: UploadDocumentPayload) => {
     const formData = new FormData();
     formData.append("file", file);

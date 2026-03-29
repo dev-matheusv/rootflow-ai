@@ -45,4 +45,11 @@ public sealed class ConversationService
                     x.CreatedAtUtc))
                 .ToArray());
     }
+
+    public Task<IReadOnlyList<ConversationSummaryDto>> ListAsync(
+        ListConversationsQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        return _conversationRepository.ListSummariesAsync(query.WorkspaceId, cancellationToken);
+    }
 }
