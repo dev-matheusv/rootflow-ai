@@ -2,6 +2,7 @@ import { BellDot, Command, PanelLeftOpen, Search, ShieldCheck, Sparkles } from "
 import { useMatches } from "react-router-dom";
 
 import { RootFlowLogo } from "@/components/branding/rootflow-logo";
+import { ApiBaseUrlIndicator } from "@/components/diagnostics/api-base-url-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,7 +34,7 @@ export function Topbar() {
         </div>
 
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-1">
+          <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-primary/80">
               <Sparkles className="size-3.5" />
               RootFlow Product Workspace
@@ -42,6 +43,7 @@ export function Topbar() {
               <h2 className="font-display text-2xl tracking-[-0.04em] text-foreground">{handle?.title ?? "RootFlow"}</h2>
               <p className="text-sm text-muted-foreground">{handle?.subtitle ?? "Modern AI operations for business knowledge."}</p>
             </div>
+            <ApiBaseUrlIndicator />
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
