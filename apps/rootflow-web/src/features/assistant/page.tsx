@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Bot, CheckCircle2, CornerDownLeft, MessageSquareQuote, Microscope, SendHorizonal } from "lucide-react";
+import { Bot, CheckCircle2, CornerDownLeft, LoaderCircle, MessageSquareQuote, Microscope, SendHorizonal } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
@@ -150,27 +150,42 @@ export function AssistantPage() {
                         }
                       />
                     ) : (
-                      messages.map((message) => {
-                        const isUser = message.role === 2;
+                      <div className="space-y-4">
+                        {messages.map((message) => {
+                          const isUser = message.role === 2;
 
-                        return (
-                          <div
-                            key={message.id}
-                            className={`max-w-[86%] rounded-[28px] px-5 py-4 text-sm leading-7 shadow-[0_20px_44px_-32px_rgba(12,39,84,0.4)] ${
-                              isUser
-                                ? "ml-auto rounded-br-md border border-primary/12 bg-primary text-primary-foreground shadow-[0_18px_40px_-26px_rgba(21,91,255,0.72)]"
-                                : "rounded-bl-md border border-border/70 bg-background/82 text-foreground"
-                            }`}
-                          >
-                            {message.content}
-                          </div>
-                        );
-                      })
+                          return (
+                            <div
+                              key={message.id}
+                              className={`max-w-[88%] rounded-[30px] px-5 py-4 shadow-[0_22px_42px_-34px_rgba(12,39,84,0.34)] ${
+                                isUser
+                                  ? "ml-auto rounded-br-lg border border-primary/20 bg-primary text-primary-foreground shadow-[0_20px_42px_-28px_rgba(21,91,255,0.6)]"
+                                  : "rounded-bl-lg border border-border/75 bg-background/88 text-foreground"
+                              }`}
+                            >
+                              <div
+                                className={`mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                                  isUser ? "text-primary-foreground/75" : "text-primary/90"
+                                }`}
+                              >
+                                {isUser ? "You" : "Assistant"}
+                              </div>
+                              <p className={`whitespace-pre-wrap text-[0.95rem] leading-7 ${isUser ? "text-primary-foreground/96" : "text-foreground/92"}`}>
+                                {message.content}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
 
                     {askQuestionMutation.isPending ? (
-                      <div className="max-w-[86%] rounded-[28px] rounded-bl-md border border-border/70 bg-background/82 px-5 py-4 text-sm leading-7 text-muted-foreground">
-                        RootFlow is preparing a grounded answer...
+                      <div className="max-w-[88%] rounded-[30px] rounded-bl-lg border border-border/75 bg-background/88 px-5 py-4 shadow-[0_22px_42px_-34px_rgba(12,39,84,0.34)]">
+                        <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/90">
+                          <LoaderCircle className="size-3.5 animate-spin" />
+                          RootFlow is working
+                        </div>
+                        <p className="text-sm leading-7 text-muted-foreground">Preparing a grounded answer from the current knowledge base.</p>
                       </div>
                     ) : null}
                   </>
@@ -187,18 +202,24 @@ export function AssistantPage() {
                 )}
               </div>
 
-              <form className="rounded-[28px] border border-border/70 bg-background/78 p-4" onSubmit={onSubmit}>
+              <form
+                className="rounded-[30px] border border-border/75 bg-background/82 p-4 shadow-[0_20px_48px_-40px_rgba(14,39,82,0.34)]"
+                onSubmit={onSubmit}
+              >
                 <div className="mb-3 flex items-center justify-between">
                   <div className="text-sm font-semibold text-foreground">Ask a business question</div>
                   <div className="text-xs text-muted-foreground">
                     {conversationId ? "Continuing a live conversation" : "Creates a new live conversation"}
                   </div>
                 </div>
-                <Textarea
-                  className="min-h-[120px] resize-none border-none bg-transparent px-0 py-0 shadow-none focus-visible:ring-0"
-                  placeholder="What can I help your team answer today?"
-                  {...form.register("question")}
-                />
+                <div className="rounded-[24px] border border-border/75 bg-background/70 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/30 focus-within:bg-background focus-within:shadow-[0_18px_40px_-32px_rgba(21,91,255,0.34)]">
+                  <Textarea
+                    className="min-h-[132px] resize-none border-none bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
+                    placeholder="What can I help your team answer today?"
+                    disabled={askQuestionMutation.isPending}
+                    {...form.register("question")}
+                  />
+                </div>
                 {form.formState.errors.question ? (
                   <p className="mt-2 text-sm text-destructive">{form.formState.errors.question.message}</p>
                 ) : null}
@@ -210,14 +231,14 @@ export function AssistantPage() {
                     RootFlow needs at least one processed document before it can return grounded answers.
                   </p>
                 ) : null}
-                <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <CornerDownLeft className="size-4" />
-                    Compose with grounded context and citations
+                    {askQuestionMutation.isPending ? "Sending question and waiting for grounded retrieval" : "Compose with grounded context and citations"}
                   </div>
-                  <Button type="submit" disabled={!canAsk}>
-                    <SendHorizonal />
-                    {askQuestionMutation.isPending ? "Thinking..." : "Send"}
+                  <Button type="submit" disabled={!canAsk} aria-busy={askQuestionMutation.isPending} className="min-w-[140px]">
+                    {askQuestionMutation.isPending ? <LoaderCircle className="animate-spin" /> : <SendHorizonal />}
+                    {askQuestionMutation.isPending ? "Sending..." : "Send"}
                   </Button>
                 </div>
               </form>
@@ -232,9 +253,9 @@ export function AssistantPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {activeLatestAnswer ? (
-              <div className="rounded-[24px] border border-emerald-500/20 bg-emerald-500/10 p-4">
+              <div className="rounded-[26px] border border-emerald-500/22 bg-emerald-500/10 p-4 shadow-[0_18px_36px_-30px_rgba(16,133,95,0.32)]">
                 <div className="flex items-start gap-3">
-                  <div className="mt-0.5 flex size-10 items-center justify-center rounded-2xl bg-emerald-500/14 text-emerald-600 dark:text-emerald-300">
+                  <div className="mt-0.5 flex size-10 items-center justify-center rounded-2xl bg-emerald-500/14 text-emerald-700 dark:text-emerald-300">
                     <CheckCircle2 className="size-[18px]" />
                   </div>
                   <div className="space-y-1">
@@ -250,14 +271,25 @@ export function AssistantPage() {
 
             {activeLatestAnswer?.sources.length ? (
               activeLatestAnswer.sources.map((source, index) => (
-                <div key={source.chunkId} className="rounded-[24px] border border-border/70 bg-secondary/30 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <Badge variant="secondary">[{index + 1}]</Badge>
-                    <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Score {source.score.toFixed(2)}</div>
+                <div
+                  key={source.chunkId}
+                  className="rounded-[26px] border border-border/75 bg-secondary/32 p-4 shadow-[0_18px_36px_-30px_rgba(15,46,98,0.24)]"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary">Source {index + 1}</Badge>
+                    <div className="rounded-full border border-border/70 bg-background/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Score {source.score.toFixed(2)}
+                    </div>
                   </div>
-                  <div className="mt-3 text-sm font-semibold text-foreground">{source.documentName}</div>
-                  <div className="mt-1 text-sm text-primary">{source.sourceLabel}</div>
-                  <p className="mt-3 text-sm leading-7 text-muted-foreground">{source.excerpt}</p>
+                  <div className="mt-4 space-y-1.5">
+                    <div className="text-sm font-semibold tracking-[-0.01em] text-foreground">{source.documentName}</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/90">{source.sourceLabel}</div>
+                  </div>
+                  <div className="mt-4 rounded-[20px] border border-border/65 bg-background/72 p-4">
+                    <p className="overflow-hidden text-sm leading-6 text-foreground/80 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:5]">
+                      {source.excerpt}
+                    </p>
+                  </div>
                 </div>
               ))
             ) : activeLatestAnswer ? (
@@ -283,15 +315,15 @@ export function AssistantPage() {
                 <div className="space-y-3">
                   <div className="text-sm font-semibold text-foreground">Retrieval review</div>
                   {activeLatestAnswer.debug.retrievedChunks.map((chunk) => (
-                    <div key={chunk.chunkId} className="rounded-2xl border border-border/70 bg-background/70 p-3">
+                    <div key={chunk.chunkId} className="rounded-[20px] border border-border/75 bg-background/76 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-semibold text-foreground">
                           #{chunk.rank} {chunk.documentName}
                         </div>
                         <Badge variant="secondary">{chunk.score.toFixed(2)}</Badge>
                       </div>
-                      <div className="mt-1 text-sm text-primary">{chunk.sourceLabel}</div>
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">{chunk.reason}</p>
+                      <div className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary/90">{chunk.sourceLabel}</div>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground">{chunk.reason}</p>
                     </div>
                   ))}
                 </div>

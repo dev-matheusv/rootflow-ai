@@ -38,63 +38,71 @@
 }
 
 :root {
+  color-scheme: light;
   --radius: 1.75rem;
 
-  --background: #f4f8ff;
-  --foreground: #10203d;
-  --card: rgba(255, 255, 255, 0.78);
-  --card-foreground: #0f1c36;
-  --popover: rgba(255, 255, 255, 0.94);
-  --popover-foreground: #10203d;
+  --background: #f3f7fe;
+  --foreground: #0c1d38;
+  --card: rgba(255, 255, 255, 0.86);
+  --card-foreground: #0b1b35;
+  --popover: rgba(255, 255, 255, 0.96);
+  --popover-foreground: #0c1d38;
 
-  --primary: #1f63ff;
-  --primary-foreground: #f6fbff;
-  --secondary: #eaf1ff;
-  --secondary-foreground: #1a315f;
-  --muted: #eef4ff;
-  --muted-foreground: #607394;
-  --accent: #89c9ff;
-  --accent-foreground: #11315d;
+  --primary: #246cff;
+  --primary-foreground: #f5f9ff;
+  --secondary: #e9f1ff;
+  --secondary-foreground: #173260;
+  --muted: #edf3fe;
+  --muted-foreground: #536886;
+  --accent: #8ccfff;
+  --accent-foreground: #102f5c;
   --destructive: #d94444;
 
-  --border: rgba(84, 118, 182, 0.18);
-  --input: rgba(255, 255, 255, 0.92);
-  --ring: rgba(53, 122, 255, 0.42);
+  --border: rgba(74, 108, 173, 0.24);
+  --input: rgba(255, 255, 255, 0.96);
+  --ring: rgba(52, 120, 255, 0.32);
 
-  --sidebar: rgba(245, 249, 255, 0.74);
-  --sidebar-foreground: #132447;
-  --sidebar-border: rgba(84, 118, 182, 0.18);
-  --sidebar-accent: rgba(233, 242, 255, 0.9);
-  --sidebar-accent-foreground: #16336d;
+  --sidebar: rgba(246, 250, 255, 0.8);
+  --sidebar-foreground: #112544;
+  --sidebar-border: rgba(74, 108, 173, 0.2);
+  --sidebar-accent: rgba(234, 242, 255, 0.95);
+  --sidebar-accent-foreground: #173773;
+
+  --selection-background: rgba(36, 108, 255, 0.22);
+  --selection-foreground: #051328;
 }
 
 .dark {
-  --background: #07111f;
-  --foreground: #e6edff;
-  --card: rgba(12, 23, 43, 0.82);
-  --card-foreground: #edf3ff;
-  --popover: rgba(11, 22, 41, 0.96);
-  --popover-foreground: #edf3ff;
+  color-scheme: dark;
+  --background: #07121f;
+  --foreground: #eef4ff;
+  --card: rgba(11, 22, 41, 0.9);
+  --card-foreground: #f1f6ff;
+  --popover: rgba(10, 22, 40, 0.97);
+  --popover-foreground: #f1f6ff;
 
-  --primary: #5a9dff;
-  --primary-foreground: #061321;
-  --secondary: #122342;
-  --secondary-foreground: #d9e6ff;
-  --muted: #0d1d35;
-  --muted-foreground: #93a8ca;
-  --accent: #59c8ff;
+  --primary: #71adff;
+  --primary-foreground: #05111e;
+  --secondary: #122544;
+  --secondary-foreground: #e0ebff;
+  --muted: #0c1d35;
+  --muted-foreground: #a4b6d4;
+  --accent: #68ccff;
   --accent-foreground: #041521;
   --destructive: #ff7a7a;
 
-  --border: rgba(131, 165, 227, 0.17);
-  --input: rgba(8, 20, 38, 0.9);
-  --ring: rgba(113, 168, 255, 0.48);
+  --border: rgba(130, 166, 228, 0.24);
+  --input: rgba(9, 21, 40, 0.94);
+  --ring: rgba(113, 173, 255, 0.26);
 
-  --sidebar: rgba(8, 19, 36, 0.82);
-  --sidebar-foreground: #dfeaff;
-  --sidebar-border: rgba(131, 165, 227, 0.14);
-  --sidebar-accent: rgba(17, 34, 63, 0.95);
-  --sidebar-accent-foreground: #eff4ff;
+  --sidebar: rgba(8, 18, 34, 0.88);
+  --sidebar-foreground: #e4eeff;
+  --sidebar-border: rgba(130, 166, 228, 0.18);
+  --sidebar-accent: rgba(16, 34, 62, 0.98);
+  --sidebar-accent-foreground: #f2f7ff;
+
+  --selection-background: rgba(113, 173, 255, 0.3);
+  --selection-foreground: #f5f9ff;
 }
 
 @layer base {
@@ -110,8 +118,8 @@
     @apply min-h-screen bg-background text-foreground font-sans antialiased;
     margin: 0;
     background-image:
-      radial-gradient(circle at top left, rgba(83, 150, 255, 0.18), transparent 22rem),
-      radial-gradient(circle at top right, rgba(118, 211, 255, 0.14), transparent 20rem),
+      radial-gradient(circle at top left, rgba(83, 150, 255, 0.2), transparent 22rem),
+      radial-gradient(circle at top right, rgba(118, 211, 255, 0.16), transparent 20rem),
       linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 38%);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     text-rendering: optimizeLegibility;
@@ -130,9 +138,23 @@
     font-family: var(--font-display);
   }
 
-  ::selection {
-    background: color-mix(in srgb, var(--primary) 22%, white);
-    color: var(--foreground);
+  .dark body {
+    background-image:
+      radial-gradient(circle at top left, rgba(87, 153, 255, 0.16), transparent 24rem),
+      radial-gradient(circle at top right, rgba(95, 204, 255, 0.12), transparent 22rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%);
+  }
+
+  ::selection,
+  *::selection {
+    background: var(--selection-background);
+    color: var(--selection-foreground);
+  }
+
+  ::-moz-selection,
+  *::-moz-selection {
+    background: var(--selection-background);
+    color: var(--selection-foreground);
   }
 
   *::-webkit-scrollbar {
