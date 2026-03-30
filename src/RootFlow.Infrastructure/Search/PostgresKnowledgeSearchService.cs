@@ -1,7 +1,7 @@
+using System.Text.RegularExpressions;
 using Npgsql;
 using Pgvector;
 using RootFlow.Application.Abstractions.Search;
-using System.Text.RegularExpressions;
 
 namespace RootFlow.Infrastructure.Search;
 
@@ -52,7 +52,7 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
                            """;
 
         var candidates = new List<SearchCandidate>();
-        var candidateCount = Math.Max(maxResults * 4, 12);
+        var candidateCount = Math.Max(maxResults * 8, 24);
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
@@ -81,9 +81,9 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
         IReadOnlyList<SearchCandidate> candidates,
         int maxResults)
     {
-        var queryTokens = Tokenize(queryText);
+        var query = ParseQuery(queryText);
         var rankedCandidates = candidates
-            .Select(candidate => RankCandidate(candidate, queryTokens))
+            .Select(candidate => RankCandidate(candidate, query))
             .OrderByDescending(static candidate => candidate.Score)
             .ThenByDescending(static candidate => candidate.KeywordScore)
             .ThenByDescending(static candidate => candidate.VectorScore)
@@ -92,22 +92,52 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
         return Diversify(rankedCandidates, maxResults);
     }
 
-    private static KnowledgeSearchMatch RankCandidate(SearchCandidate candidate, HashSet<string> queryTokens)
+    private static KnowledgeSearchMatch RankCandidate(SearchCandidate candidate, SearchQuery query)
     {
-        var searchableText = string.Join(
-            ' ',
-            candidate.DocumentName,
-            candidate.SourceLabel,
-            candidate.Content);
+        var documentNameTokens = Tokenize(candidate.DocumentName);
+        var sourceLabelTokens = Tokenize(candidate.SourceLabel);
+        var contentTokens = Tokenize(candidate.Content);
 
-        var searchableTokens = Tokenize(searchableText);
-        var matchedTerms = queryTokens.Where(searchableTokens.Contains).ToArray();
+        var matchedTerms = query.Tokens
+            .Where(token =>
+                documentNameTokens.Contains(token) ||
+                sourceLabelTokens.Contains(token) ||
+                contentTokens.Contains(token))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
 
-        var keywordScore = queryTokens.Count == 0
+        var phraseSearchText = NormalizeForPhraseSearch(
+            string.Join(' ', candidate.DocumentName, candidate.SourceLabel, candidate.Content));
+
+        var phraseScore = query.Phrases.Length == 0
             ? 0
-            : (double)matchedTerms.Length / queryTokens.Count;
+            : (double)query.Phrases.Count(phrase => phraseSearchText.Contains(phrase, StringComparison.Ordinal)) / query.Phrases.Length;
 
-        var combinedScore = (candidate.VectorScore * 0.65) + (keywordScore * 0.35);
+        var titleMatchCount = query.Tokens.Count(documentNameTokens.Contains);
+        var sourceLabelMatchCount = query.Tokens.Count(sourceLabelTokens.Contains);
+        var contentMatchCount = query.Tokens.Count(contentTokens.Contains);
+
+        var tokenCoverage = query.Tokens.Length == 0
+            ? 0
+            : (double)matchedTerms.Length / query.Tokens.Length;
+
+        var weightedTokenCoverage = query.Tokens.Length == 0
+            ? 0
+            : Math.Min(
+                1d,
+                ((titleMatchCount * 1.3) + (sourceLabelMatchCount * 1.1) + (contentMatchCount * 0.9)) /
+                (query.Tokens.Length * 1.3));
+
+        var keywordScore = query.Tokens.Length == 0 && query.Phrases.Length == 0
+            ? 0
+            : (tokenCoverage * 0.5) + (weightedTokenCoverage * 0.35) + (phraseScore * 0.15);
+
+        var combinedScore = (candidate.VectorScore * 0.55) + (keywordScore * 0.35) + (phraseScore * 0.10);
+
+        if (query.Tokens.Length > 0 && matchedTerms.Length == 0)
+        {
+            combinedScore *= 0.75;
+        }
 
         return new KnowledgeSearchMatch(
             candidate.DocumentId,
@@ -168,6 +198,30 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
             .ToHashSet(StringComparer.Ordinal);
     }
 
+    private static SearchQuery ParseQuery(string queryText)
+    {
+        var tokens = TokenRegex.Matches(queryText.ToLowerInvariant())
+            .Select(static match => match.Value)
+            .Where(static token => !StopWords.Contains(token))
+            .ToArray();
+
+        var phrases = tokens.Length < 2
+            ? []
+            : tokens
+                .Zip(tokens.Skip(1), static (left, right) => $"{left} {right}")
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+        return new SearchQuery(
+            tokens.Distinct(StringComparer.Ordinal).ToArray(),
+            phrases);
+    }
+
+    private static string NormalizeForPhraseSearch(string value)
+    {
+        return string.Join(' ', TokenRegex.Matches(value.ToLowerInvariant()).Select(static match => match.Value));
+    }
+
     private sealed record SearchCandidate(
         Guid DocumentId,
         Guid ChunkId,
@@ -176,4 +230,8 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
         string Content,
         int Sequence,
         double VectorScore);
+
+    private sealed record SearchQuery(
+        string[] Tokens,
+        string[] Phrases);
 }

@@ -82,9 +82,9 @@ This starts:
 Development mode is configured to use:
 
 - the local Docker PostgreSQL database
-- deterministic fake AI mode
+- OpenAI mode by default
 
-This means you can run and validate the main flow without a real OpenAI key.
+This keeps local product behavior aligned with the real retrieval and answer pipeline.
 
 ```powershell
 dotnet run --project src/RootFlow.Api --launch-profile http
@@ -114,7 +114,7 @@ RootFlow supports two AI modes:
 
 ### Fake mode
 
-Used by default in `Development`.
+Use fake mode only when you explicitly want deterministic local testing or integration-test behavior.
 
 Characteristics:
 
@@ -125,13 +125,19 @@ Characteristics:
 
 ### OpenAI mode
 
-Used by default in the base config.
+Used by default in the base config and in `Development`.
 
 To run with OpenAI, set:
 
 ```powershell
 $env:OPENAI_API_KEY="your-key"
-$env:AI__Mode="OpenAI"
+dotnet run --project src/RootFlow.Api --launch-profile http
+```
+
+To explicitly force fake mode for local experiments, set:
+
+```powershell
+$env:AI__Mode="Fake"
 dotnet run --project src/RootFlow.Api --launch-profile http
 ```
 

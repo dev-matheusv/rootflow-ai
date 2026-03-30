@@ -6,6 +6,7 @@ using RootFlow.Application.Chat.Commands;
 using RootFlow.Application.Chat.Dtos;
 using RootFlow.Domain.Conversations;
 using Microsoft.Extensions.Logging;
+using System.Text.RegularExpressions;
 
 namespace RootFlow.Application.Chat;
 
@@ -13,6 +14,7 @@ public sealed class ChatService
 {
     private const int MaxHistoryMessages = 12;
     private const string InsufficientContextAnswer = "I do not know based on the current knowledge base.";
+    private static readonly Regex ExcessWhitespaceRegex = new(@"\n{3,}", RegexOptions.Compiled);
 
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IConversationRepository _conversationRepository;
@@ -94,7 +96,7 @@ public sealed class ChatService
         {
             var prompt = BuildPrompt(existingMessages, command.Question, searchResults);
             var completion = await _chatCompletionService.CompleteAsync(prompt, cancellationToken);
-            answer = completion.Content;
+            answer = CleanAnswer(completion.Content);
             modelName = completion.ModelName;
         }
 
@@ -187,11 +189,15 @@ public sealed class ChatService
                 MessageRole.System,
                 """
                 You are RootFlow, a business knowledge assistant.
-                Answer only with information supported by the provided context blocks.
-                If the context is not enough, reply exactly: "I do not know based on the current knowledge base."
-                Keep the answer concise, practical, and factual.
-                Cite supporting blocks like [1] after each factual statement or step.
-                If the answer is a process, use a short bullet list.
+                Answer the user's exact question using only the provided context blocks.
+                Treat earlier assistant messages as non-authoritative drafts. Override them whenever the retrieved context says otherwise.
+                If the context is insufficient or does not answer the exact question, reply exactly: "I do not know based on the current knowledge base."
+                Write in clear, professional plain text.
+                Start with a direct answer. Add a short bullet list only when it improves clarity.
+                Keep the response concise but complete.
+                Do not dump raw context or mention retrieval scores.
+                Cite supported statements with [1], [2], etc. Use only the provided block numbers.
+                Do not cite a block unless it directly supports the statement.
                 """)
         };
 
@@ -202,7 +208,8 @@ public sealed class ChatService
 
         var contextBuilder = new System.Text.StringBuilder();
         contextBuilder.AppendLine("Use the context blocks below to answer the user's question.");
-        contextBuilder.AppendLine("Do not invent policies, facts, dates, or numbers.");
+        contextBuilder.AppendLine("Most relevant blocks are listed first.");
+        contextBuilder.AppendLine("Do not invent policies, facts, dates, numbers, or steps.");
         contextBuilder.AppendLine();
         contextBuilder.AppendLine("Context Blocks:");
 
@@ -211,7 +218,6 @@ public sealed class ChatService
             var result = searchResults[i];
             contextBuilder.AppendLine($"[{i + 1}] Document: {result.DocumentName}");
             contextBuilder.AppendLine($"Section: {result.SourceLabel}");
-            contextBuilder.AppendLine($"Relevance: combined={result.Score:F3}, vector={result.VectorScore:F3}, keyword={result.KeywordScore:F3}");
             contextBuilder.AppendLine("Content:");
             contextBuilder.AppendLine(result.Content);
             contextBuilder.AppendLine();
@@ -221,6 +227,7 @@ public sealed class ChatService
         contextBuilder.AppendLine(question);
         contextBuilder.AppendLine();
         contextBuilder.AppendLine("Write the final answer in clear business English.");
+        contextBuilder.AppendLine("Answer the exact question, not a nearby topic.");
         contextBuilder.AppendLine("Add citations like [1] directly after supported statements.");
 
         messages.Add(new ChatPromptMessage(MessageRole.User, contextBuilder.ToString()));
@@ -283,11 +290,34 @@ public sealed class ChatService
         }
 
         var topResult = searchResults[0];
-        if (topResult.KeywordScore >= 0.2)
+        var runnerUp = searchResults.Count > 1 ? searchResults[1] : null;
+        var scoreMargin = runnerUp is null
+            ? topResult.Score
+            : topResult.Score - runnerUp.Score;
+
+        if (topResult.KeywordScore >= 0.45)
         {
             return true;
         }
 
-        return topResult.Score >= 0.35 && topResult.VectorScore >= 0.4;
+        if (topResult.KeywordScore >= 0.25 && topResult.VectorScore >= 0.45)
+        {
+            return true;
+        }
+
+        return topResult.Score >= 0.55
+            && topResult.VectorScore >= 0.72
+            && scoreMargin >= 0.05;
+    }
+
+    private static string CleanAnswer(string answer)
+    {
+        var normalized = answer
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Trim();
+
+        normalized = ExcessWhitespaceRegex.Replace(normalized, "\n\n");
+        return normalized;
     }
 }

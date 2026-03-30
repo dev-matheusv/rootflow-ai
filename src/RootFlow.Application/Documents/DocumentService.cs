@@ -84,8 +84,12 @@ public sealed class DocumentService
                 throw new InvalidOperationException("The uploaded file did not produce searchable chunks.");
             }
 
+            var embeddingInputs = chunks
+                .Select(chunk => BuildEmbeddingInput(storedFile.FileName, chunk))
+                .ToArray();
+
             var embeddings = await _embeddingService.GenerateEmbeddingsAsync(
-                chunks.Select(x => x.Content).ToArray(),
+                embeddingInputs,
                 cancellationToken);
 
             var documentChunks = new List<DocumentChunk>(chunks.Count);
@@ -160,5 +164,15 @@ public sealed class DocumentService
             System.Security.Cryptography.SHA256.HashData(
                 System.Text.Encoding.UTF8.GetBytes(
                     $"{file.StoragePath}|{file.FileName}|{file.SizeBytes}|{file.ContentType}")));
+    }
+
+    private static string BuildEmbeddingInput(string documentName, TextChunk chunk)
+    {
+        return $$"""
+                 Document: {{documentName}}
+                 Section: {{chunk.SourceLabel}}
+                 Content:
+                 {{chunk.Content}}
+                 """;
     }
 }

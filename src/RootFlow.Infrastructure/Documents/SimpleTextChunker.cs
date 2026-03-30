@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using RootFlow.Application.Abstractions.Documents;
 using RootFlow.Infrastructure.Configuration;
@@ -7,6 +8,10 @@ namespace RootFlow.Infrastructure.Documents;
 
 public sealed class SimpleTextChunker : ITextChunker
 {
+    private static readonly Regex SentenceRegex = new(
+        @"[^.!?\n]+(?:[.!?]+|$)",
+        RegexOptions.Compiled | RegexOptions.Multiline);
+
     private readonly TextChunkingOptions _options;
 
     public SimpleTextChunker(IOptions<TextChunkingOptions> options)
@@ -124,7 +129,7 @@ public sealed class SimpleTextChunker : ITextChunker
         return Math.Max(chunkStartIndex + 1, chunkEndExclusiveIndex - 1);
     }
 
-    private static List<TextSegment> BuildSegments(string normalizedText)
+    private List<TextSegment> BuildSegments(string normalizedText)
     {
         var sections = normalizedText
             .Split("\n\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -151,12 +156,125 @@ public sealed class SimpleTextChunker : ITextChunker
             currentLabel = extracted.Heading;
             paragraphIndex++;
 
-            segments.Add(new TextSegment(
-                content,
-                BuildParagraphLabel(currentLabel, paragraphIndex)));
+            var sourceLabel = BuildParagraphLabel(currentLabel, paragraphIndex);
+            foreach (var segmentContent in SplitOversizedContent(content))
+            {
+                segments.Add(new TextSegment(segmentContent, sourceLabel));
+            }
         }
 
         return segments;
+    }
+
+    private IReadOnlyList<string> SplitOversizedContent(string content)
+    {
+        if (content.Length <= _options.ChunkSize)
+        {
+            return [content];
+        }
+
+        var normalizedContent = Regex.Replace(content, @"\s+", " ").Trim();
+        if (normalizedContent.Length <= _options.ChunkSize)
+        {
+            return [normalizedContent];
+        }
+
+        var sentences = SentenceRegex.Matches(normalizedContent)
+            .Select(static match => match.Value.Trim())
+            .Where(static sentence => !string.IsNullOrWhiteSpace(sentence))
+            .ToArray();
+
+        if (sentences.Length == 0)
+        {
+            return SplitIntoFixedWindows(normalizedContent);
+        }
+
+        var segments = new List<string>();
+        var buffer = new StringBuilder();
+
+        foreach (var sentence in sentences)
+        {
+            if (sentence.Length > _options.ChunkSize)
+            {
+                FlushBufferedSegment(segments, buffer);
+
+                foreach (var window in SplitIntoFixedWindows(sentence))
+                {
+                    segments.Add(window);
+                }
+
+                continue;
+            }
+
+            var separatorLength = buffer.Length == 0 ? 0 : 1;
+            if (buffer.Length > 0 && buffer.Length + separatorLength + sentence.Length > _options.ChunkSize)
+            {
+                FlushBufferedSegment(segments, buffer);
+            }
+
+            if (buffer.Length > 0)
+            {
+                buffer.Append(' ');
+            }
+
+            buffer.Append(sentence);
+        }
+
+        FlushBufferedSegment(segments, buffer);
+
+        return segments.Count == 0
+            ? SplitIntoFixedWindows(normalizedContent)
+            : segments;
+    }
+
+    private IReadOnlyList<string> SplitIntoFixedWindows(string content)
+    {
+        var windows = new List<string>();
+        var step = Math.Max(1, _options.ChunkSize - _options.ChunkOverlap);
+
+        for (var start = 0; start < content.Length; start += step)
+        {
+            var length = Math.Min(_options.ChunkSize, content.Length - start);
+            var window = content.Substring(start, length).Trim();
+            if (string.IsNullOrWhiteSpace(window))
+            {
+                continue;
+            }
+
+            if (length == _options.ChunkSize)
+            {
+                var trimmedWindow = TrimToSentenceBoundary(window, _options.ChunkSize);
+                if (!string.IsNullOrWhiteSpace(trimmedWindow))
+                {
+                    window = trimmedWindow;
+                }
+            }
+
+            windows.Add(window);
+
+            if (start + length >= content.Length)
+            {
+                break;
+            }
+        }
+
+        return windows;
+    }
+
+    private static void FlushBufferedSegment(List<string> segments, StringBuilder buffer)
+    {
+        if (buffer.Length == 0)
+        {
+            return;
+        }
+
+        var value = buffer.ToString().Trim();
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            segments.Add(value);
+        }
+
+        buffer.Clear();
     }
 
     private static HeadingExtraction ExtractHeading(string section, string currentLabel)
