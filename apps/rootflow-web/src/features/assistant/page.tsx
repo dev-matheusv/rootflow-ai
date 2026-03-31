@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Bot, CheckCircle2, CornerDownLeft, LoaderCircle, MessageSquareQuote, Microscope, SendHorizonal } from "lucide-react";
+import { Bot, CheckCircle2, CornerDownLeft, LoaderCircle, MessageSquareQuote, Microscope, Quote, SendHorizonal } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
@@ -77,8 +77,8 @@ export function AssistantPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Assistant"
-        title="Make the answer experience feel calm, precise, and trustworthy."
-        description="The assistant surface should feel like the center of the product: comfortable for daily business use, elegant for demos, and explicit about where each answer comes from."
+        title="Grounded answers should feel polished enough for customer-facing work."
+        description="RootFlow now presents each answer in a calmer, more readable workspace with clear spacing, trusted sources, and conversation flow that feels ready for real teams."
         actions={
           <>
             <Button onClick={handleNewSession}>
@@ -97,125 +97,135 @@ export function AssistantPage() {
         }
       />
 
-      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-4 xl:grid-cols-[1.22fr_0.78fr]">
         <Card className="overflow-hidden">
           <CardContent className="relative p-0">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(32,110,255,0.12),transparent_38%,rgba(130,203,255,0.16))]" />
-            <div className="relative flex flex-col gap-6 p-6 md:p-8">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),transparent_42%,rgba(188,215,255,0.18))] dark:bg-[linear-gradient(135deg,rgba(71,110,177,0.14),transparent_42%,rgba(45,67,98,0.18))]" />
+            <div className="relative flex flex-col gap-8 p-6 md:p-8">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge>Grounded chat</Badge>
-                <Badge variant="secondary">Sources visible</Badge>
-                <Badge variant="secondary">Debug-ready</Badge>
+                <Badge>Grounded responses</Badge>
+                <Badge variant="secondary">Readable sources</Badge>
+                <Badge variant="secondary">Premium chat UX</Badge>
               </div>
               <div className="space-y-3">
-                <h2 className="font-display text-3xl tracking-[-0.05em] text-foreground">A premium chat workspace built for confident business answers.</h2>
+                <h2 className="max-w-3xl font-display text-3xl tracking-[-0.05em] text-foreground">
+                  A premium chat workspace for precise answers, cleaner reading, and better source trust.
+                </h2>
                 <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-                  Answer quality is only part of the product. The surrounding experience should make grounded responses feel believable, legible, and easy to inspect.
+                  The assistant should feel calm, structured, and reliable. Messages stay readable, supporting evidence stays visible, and every new answer fits cleanly into an ongoing conversation.
                 </p>
               </div>
 
-              <div className="grid gap-4">
+              <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
                 {documentsQuery.isLoading ? (
                   <LoadingState
-                    title="Checking knowledge readiness"
-                    description="RootFlow is verifying the current document base before it answers with grounded context."
+                    title="Analyzing your documents..."
+                    description="Checking what is ready in the knowledge base so RootFlow can answer with grounded context."
                   />
                 ) : documentsQuery.isError ? (
                   <ErrorState
-                    title="Could not reach the knowledge base"
-                    description="The assistant needs the RootFlow API and document endpoint available before it can answer with live data."
+                    title="We couldn't load your documents right now"
+                    description="Please check the API connection and try again. RootFlow needs access to the knowledge base before it can answer confidently."
                     onRetry={() => documentsQuery.refetch()}
                   />
                 ) : readyDocumentCount > 0 ? (
                   <>
                     {conversationId && conversationQuery.isLoading ? (
                       <LoadingState
-                        title="Loading live conversation"
-                        description="Rehydrating the stored conversation so the assistant can continue the current session."
+                        title="Loading your conversation..."
+                        description="Restoring the latest messages and answer trail so you can continue exactly where you left off."
                       />
                     ) : conversationId && conversationQuery.isError ? (
                       <ErrorState
-                        title="Could not load the current conversation"
-                        description="The assistant could not restore this session from the backend. Start a new one or try the existing conversation again."
+                        title="We couldn't restore this conversation"
+                        description="Try refreshing the session or start a new one. Your documents are still available for new questions."
                         onRetry={() => conversationQuery.refetch()}
                       />
                     ) : messages.length === 0 ? (
                       <EmptyState
                         icon={Bot}
-                        title="Ask the first real question"
+                        title="Ask your first grounded question"
                         description={
                           conversationId
-                            ? "This conversation is open and ready to continue. Ask the next question to keep the same session flowing."
-                            : "The assistant is connected to the backend. Ask a business question and RootFlow will create a live conversation, return grounded answers, and save the history."
+                            ? "This conversation is ready to continue. Ask the next question and RootFlow will keep the answer trail in the same session."
+                            : "Start with any business question. RootFlow will search your uploaded knowledge, write a grounded answer, and keep the conversation history organized."
                         }
                       />
                     ) : (
-                      <div className="space-y-4">
+                      <div className="rounded-[30px] border border-border/80 bg-background/70 p-4 shadow-[0_18px_36px_-30px_rgba(16,36,71,0.14)] dark:shadow-[0_18px_36px_-30px_rgba(0,0,0,0.34)] sm:p-5">
+                        <div className="space-y-5">
                         {messages.map((message) => {
                           const isUser = message.role === 2;
 
                           return (
-                            <div
-                              key={message.id}
-                              className={`max-w-[88%] rounded-[30px] px-5 py-4 shadow-[0_22px_42px_-34px_rgba(12,39,84,0.34)] ${
-                                isUser
-                                  ? "ml-auto rounded-br-lg border border-primary/20 bg-primary text-primary-foreground shadow-[0_20px_42px_-28px_rgba(21,91,255,0.6)]"
-                                  : "rounded-bl-lg border border-border/75 bg-background/88 text-foreground"
-                              }`}
-                            >
-                              <div
-                                className={`mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] ${
-                                  isUser ? "text-primary-foreground/75" : "text-primary/90"
+                            <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                              <article
+                                className={`max-w-[72ch] rounded-[28px] border px-5 py-4 shadow-[0_18px_34px_-28px_rgba(16,36,71,0.16)] dark:shadow-[0_18px_34px_-28px_rgba(0,0,0,0.34)] ${
+                                  isUser
+                                    ? "rounded-br-lg border-[#cadeff] bg-[#eaf2ff] text-[#14315c] dark:border-[#314662] dark:bg-[#22314a] dark:text-[#edf4ff]"
+                                    : "rounded-bl-lg border-border/80 bg-white text-foreground dark:bg-[#1a2230]"
                                 }`}
                               >
-                                {isUser ? "You" : "Assistant"}
-                              </div>
-                              <p className={`whitespace-pre-wrap text-[0.95rem] leading-7 ${isUser ? "text-primary-foreground/96" : "text-foreground/92"}`}>
-                                {message.content}
-                              </p>
+                                <div
+                                  className={`mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                                    isUser ? "text-[#3f669e] dark:text-[#a9c8ff]" : "text-primary/75"
+                                  }`}
+                                >
+                                  {isUser ? "You" : "RootFlow assistant"}
+                                </div>
+                                <p className={`whitespace-pre-wrap text-[0.96rem] leading-7 ${isUser ? "text-inherit" : "text-foreground/92"}`}>
+                                  {message.content}
+                                </p>
+                              </article>
                             </div>
                           );
                         })}
+                        </div>
                       </div>
                     )}
 
                     {askQuestionMutation.isPending ? (
-                      <div className="max-w-[88%] rounded-[30px] rounded-bl-lg border border-border/75 bg-background/88 px-5 py-4 shadow-[0_22px_42px_-34px_rgba(12,39,84,0.34)]">
+                      <div className="rounded-[28px] border border-border/80 bg-white px-5 py-4 shadow-[0_18px_34px_-28px_rgba(16,36,71,0.16)] dark:bg-[#1a2230] dark:shadow-[0_18px_34px_-28px_rgba(0,0,0,0.34)]">
                         <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/90">
                           <LoaderCircle className="size-3.5 animate-spin" />
-                          RootFlow is working
+                          RootFlow assistant
                         </div>
-                        <p className="text-sm leading-7 text-muted-foreground">Preparing a grounded answer from the current knowledge base.</p>
+                        <div className="space-y-3">
+                          <p className="text-sm font-semibold text-foreground">Searching for relevant answers...</p>
+                          <p className="text-sm leading-7 text-muted-foreground">
+                            Analyzing your documents and assembling the most useful grounded response with aligned sources.
+                          </p>
+                        </div>
                       </div>
                     ) : null}
                   </>
                 ) : (
                   <EmptyState
                     icon={MessageSquareQuote}
-                    title={documentsQuery.data?.length ? "Wait for processing to finish" : "Upload documents before chatting"}
+                    title="Upload documents to start asking intelligent questions"
                     description={
                       documentsQuery.data?.length
-                        ? "The workspace has uploads in progress, but no processed knowledge is ready yet. RootFlow will enable grounded chat as soon as processing completes."
-                        : "The assistant is connected, but the workspace has no documents yet. Add knowledge in the Knowledge Base page to activate grounded answers."
+                        ? "Your uploads are still processing. As soon as at least one document is ready, RootFlow will enable grounded chat."
+                        : "Add documents in the Knowledge Base first. Once they are processed, RootFlow can answer with grounded context and source-backed responses."
                     }
                   />
                 )}
               </div>
 
               <form
-                className="rounded-[30px] border border-border/75 bg-background/82 p-4 shadow-[0_20px_48px_-40px_rgba(14,39,82,0.34)]"
+                className="rounded-[30px] border border-border/80 bg-background/78 p-4 shadow-[0_18px_38px_-32px_rgba(16,36,71,0.16)] dark:shadow-[0_18px_36px_-30px_rgba(0,0,0,0.34)]"
                 onSubmit={onSubmit}
               >
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="text-sm font-semibold text-foreground">Ask a business question</div>
+                <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm font-semibold text-foreground">Ask a grounded question</div>
                   <div className="text-xs text-muted-foreground">
-                    {conversationId ? "Continuing a live conversation" : "Creates a new live conversation"}
+                    {conversationId ? "Continuing this live conversation" : "Starts a new conversation"}
                   </div>
                 </div>
-                <div className="rounded-[24px] border border-border/75 bg-background/70 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/30 focus-within:bg-background focus-within:shadow-[0_18px_40px_-32px_rgba(21,91,255,0.34)]">
+                <div className="rounded-[24px] border border-border/75 bg-background/88 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/28 focus-within:bg-background focus-within:shadow-[0_16px_32px_-26px_rgba(37,99,235,0.18)]">
                   <Textarea
-                    className="min-h-[132px] resize-none border-none bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
-                    placeholder="What can I help your team answer today?"
+                    className="min-h-[136px] resize-none border-none bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
+                    placeholder="Ask about a document, process, resume, policy, or any grounded business question..."
                     disabled={askQuestionMutation.isPending}
                     {...form.register("question")}
                   />
@@ -224,21 +234,23 @@ export function AssistantPage() {
                   <p className="mt-2 text-sm text-destructive">{form.formState.errors.question.message}</p>
                 ) : null}
                 {askQuestionMutation.isError ? (
-                  <p className="mt-2 text-sm text-destructive">{askQuestionMutation.error.message}</p>
+                  <p className="mt-2 text-sm text-destructive">
+                    We couldn't generate an answer right now. Please try again in a moment.
+                  </p>
                 ) : null}
                 {readyDocumentCount === 0 && !documentsQuery.isLoading ? (
                   <p className="mt-2 text-sm text-muted-foreground">
-                    RootFlow needs at least one processed document before it can return grounded answers.
+                    Upload at least one processed document before asking grounded questions.
                   </p>
                 ) : null}
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <CornerDownLeft className="size-4" />
-                    {askQuestionMutation.isPending ? "Sending question and waiting for grounded retrieval" : "Compose with grounded context and citations"}
+                    {askQuestionMutation.isPending ? "Searching with grounded context" : "Answers stay concise, readable, and source-backed"}
                   </div>
-                  <Button type="submit" disabled={!canAsk} aria-busy={askQuestionMutation.isPending} className="min-w-[140px]">
+                  <Button type="submit" disabled={!canAsk} aria-busy={askQuestionMutation.isPending} className="min-w-[152px]">
                     {askQuestionMutation.isPending ? <LoaderCircle className="animate-spin" /> : <SendHorizonal />}
-                    {askQuestionMutation.isPending ? "Sending..." : "Send"}
+                    {askQuestionMutation.isPending ? "Sending..." : "Send question"}
                   </Button>
                 </div>
               </form>
@@ -249,19 +261,19 @@ export function AssistantPage() {
         <Card>
           <CardHeader>
             <CardTitle>Supporting sources</CardTitle>
-            <CardDescription>Live answer support stays visible without breaking the premium conversation flow.</CardDescription>
+            <CardDescription>Review the exact document snippets that supported the latest answer without leaving the conversation.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             {activeLatestAnswer ? (
-              <div className="rounded-[26px] border border-emerald-500/22 bg-emerald-500/10 p-4 shadow-[0_18px_36px_-30px_rgba(16,133,95,0.32)]">
+              <div className="rounded-[26px] border border-emerald-500/22 bg-emerald-500/8 p-4 shadow-[0_16px_30px_-28px_rgba(16,133,95,0.22)]">
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5 flex size-10 items-center justify-center rounded-2xl bg-emerald-500/14 text-emerald-700 dark:text-emerald-300">
                     <CheckCircle2 className="size-[18px]" />
                   </div>
                   <div className="space-y-1">
-                    <div className="text-sm font-semibold text-foreground">Live answer stored</div>
+                    <div className="text-sm font-semibold text-foreground">Latest answer captured</div>
                     <p className="text-sm leading-6 text-muted-foreground">
-                      RootFlow saved this answer in the current conversation and returned {activeLatestAnswer.sources.length} source
+                      RootFlow stored this answer in the live conversation and linked {activeLatestAnswer.sources.length} supporting source
                       {activeLatestAnswer.sources.length === 1 ? "" : "s"} for review.
                     </p>
                   </div>
@@ -271,58 +283,67 @@ export function AssistantPage() {
 
             {activeLatestAnswer?.sources.length ? (
               activeLatestAnswer.sources.map((source, index) => (
-                <div
+                <article
                   key={source.chunkId}
-                  className="rounded-[26px] border border-border/75 bg-secondary/32 p-4 shadow-[0_18px_36px_-30px_rgba(15,46,98,0.24)]"
+                  className="rounded-[26px] border border-border/80 bg-card/94 p-4 shadow-[0_18px_36px_-30px_rgba(16,36,71,0.14)] dark:shadow-[0_18px_34px_-30px_rgba(0,0,0,0.34)]"
                 >
                   <div className="flex flex-wrap items-center gap-2">
+                    <Badge>Referenced in answer</Badge>
                     <Badge variant="secondary">Source {index + 1}</Badge>
                     <div className="rounded-full border border-border/70 bg-background/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                       Score {source.score.toFixed(2)}
                     </div>
                   </div>
-                  <div className="mt-4 space-y-1.5">
-                    <div className="text-sm font-semibold tracking-[-0.01em] text-foreground">{source.documentName}</div>
-                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/90">{source.sourceLabel}</div>
+
+                  <div className="mt-4 flex items-start gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/8 text-primary">
+                      <Quote className="size-4" />
+                    </div>
+                    <div className="min-w-0 space-y-1.5">
+                      <div className="text-sm font-semibold tracking-[-0.01em] text-foreground">{source.documentName}</div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/80">{source.sourceLabel}</div>
+                    </div>
                   </div>
-                  <div className="mt-4 rounded-[20px] border border-border/65 bg-background/72 p-4">
-                    <p className="overflow-hidden text-sm leading-6 text-foreground/80 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:5]">
+
+                  <div className="mt-4 rounded-[22px] border border-primary/12 bg-primary/[0.05] p-4 dark:bg-primary/[0.08]">
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/75">Referenced snippet</div>
+                    <p className="overflow-hidden text-sm leading-6 text-foreground/84 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:6]">
                       {source.excerpt}
                     </p>
                   </div>
-                </div>
+                </article>
               ))
             ) : activeLatestAnswer ? (
               <EmptyState
                 icon={MessageSquareQuote}
-                title="No source blocks were returned"
-                description="The latest live answer did not include supporting chunks. This usually means the model chose a low-confidence fallback."
+                title="No supporting snippets were returned"
+                description="The latest answer came back without source blocks. Ask another grounded question after verifying your uploaded documents are processed."
               />
             ) : (
               <EmptyState
                 icon={MessageSquareQuote}
-                title="Sources will appear here"
+                title="Source cards will appear here"
                 description={
                   conversationId
-                    ? "When you ask the next question in this conversation, RootFlow will show the latest supporting source blocks here."
-                    : "After a live answer, RootFlow will show the supporting source blocks and their retrieval score in this panel."
+                    ? "Ask the next question in this conversation to review the snippets used in the latest answer."
+                    : "After the first grounded answer, RootFlow will show the supporting source cards in this panel."
                 }
               />
             )}
 
             {isDebugVisible && activeLatestAnswer?.debug?.retrievedChunks.length ? (
-              <div className="rounded-[24px] border border-dashed border-border/80 bg-background/55 p-4">
+              <div className="rounded-[24px] border border-dashed border-border/80 bg-background/60 p-4">
                 <div className="space-y-3">
                   <div className="text-sm font-semibold text-foreground">Retrieval review</div>
                   {activeLatestAnswer.debug.retrievedChunks.map((chunk) => (
-                    <div key={chunk.chunkId} className="rounded-[20px] border border-border/75 bg-background/76 p-4">
+                    <div key={chunk.chunkId} className="rounded-[20px] border border-border/80 bg-background/82 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-semibold text-foreground">
                           #{chunk.rank} {chunk.documentName}
                         </div>
                         <Badge variant="secondary">{chunk.score.toFixed(2)}</Badge>
                       </div>
-                      <div className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary/90">{chunk.sourceLabel}</div>
+                      <div className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary/80">{chunk.sourceLabel}</div>
                       <p className="mt-3 text-sm leading-6 text-muted-foreground">{chunk.reason}</p>
                     </div>
                   ))}
@@ -331,7 +352,7 @@ export function AssistantPage() {
             ) : null}
 
             {conversationId ? (
-              <div className="rounded-[24px] border border-dashed border-border/80 bg-background/55 p-4">
+              <div className="rounded-[24px] border border-dashed border-border/80 bg-background/60 p-4">
                 <div className="space-y-2">
                   <div className="text-sm font-semibold text-foreground">Current live conversation</div>
                   <p className="text-sm leading-6 text-muted-foreground">
@@ -339,7 +360,7 @@ export function AssistantPage() {
                       ? `Updated ${formatRelativeDate(new Date())} and ready to review in the conversation index.`
                       : "This session is restored from the backend and ready to continue."}
                   </p>
-                  <Button variant="outline" className="w-full" asChild>
+                  <Button variant="outline" className="w-full justify-between" asChild>
                     <Link to={`/conversations?conversationId=${conversationId}`}>Open conversation history</Link>
                   </Button>
                 </div>
