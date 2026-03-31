@@ -1,13 +1,15 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Npgsql;
 using Pgvector;
 using RootFlow.Application.Abstractions.AI;
+using RootFlow.Api.Contracts.Auth;
 using RootFlow.Infrastructure.Configuration;
 using RootFlow.Infrastructure.AI;
 using RootFlow.Infrastructure.Persistence;
@@ -18,7 +20,7 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
 {
     private const string AdminConnectionString = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres";
     private const string TestConnectionString = "Host=localhost;Port=5432;Database=rootflow_test;Username=postgres;Password=postgres";
-    private const string WorkspaceId = "11111111-1111-1111-1111-111111111111";
+    private const string TestJwtKey = "rootflow-integration-jwt-key-2026-03-31";
 
     private readonly string _storageRootPath = Path.Combine(
         Path.GetTempPath(),
@@ -43,13 +45,6 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
                 options.RootPath = _storageRootPath;
             });
 
-            services.PostConfigure<RootFlowOptions>(options =>
-            {
-                options.DefaultWorkspaceId = Guid.Parse(WorkspaceId);
-                options.DefaultWorkspaceName = "RootFlow Integration Tests";
-                options.DefaultWorkspaceSlug = "integration-tests";
-            });
-
             services.AddSingleton(_ =>
             {
                 var dataSourceBuilder = new NpgsqlDataSourceBuilder(TestConnectionString);
@@ -67,9 +62,9 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
                 ["ConnectionStrings:Postgres"] = TestConnectionString,
                 ["AI:Mode"] = "Fake",
                 ["Storage:RootPath"] = _storageRootPath,
-                ["RootFlow:DefaultWorkspaceId"] = WorkspaceId,
-                ["RootFlow:DefaultWorkspaceName"] = "RootFlow Integration Tests",
-                ["RootFlow:DefaultWorkspaceSlug"] = "integration-tests"
+                ["Jwt:Issuer"] = "RootFlow.Tests",
+                ["Jwt:Audience"] = "RootFlow.Web.Tests",
+                ["Jwt:Key"] = TestJwtKey
             });
         });
     }
@@ -80,6 +75,34 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
         {
             BaseAddress = new Uri("https://localhost")
         });
+    }
+
+    public async Task<HttpClient> CreateAuthenticatedClientAsync(
+        string? fullName = null,
+        string? email = null,
+        string password = "Password123!",
+        string? workspaceName = null)
+    {
+        var uniqueSuffix = Guid.NewGuid().ToString("N")[..8];
+        var client = CreateApiClient();
+        var signupResponse = await client.PostAsJsonAsync("/api/auth/signup", new
+        {
+            fullName = fullName ?? $"RootFlow Tester {uniqueSuffix}",
+            email = email ?? $"tester-{uniqueSuffix}@rootflow.test",
+            password,
+            workspaceName = workspaceName ?? $"Workspace {uniqueSuffix}"
+        });
+
+        signupResponse.EnsureSuccessStatusCode();
+
+        var payload = await signupResponse.Content.ReadFromJsonAsync<AuthResponse>();
+        if (payload is null)
+        {
+            throw new Xunit.Sdk.XunitException("Signup did not return an auth payload.");
+        }
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", payload.Token);
+        return client;
     }
 
     public async Task InitializeAsync()
@@ -139,6 +162,8 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
                                        conversations,
                                        document_chunks,
                                        knowledge_documents,
+                                       workspace_memberships,
+                                       app_users,
                                        workspaces
                                    CASCADE;
                                    """;
@@ -152,18 +177,11 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
 
     private static async Task InitializeDatabaseAsync()
     {
-        var options = Options.Create(new RootFlowOptions
-        {
-            DefaultWorkspaceId = Guid.Parse(WorkspaceId),
-            DefaultWorkspaceName = "RootFlow Integration Tests",
-            DefaultWorkspaceSlug = "integration-tests"
-        });
-
         var builder = new NpgsqlDataSourceBuilder(TestConnectionString);
         builder.UseVector();
 
         await using var dataSource = builder.Build();
-        var initializer = new PostgresDatabaseInitializer(dataSource, options);
+        var initializer = new PostgresDatabaseInitializer(dataSource);
         await initializer.InitializeAsync();
     }
 

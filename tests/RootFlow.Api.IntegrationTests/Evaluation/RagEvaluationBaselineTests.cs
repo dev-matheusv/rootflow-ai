@@ -21,7 +21,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
     public async Task ChatFlow_RetrievesExpectedSource_AndReturnsGroundedAnswer(EvaluationCase evaluationCase)
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await SeedCorpusAsync(client);
 
@@ -73,7 +73,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
     public async Task ChatFlow_UsesDifferentDocumentsForDifferentQuestions_WhenDocumentsShareLongBoilerplate()
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         var documents = new[]
         {
@@ -145,7 +145,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
         string expectedAnswerFragment)
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await UploadMarkdownAsync(client, "diet-plan.md", """
             # Weekly Diet Plan
@@ -187,7 +187,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
     public async Task ChatFlow_RetrievesResumeSkills_ForGenericSkillsQuestion()
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await UploadMarkdownAsync(client, "resume.md", """
             # Resume
@@ -225,7 +225,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
         string expectedAnswerFragment)
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await UploadMarkdownAsync(client, "training-plan.md", """
             # Training Plan
@@ -271,7 +271,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
         string expectedCompanyTwo)
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await UploadMarkdownAsync(client, "resume.md", """
             # Resume
@@ -316,7 +316,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
     public async Task ChatFlow_ReconstructsTrainingFollowUp_FromShortContextMessage()
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await UploadMarkdownAsync(client, "training-plan.md", """
             # Training Plan
@@ -362,7 +362,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
     public async Task ChatFlow_ReconstructsResumeFollowUp_ForEducationQuestion()
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await UploadMarkdownAsync(client, "resume.md", """
             # Resume
@@ -415,7 +415,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
         string expectedSectionLabel)
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await UploadMarkdownAsync(client, "resume.md", """
             # Resume
@@ -455,7 +455,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
         string expectedSectionLabel)
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await UploadMarkdownAsync(client, "resume.md", """
             # Resume
@@ -488,7 +488,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
     public async Task ChatFlow_SeparatesMixedDocuments_ForGenericQuestions()
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await UploadMarkdownAsync(client, "diet-plan.md", """
             # Weekly Diet Plan
@@ -558,7 +558,7 @@ public sealed class RagEvaluationBaselineTests : IClassFixture<RootFlowApiFactor
     public async Task ChatFlow_KeepsFreshRetrievalAcrossMixedDocumentConversation()
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         await UploadMarkdownAsync(client, "diet-plan.md", """
             # Weekly Diet Plan

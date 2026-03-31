@@ -1,62 +1,151 @@
-import { ArrowRight, UserRoundPlus } from "lucide-react";
-import { Link } from "react-router-dom";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ArrowRight, Sparkles, UserRoundPlus } from "lucide-react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { z } from "zod";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/features/auth/auth-provider";
+import { AuthScaffold } from "@/features/auth/components/auth-scaffold";
+import { ApiError } from "@/lib/api/client";
+
+const signUpSchema = z.object({
+  fullName: z.string().trim().min(2, "Enter your full name.").max(120, "Name is too long."),
+  email: z.email("Enter a valid email address."),
+  password: z.string().min(8, "Password must be at least 8 characters.").max(128, "Password is too long."),
+  workspaceName: z.string().trim().min(2, "Enter a workspace name.").max(120, "Workspace name is too long."),
+});
+
+type SignUpFormValues = z.infer<typeof signUpSchema>;
 
 export function SignUpPage() {
-  return (
-    <div className="mx-auto flex min-h-screen max-w-4xl items-center px-4 py-12">
-      <Card className="w-full overflow-hidden">
-        <CardHeader className="relative gap-4">
-          <div className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),transparent_70%)] dark:bg-[linear-gradient(135deg,rgba(138,180,255,0.12),transparent_70%)]" />
-          <Badge className="w-fit">
-            <UserRoundPlus className="size-3.5" />
-            Sign up placeholder
-          </Badge>
-          <CardTitle>Sign up flow is ready for future activation.</CardTitle>
-          <CardDescription>
-            The UI now includes a dedicated entry point for future signup, onboarding, and workspace creation without needing to redesign the product shell later.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-4 text-sm leading-7 text-muted-foreground">
-            <div className="rounded-[24px] border border-border/80 bg-background/80 p-5">
-              <div className="text-sm font-semibold text-foreground">What will live here</div>
-              <p className="mt-2">
-                Account creation, workspace provisioning, verification, and first-use onboarding can be connected here when backend authentication becomes available.
-              </p>
-            </div>
-            <div className="rounded-[24px] border border-border/80 bg-background/80 p-5">
-              <div className="text-sm font-semibold text-foreground">Why it matters now</div>
-              <p className="mt-2">
-                Showing the future auth structure makes the app feel more complete in demos and keeps the navigation ready for commercialization.
-              </p>
-            </div>
-          </div>
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { signup } = useAuth();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const redirect = new URLSearchParams(location.search).get("redirect");
+  const safeRedirect = redirect?.startsWith("/") ? redirect : "/dashboard";
+  const form = useForm<SignUpFormValues>({
+    resolver: zodResolver(signUpSchema),
+    defaultValues: {
+      fullName: "",
+      email: "",
+      password: "",
+      workspaceName: "",
+    },
+  });
 
-          <div className="rounded-[28px] border border-border/80 bg-background/82 p-5 shadow-[0_18px_36px_-30px_rgba(16,36,71,0.16)] dark:shadow-[0_18px_36px_-30px_rgba(0,0,0,0.34)]">
+  async function handleSubmit(values: SignUpFormValues) {
+    setErrorMessage(null);
+
+    try {
+      await signup(values);
+      navigate(safeRedirect, { replace: true });
+    } catch (error) {
+      setErrorMessage(error instanceof ApiError ? error.message : "We could not create your workspace right now.");
+    }
+  }
+
+  return (
+    <AuthScaffold
+      badge={
+        <>
+          <UserRoundPlus className="size-3.5" />
+          Create workspace
+        </>
+      }
+      title="Provision a RootFlow workspace in one move."
+      description="Create your account, spin up a workspace, and start as the owner with a live JWT session already attached to the right tenant."
+      highlights={[
+        {
+          title: "Owner membership on signup",
+          description: "RootFlow creates the user, workspace, and owner role together so the SaaS foundation starts cleanly.",
+        },
+        {
+          title: "Ready for multi-user growth",
+          description: "The underlying model now supports future admins, members, and shared workspaces without redesigning the shell.",
+        },
+      ]}
+    >
+      <Card className="border-border/0 bg-transparent shadow-none">
+        <CardHeader className="px-0 pt-0">
+          <Badge className="w-fit">
+            <Sparkles className="size-3.5" />
+            Premium onboarding
+          </Badge>
+          <CardTitle>Sign up</CardTitle>
+          <CardDescription>Start a new RootFlow workspace with secure email and password authentication.</CardDescription>
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
+          <form className="space-y-5" onSubmit={form.handleSubmit(handleSubmit)}>
             <div className="space-y-2">
-              <div className="text-sm font-semibold text-foreground">Available next steps</div>
-              <p className="text-sm leading-6 text-muted-foreground">
-                Continue exploring the product or return to the login placeholder route.
-              </p>
+              <label className="text-sm font-semibold text-foreground" htmlFor="fullName">
+                Full name
+              </label>
+              <Input id="fullName" autoComplete="name" placeholder="Jordan Rivera" {...form.register("fullName")} />
+              {form.formState.errors.fullName ? (
+                <p className="text-sm text-destructive">{form.formState.errors.fullName.message}</p>
+              ) : null}
             </div>
-            <div className="mt-5 flex flex-col gap-3">
-              <Button asChild>
-                <Link to="/dashboard">
-                  Open RootFlow
-                  <ArrowRight />
-                </Link>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground" htmlFor="workspaceName">
+                Workspace name
+              </label>
+              <Input id="workspaceName" autoComplete="organization" placeholder="Acme Operations" {...form.register("workspaceName")} />
+              {form.formState.errors.workspaceName ? (
+                <p className="text-sm text-destructive">{form.formState.errors.workspaceName.message}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground" htmlFor="email">
+                Work email
+              </label>
+              <Input id="email" type="email" autoComplete="email" placeholder="team@company.com" {...form.register("email")} />
+              {form.formState.errors.email ? (
+                <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground" htmlFor="password">
+                Password
+              </label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="new-password"
+                placeholder="Choose a secure password"
+                {...form.register("password")}
+              />
+              {form.formState.errors.password ? (
+                <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
+              ) : null}
+            </div>
+
+            {errorMessage ? (
+              <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                {errorMessage}
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-3">
+              <Button type="submit" className="w-full justify-between" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Creating workspace..." : "Create workspace"}
+                <ArrowRight />
               </Button>
-              <Button variant="outline" asChild>
-                <Link to="/auth/login">Go to login</Link>
+              <Button variant="outline" className="w-full" asChild>
+                <Link to="/auth/login">Already have an account?</Link>
               </Button>
             </div>
-          </div>
+          </form>
         </CardContent>
       </Card>
-    </div>
+    </AuthScaffold>
   );
 }

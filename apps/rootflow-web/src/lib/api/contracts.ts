@@ -2,6 +2,44 @@ export interface HealthResponse {
   status: string;
 }
 
+export type WorkspaceRole = "Owner" | "Admin" | "Member";
+
+export interface AuthUser {
+  id: string;
+  fullName: string;
+  email: string;
+}
+
+export interface AuthWorkspace {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface SessionInfo {
+  user: AuthUser;
+  workspace: AuthWorkspace;
+  role: WorkspaceRole;
+}
+
+export interface AuthResponse {
+  token: string;
+  expiresAtUtc: string;
+  session: SessionInfo;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface SignupPayload {
+  fullName: string;
+  email: string;
+  password: string;
+  workspaceName: string;
+}
+
 export interface DocumentSummary {
   id: string;
   workspaceId: string;

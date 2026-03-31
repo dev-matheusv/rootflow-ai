@@ -11,8 +11,8 @@ const settingsSections = [
   {
     id: "workspace",
     title: "Workspace defaults",
-    description: "Prepare future product settings like workspace naming, answer preferences, and environment-wide behavior.",
-    detail: "This placeholder route keeps the navigation honest today and ready for full product settings later.",
+    description: "Review the foundations for workspace naming, answer preferences, and future tenant-wide behavior.",
+    detail: "This page now sits on top of a real workspace identity instead of a demo-only shell.",
     icon: SlidersHorizontal,
   },
   {
@@ -26,14 +26,14 @@ const settingsSections = [
     id: "search",
     title: "Search and answer controls",
     description: "Future controls for retrieval tuning, citation preferences, and answer framing can live here.",
-    detail: "The app keeps this area intentionally visible without pretending those settings already exist.",
+    detail: "The assistant already runs inside the workspace boundary, so search controls can evolve safely from here.",
     icon: Search,
   },
   {
     id: "access",
     title: "Access and authentication",
-    description: "Future account, seat, and invite configuration will connect cleanly with the auth-ready routes.",
-    detail: "This keeps the shell consistent while backend auth is still pending.",
+    description: "JWT auth, memberships, and tenant context are live; invites and billing can layer on later.",
+    detail: "Owner-scoped workspace access is active now, with room for admin/member workflows in later phases.",
     icon: LockKeyhole,
   },
 ] as const;
@@ -49,7 +49,7 @@ export function SettingsPage() {
       <PageHeader
         eyebrow="Settings"
         title="A real destination for product controls, not a fake-clickable dead end."
-        description="This placeholder route keeps the product shell credible while future workspace, notification, and access settings are still being built."
+        description="Workspace and access controls are now grounded in the live auth foundation, even where deeper settings remain intentionally minimal."
         actions={
           <>
             <Button asChild>
@@ -124,7 +124,7 @@ export function SettingsPage() {
                       <div className="rounded-[24px] border border-border/75 bg-background/74 p-5">
                         <div className="text-sm font-semibold text-foreground">Why this exists now</div>
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                          Users can click through with confidence today, and the route is already ready for future implementation work.
+                          Users now arrive here from an authenticated workspace instead of a placeholder-only shell.
                         </p>
                       </div>
                       <div className="rounded-[24px] border border-border/75 bg-background/74 p-5">
@@ -143,7 +143,7 @@ export function SettingsPage() {
                         </Link>
                       </Button>
                       <Button variant="outline" asChild>
-                        <Link to="/auth/login">Review auth placeholder</Link>
+                        <Link to="/dashboard">Back to dashboard</Link>
                       </Button>
                     </div>
                   </div>

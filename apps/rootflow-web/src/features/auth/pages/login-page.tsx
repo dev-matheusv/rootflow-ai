@@ -1,65 +1,132 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { z } from "zod";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/features/auth/auth-provider";
+import { AuthScaffold } from "@/features/auth/components/auth-scaffold";
+import { ApiError } from "@/lib/api/client";
+
+const loginSchema = z.object({
+  email: z.email("Enter a valid email address."),
+  password: z.string().min(8, "Password must be at least 8 characters."),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
-  return (
-    <div className="mx-auto flex min-h-screen max-w-4xl items-center px-4 py-12">
-      <Card className="w-full overflow-hidden">
-        <CardHeader className="relative gap-4">
-          <div className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),transparent_70%)] dark:bg-[linear-gradient(135deg,rgba(138,180,255,0.12),transparent_70%)]" />
-          <Badge className="w-fit">
-            <ShieldCheck className="size-3.5" />
-            Auth-ready shell
-          </Badge>
-          <CardTitle>Authentication UI is prepared for future product rollout.</CardTitle>
-          <CardDescription>
-            RootFlow already has the structure for login, sign up, invites, and account recovery. Backend auth can be connected later without redesigning the product shell.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-4 text-sm leading-7 text-muted-foreground">
-            <div className="rounded-[24px] border border-border/80 bg-background/80 p-5">
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Sparkles className="size-4 text-primary" />
-                Ready for premium onboarding
-              </div>
-              <p>
-                This placeholder keeps the architecture clean so authentication can be added without restructuring navigation, page flows, or the premium SaaS shell later.
-              </p>
-            </div>
-            <div className="rounded-[24px] border border-border/80 bg-background/80 p-5">
-              <div className="text-sm font-semibold text-foreground">Planned next</div>
-              <p className="mt-2">
-                Email/password auth, invite acceptance, account recovery, and workspace access control can slot into this area when backend support is ready.
-              </p>
-            </div>
-          </div>
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const redirect = new URLSearchParams(location.search).get("redirect");
+  const safeRedirect = redirect?.startsWith("/") ? redirect : "/dashboard";
+  const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
 
-          <div className="rounded-[28px] border border-border/80 bg-background/82 p-5 shadow-[0_18px_36px_-30px_rgba(16,36,71,0.16)] dark:shadow-[0_18px_36px_-30px_rgba(0,0,0,0.34)]">
+  async function handleSubmit(values: LoginFormValues) {
+    setErrorMessage(null);
+
+    try {
+      await login(values);
+      navigate(safeRedirect, { replace: true });
+    } catch (error) {
+      setErrorMessage(error instanceof ApiError ? error.message : "We could not sign you in right now.");
+    }
+  }
+
+  return (
+    <AuthScaffold
+      badge={
+        <>
+          <ShieldCheck className="size-3.5" />
+          Workspace sign in
+        </>
+      }
+      title="Enter a real RootFlow workspace session."
+      description="Sign in with email and password to restore your documents, conversations, and grounded assistant history inside the correct tenant boundary."
+      highlights={[
+        {
+          title: "JWT-backed access",
+          description: "RootFlow now protects documents, chat, and conversation history with a real token-backed session.",
+        },
+        {
+          title: "Workspace-scoped AI",
+          description: "Every grounded answer now resolves from the authenticated workspace instead of a shared demo context.",
+        },
+      ]}
+    >
+      <Card className="border-border/0 bg-transparent shadow-none">
+        <CardHeader className="px-0 pt-0">
+          <Badge className="w-fit">
+            <Sparkles className="size-3.5" />
+            Premium SaaS access
+          </Badge>
+          <CardTitle>Log in</CardTitle>
+          <CardDescription>Use the account connected to your RootFlow workspace.</CardDescription>
+        </CardHeader>
+        <CardContent className="px-0 pb-0">
+          <form className="space-y-5" onSubmit={form.handleSubmit(handleSubmit)}>
             <div className="space-y-2">
-              <div className="text-sm font-semibold text-foreground">Preview auth entry points</div>
-              <p className="text-sm leading-6 text-muted-foreground">
-                Use these placeholder routes to validate future navigation flows.
-              </p>
+              <label className="text-sm font-semibold text-foreground" htmlFor="email">
+                Work email
+              </label>
+              <Input id="email" type="email" autoComplete="email" placeholder="team@company.com" {...form.register("email")} />
+              {form.formState.errors.email ? (
+                <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+              ) : null}
             </div>
-            <div className="mt-5 flex flex-col gap-3">
-              <Button asChild>
-                <Link to="/auth/signup">
-                  Sign up
-                  <ArrowRight />
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <label className="text-sm font-semibold text-foreground" htmlFor="password">
+                  Password
+                </label>
+                <Link className="text-sm font-medium text-primary hover:text-primary/80" to="/auth/forgot-password">
+                  Forgot password
                 </Link>
+              </div>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                {...form.register("password")}
+              />
+              {form.formState.errors.password ? (
+                <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
+              ) : null}
+            </div>
+
+            {errorMessage ? (
+              <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                {errorMessage}
+              </div>
+            ) : null}
+
+            <div className="flex flex-col gap-3">
+              <Button type="submit" className="w-full justify-between" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Signing in..." : "Log in"}
+                <ArrowRight />
               </Button>
-              <Button variant="outline" asChild>
-                <Link to="/dashboard">Back to app</Link>
+              <Button variant="outline" className="w-full" asChild>
+                <Link to="/auth/signup">Create a workspace</Link>
               </Button>
             </div>
-          </div>
+          </form>
         </CardContent>
       </Card>
-    </div>
+    </AuthScaffold>
   );
 }

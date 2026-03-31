@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/features/auth/auth-provider";
 import { useConversationsQuery, useHealthQuery, useDocumentsQuery } from "@/hooks/use-rootflow-data";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 
 export function DashboardPage() {
+  const { session } = useAuth();
   const healthQuery = useHealthQuery();
   const documentsQuery = useDocumentsQuery({ autoRefreshProcessing: true });
   const conversationsQuery = useConversationsQuery();
@@ -60,22 +62,22 @@ export function DashboardPage() {
             <div className="relative flex flex-col gap-8 p-6 md:p-8">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>Premium SaaS shell</Badge>
-                <Badge variant="secondary">Light + dark intentional</Badge>
-                <Badge variant="secondary">Prepared for auth later</Badge>
+                <Badge variant="secondary">JWT auth live</Badge>
+                <Badge variant="secondary">{session?.workspace.name ?? "Workspace"} active</Badge>
               </div>
               <div className="max-w-2xl space-y-3">
                 <h2 className="font-display text-3xl leading-tight tracking-[-0.05em] text-foreground md:text-[2.6rem]">
-                  A calm blue interface designed for demos, daily use, and future commercialization.
+                  A calm blue workspace that now behaves like a real SaaS product.
                 </h2>
                 <p className="text-base leading-8 text-muted-foreground">
-                  The frontend foundation emphasizes confidence, clarity, and visual trust. It is structured to support the current MVP flow now, and authentication, team features, and SaaS expansion later.
+                  RootFlow now has real session boundaries. Every document, grounded answer, and conversation in this interface is scoped to the authenticated workspace instead of a backend demo default.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 {[
-                  ["Fast onboarding", "The frontend shell and navigation are live and ready for demos."],
-                  ["Trustworthy answers", "The assistant now talks to the real backend and returns live sources."],
-                  ["Scalable foundation", "Feature folders, query hooks, and typed contracts support growth."],
+                  ["Fast onboarding", "Signup provisions a user, a workspace, and an owner membership in one flow."],
+                  ["Trustworthy answers", "The assistant now keeps grounded answers inside the authenticated tenant boundary."],
+                  ["Scalable foundation", "JWT auth, memberships, and protected routes now back the premium shell."],
                 ].map(([title, detail]) => (
                   <div key={title} className="rounded-[24px] border border-border/70 bg-background/72 p-4 backdrop-blur-sm">
                     <div className="text-sm font-semibold text-foreground">{title}</div>
@@ -94,9 +96,9 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             {[
-              ["Frontend shell", "Complete", "The design system and app shell are live and consistent."],
-              ["RAG quality", "Improving", "Retrieval grounding and evaluation are already in place."],
-              ["API integration", "Live", "Documents, chat, and conversation history now connect to real endpoints."],
+              ["Frontend shell", "Complete", "The design system and protected app shell are live and consistent."],
+              ["Tenant isolation", "Live", "Documents, chat, and conversations resolve from the JWT workspace context."],
+              ["API integration", "Live", "Session restoration, auth endpoints, and workspace-scoped APIs now work together."],
             ].map(([title, status, detail]) => (
               <div key={title} className="space-y-2 rounded-[22px] border border-border/70 bg-secondary/35 p-4">
                 <div className="flex items-center justify-between">
@@ -165,9 +167,9 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {[
-              ["1. Capture knowledge", "Upload real documents into the current workspace from the Knowledge Base page."],
-              ["2. Ground the assistant", "Ask live questions and inspect the source-backed answer flow in the Assistant page."],
-              ["3. Operate confidently", "Review stored session history in Conversations without losing the premium client-facing experience."],
+              ["1. Enter a workspace", "Login or sign up to land inside a JWT-backed tenant with an assigned membership role."],
+              ["2. Capture knowledge", "Upload real documents into the current workspace from the Knowledge Base page."],
+              ["3. Ground the assistant", "Ask live questions and inspect the source-backed answer flow without leaking data across tenants."],
             ].map(([title, description], index) => (
               <div key={title} className="flex gap-4 rounded-[24px] border border-border/70 bg-background/60 p-4">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">{index + 1}</div>
@@ -192,6 +194,14 @@ export function DashboardPage() {
                 {healthQuery.data?.status === "healthy"
                   ? "The backend health endpoint is responding normally."
                   : "Waiting for the health endpoint response."}
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">
+              <div className="text-sm font-semibold text-foreground">Current workspace</div>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {session
+                  ? `${session.workspace.name} is signed in as ${session.role}.`
+                  : "The authenticated workspace is being restored."}
               </p>
             </div>
             <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">

@@ -5,14 +5,17 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using Pgvector;
 using RootFlow.Application.Abstractions.AI;
+using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Application.Abstractions.Documents;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Abstractions.Search;
 using RootFlow.Application.Abstractions.Time;
+using RootFlow.Application.Auth;
 using RootFlow.Application.Chat;
 using RootFlow.Application.Conversations;
 using RootFlow.Application.Documents;
 using RootFlow.Infrastructure.AI;
+using RootFlow.Infrastructure.Auth;
 using RootFlow.Infrastructure.Configuration;
 using RootFlow.Infrastructure.Documents;
 using RootFlow.Infrastructure.Persistence;
@@ -38,7 +41,6 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
         services.Configure<TextChunkingOptions>(configuration.GetSection("Chunking"));
-        services.Configure<RootFlowOptions>(configuration.GetSection("RootFlow"));
         services.PostConfigure<OpenAiOptions>(options =>
         {
             options.ApiKey ??= Environment.GetEnvironmentVariable("OPENAI_API_KEY");
@@ -58,6 +60,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDocumentTextExtractor, SimpleDocumentTextExtractor>();
         services.AddScoped<ITextChunker, SimpleTextChunker>();
 
+        services.AddScoped<IPasswordHashingService, AspNetPasswordHashingService>();
+        services.AddScoped<IAuthRepository, PostgresAuthRepository>();
         services.AddScoped<IWorkspaceRepository, PostgresWorkspaceRepository>();
         services.AddScoped<IKnowledgeDocumentRepository, PostgresKnowledgeDocumentRepository>();
         services.AddScoped<IDocumentChunkRepository, PostgresDocumentChunkRepository>();
@@ -77,6 +81,7 @@ public static class InfrastructureServiceCollectionExtensions
             services.AddHttpClient<IChatCompletionService, OpenAiChatCompletionService>(ConfigureOpenAiClient);
         }
 
+        services.AddScoped<AuthService>();
         services.AddScoped<DocumentService>();
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();

@@ -1,13 +1,15 @@
-import { BellDot, PanelLeftOpen, Search, ShieldCheck, Sparkles, X } from "lucide-react";
+import { BellDot, LogOut, PanelLeftOpen, Search, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useMatches } from "react-router-dom";
 
 import { RootFlowLogo } from "@/components/branding/rootflow-logo";
 import { ApiBaseUrlIndicator } from "@/components/diagnostics/api-base-url-indicator";
 import { SidebarNav } from "@/components/navigation/sidebar-nav";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useAuth } from "@/features/auth/auth-provider";
 
 interface RouteHandle {
   title?: string;
@@ -17,6 +19,7 @@ interface RouteHandle {
 export function Topbar() {
   const location = useLocation();
   const matches = useMatches();
+  const { logout, session } = useAuth();
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const handle = [...matches]
     .reverse()
@@ -27,6 +30,13 @@ export function Topbar() {
     setIsMobileNavOpen(false);
   }, [location.pathname, location.search]);
 
+  const initials = session?.user.fullName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+
   return (
     <>
       <header className="sticky top-0 z-20 border-b border-border/80 bg-background/82 backdrop-blur-xl">
@@ -34,12 +44,9 @@ export function Topbar() {
           <div className="flex items-center justify-between gap-4 lg:hidden">
             <RootFlowLogo compact />
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/auth/login">Login</Link>
-              </Button>
-              <Button size="sm" asChild>
-                <Link to="/auth/signup">Sign up</Link>
-              </Button>
+              <Avatar className="size-9">
+                <AvatarFallback>{initials || "RF"}</AvatarFallback>
+              </Avatar>
               <ThemeToggle />
               <Button variant="outline" size="icon" aria-label="Open navigation" onClick={() => setIsMobileNavOpen(true)}>
                 <PanelLeftOpen />
@@ -51,7 +58,7 @@ export function Topbar() {
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-primary/75">
                 <Sparkles className="size-3.5" />
-                RootFlow Product Workspace
+                Authenticated RootFlow Workspace
               </div>
               <div>
                 <h2 className="font-display text-[1.95rem] tracking-[-0.05em] text-foreground">{handle?.title ?? "RootFlow"}</h2>
@@ -78,13 +85,22 @@ export function Topbar() {
               <div className="flex items-center gap-2">
                 <Badge variant="success" className="hidden sm:inline-flex">
                   <ShieldCheck className="size-3.5" />
-                  API-ready shell
+                  {session?.role ?? "Member"}
                 </Badge>
-                <Button variant="ghost" asChild className="hidden sm:inline-flex">
-                  <Link to="/auth/login">Login</Link>
-                </Button>
-                <Button asChild className="hidden sm:inline-flex">
-                  <Link to="/auth/signup">Sign up</Link>
+                <div className="hidden min-w-0 items-center gap-3 rounded-2xl border border-border/75 bg-background/80 px-3 py-2 sm:flex">
+                  <Avatar className="size-10">
+                    <AvatarFallback>{initials || "RF"}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-foreground">{session?.user.fullName}</div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {session?.workspace.name} - @{session?.workspace.slug}
+                    </div>
+                  </div>
+                </div>
+                <Button variant="ghost" className="hidden sm:inline-flex" onClick={logout}>
+                  Log out
+                  <LogOut />
                 </Button>
                 <Button variant="outline" size="icon" aria-label="Open notifications settings" asChild>
                   <Link to="/settings?section=notifications">
@@ -119,17 +135,24 @@ export function Topbar() {
             </div>
 
             <div className="mt-6 space-y-3 border-t border-border/80 pt-4">
+              <div className="flex items-center gap-3 rounded-2xl border border-border/75 bg-background/82 p-3">
+                <Avatar className="size-11">
+                  <AvatarFallback>{initials || "RF"}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-foreground">{session?.user.fullName}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {session?.workspace.name} - {session?.role}
+                  </div>
+                </div>
+              </div>
               <Button variant="outline" className="w-full justify-between" asChild>
                 <Link to="/settings">Product settings</Link>
               </Button>
-              <div className="grid grid-cols-2 gap-3">
-                <Button variant="ghost" asChild>
-                  <Link to="/auth/login">Login</Link>
-                </Button>
-                <Button asChild>
-                  <Link to="/auth/signup">Sign up</Link>
-                </Button>
-              </div>
+              <Button variant="ghost" className="w-full justify-between" onClick={logout}>
+                Log out
+                <LogOut />
+              </Button>
             </div>
           </aside>
         </div>

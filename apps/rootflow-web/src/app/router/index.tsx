@@ -2,6 +2,8 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { AppShell } from "@/app/layouts/app-shell";
 import { AssistantPage } from "@/features/assistant/page";
+import { RedirectIfAuthenticated } from "@/features/auth/components/redirect-if-authenticated";
+import { RequireAuth } from "@/features/auth/components/require-auth";
 import { AcceptInvitePage } from "@/features/auth/pages/accept-invite-page";
 import { ForgotPasswordPage } from "@/features/auth/pages/forgot-password-page";
 import { LoginPage } from "@/features/auth/pages/login-page";
@@ -15,7 +17,11 @@ import { SettingsPage } from "@/features/settings/page";
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <AppShell />,
+    element: (
+      <RequireAuth>
+        <AppShell />
+      </RequireAuth>
+    ),
     children: [
       {
         index: true,
@@ -58,29 +64,49 @@ export const router = createBrowserRouter([
         element: <SettingsPage />,
         handle: {
           title: "Settings",
-          subtitle: "Placeholder controls that keep the product shell honest and ready for future implementation.",
+          subtitle: "Workspace and access controls are evolving into a real SaaS operating surface.",
         },
       },
     ],
   },
   {
     path: "/auth/login",
-    element: <LoginPage />,
+    element: (
+      <RedirectIfAuthenticated>
+        <LoginPage />
+      </RedirectIfAuthenticated>
+    ),
   },
   {
     path: "/auth/signup",
-    element: <SignUpPage />,
+    element: (
+      <RedirectIfAuthenticated>
+        <SignUpPage />
+      </RedirectIfAuthenticated>
+    ),
   },
   {
     path: "/auth/forgot-password",
-    element: <ForgotPasswordPage />,
+    element: (
+      <RedirectIfAuthenticated>
+        <ForgotPasswordPage />
+      </RedirectIfAuthenticated>
+    ),
   },
   {
     path: "/auth/reset-password",
-    element: <ResetPasswordPage />,
+    element: (
+      <RedirectIfAuthenticated>
+        <ResetPasswordPage />
+      </RedirectIfAuthenticated>
+    ),
   },
   {
     path: "/auth/invite",
-    element: <AcceptInvitePage />,
+    element: (
+      <RedirectIfAuthenticated>
+        <AcceptInvitePage />
+      </RedirectIfAuthenticated>
+    ),
   },
 ]);

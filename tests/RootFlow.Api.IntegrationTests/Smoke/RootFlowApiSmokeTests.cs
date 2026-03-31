@@ -32,7 +32,7 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
     public async Task MainApiFlow_WorksEndToEnd()
     {
         await _factory.ResetStateAsync();
-        using var client = _factory.CreateApiClient();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
 
         using var multipart = new MultipartFormDataContent();
         multipart.Add(

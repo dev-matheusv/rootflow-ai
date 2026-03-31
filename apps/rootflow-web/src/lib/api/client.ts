@@ -1,4 +1,5 @@
 import { env } from "@/lib/config/env";
+import { clearStoredAuthSession, getStoredAuthSession } from "@/lib/auth/session-storage";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -18,11 +19,13 @@ interface RequestOptions extends RequestInit {
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { parseAs = "json", headers, ...init } = options;
+  const storedSession = getStoredAuthSession();
 
   const response = await fetch(`${env.apiBaseUrl}${path}`, {
     ...init,
     headers: {
       Accept: "application/json",
+      ...(storedSession ? { Authorization: `Bearer ${storedSession.token}` } : {}),
       ...headers,
     },
   });
@@ -43,6 +46,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string"
         ? payload.error
         : `Request failed with status ${response.status}.`;
+
+    if (response.status === 401 && storedSession) {
+      clearStoredAuthSession();
+    }
 
     throw new ApiError(message, response.status, payload);
   }

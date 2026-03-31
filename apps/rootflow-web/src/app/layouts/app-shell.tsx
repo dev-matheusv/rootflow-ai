@@ -4,12 +4,25 @@ import { Outlet } from "react-router-dom";
 
 import { RootFlowLogo } from "@/components/branding/rootflow-logo";
 import { SidebarNav } from "@/components/navigation/sidebar-nav";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Topbar } from "@/components/navigation/topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/features/auth/auth-provider";
 
 export function AppShell() {
+  const { session } = useAuth();
+  const workspaceName = session?.workspace.name ?? "Workspace";
+  const workspaceSlug = session?.workspace.slug ?? "workspace";
+  const role = session?.role ?? "Member";
+  const initials = session?.user.fullName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 opacity-[0.85]">
@@ -33,16 +46,16 @@ export function AppShell() {
             <CardHeader className="pb-4">
               <Badge className="w-fit">
                 <Orbit className="size-3.5" />
-                Default workspace
+                {role} workspace
               </Badge>
-              <CardTitle className="text-base">RootFlow Core Demo</CardTitle>
+              <CardTitle className="text-base">{workspaceName}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="rounded-2xl border border-border/70 bg-background/88 p-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
                     <div className="text-sm font-medium text-foreground">Readiness</div>
-                    <div className="text-sm text-muted-foreground">Frontend shell prepared for API integration</div>
+                    <div className="text-sm text-muted-foreground">Authenticated workspace with isolated documents and chat.</div>
                   </div>
                   <CircleCheckBig className="size-4 text-emerald-500" />
                 </div>
@@ -53,8 +66,18 @@ export function AppShell() {
                   <Building2 className="size-5" />
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-foreground">Client-ready foundation</div>
-                  <div className="text-sm text-muted-foreground">Light-first premium shell, scalable routing, auth-ready structure.</div>
+                  <div className="truncate text-sm font-semibold text-foreground">@{workspaceSlug}</div>
+                  <div className="text-sm text-muted-foreground">JWT-scoped SaaS foundation with room for multi-user growth.</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/88 p-4">
+                <Avatar className="size-11">
+                  <AvatarFallback>{initials || "RF"}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-foreground">{session?.user.fullName ?? "RootFlow User"}</div>
+                  <div className="truncate text-sm text-muted-foreground">{session?.user.email ?? "workspace@rootflow.local"}</div>
                 </div>
               </div>
 
