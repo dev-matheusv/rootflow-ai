@@ -1,4 +1,5 @@
 import { ArrowUpRight, Building2, CircleCheckBig, Orbit } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Outlet } from "react-router-dom";
 
 import { RootFlowLogo } from "@/components/branding/rootflow-logo";
@@ -57,9 +58,11 @@ export function AppShell() {
                 </div>
               </div>
 
-              <Button variant="outline" className="w-full justify-between">
-                Product settings
-                <ArrowUpRight />
+              <Button variant="outline" className="w-full justify-between" asChild>
+                <Link to="/settings">
+                  Product settings
+                  <ArrowUpRight />
+                </Link>
               </Button>
             </CardContent>
           </Card>

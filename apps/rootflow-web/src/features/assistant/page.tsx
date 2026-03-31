@@ -8,6 +8,7 @@ import { z } from "zod";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
+import { FormattedAnswer } from "@/components/chat/formatted-answer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -153,7 +154,7 @@ export function AssistantPage() {
                       />
                     ) : (
                       <div className="rounded-[30px] border border-border/80 bg-background/70 p-4 shadow-[0_18px_36px_-30px_rgba(16,36,71,0.14)] dark:shadow-[0_18px_36px_-30px_rgba(0,0,0,0.34)] sm:p-5">
-                        <div className="space-y-5">
+                        <div className="space-y-6">
                         {messages.map((message) => {
                           const isUser = message.role === 2;
 
@@ -173,9 +174,11 @@ export function AssistantPage() {
                                 >
                                   {isUser ? "You" : "RootFlow assistant"}
                                 </div>
-                                <p className={`whitespace-pre-wrap text-[0.96rem] leading-7 ${isUser ? "text-inherit" : "text-foreground/92"}`}>
-                                  {message.content}
-                                </p>
+                                {isUser ? (
+                                  <p className="whitespace-pre-wrap text-[0.96rem] leading-7 text-inherit">{message.content}</p>
+                                ) : (
+                                  <FormattedAnswer content={message.content} />
+                                )}
                               </article>
                             </div>
                           );

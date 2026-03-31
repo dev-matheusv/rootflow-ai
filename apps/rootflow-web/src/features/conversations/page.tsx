@@ -5,6 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
+import { FormattedAnswer } from "@/components/chat/formatted-answer";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -149,17 +150,28 @@ export function ConversationsPage() {
                   const isUser = message.role === 2;
 
                   return (
-                    <div key={message.id} className="flex gap-4 rounded-[28px] border border-border/70 bg-background/60 p-4">
+                    <div
+                      key={message.id}
+                      className={`flex gap-4 rounded-[28px] border p-4 shadow-[0_16px_30px_-30px_rgba(16,36,71,0.18)] dark:shadow-[0_18px_32px_-30px_rgba(0,0,0,0.34)] ${
+                        isUser
+                          ? "border-[#cadeff] bg-[#eaf2ff] dark:border-[#314662] dark:bg-[#22314a]"
+                          : "border-border/75 bg-background/72"
+                      }`}
+                    >
                       <Avatar className="size-11">
                         <AvatarFallback>{isUser ? "U" : "AI"}</AvatarFallback>
                       </Avatar>
-                      <div className="space-y-2">
+                      <div className="min-w-0 space-y-3">
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-semibold text-foreground">{isUser ? "User" : "Assistant"}</div>
                           <Badge variant={isUser ? "secondary" : "default"}>{isUser ? "Question" : "Grounded"}</Badge>
                           <span className="text-xs text-muted-foreground">{formatRelativeDate(message.createdAtUtc)}</span>
                         </div>
-                        <p className="text-sm leading-7 text-muted-foreground">{message.content}</p>
+                        {isUser ? (
+                          <p className="whitespace-pre-wrap text-sm leading-7 text-[#16345f] dark:text-[#edf4ff]">{message.content}</p>
+                        ) : (
+                          <FormattedAnswer content={message.content} className="max-w-[72ch]" />
+                        )}
                       </div>
                     </div>
                   );

@@ -41,19 +41,19 @@
   color-scheme: light;
   --radius: 1.75rem;
 
-  --background: #f7f9fc;
-  --foreground: #132238;
+  --background: #f6f8fb;
+  --foreground: #102137;
   --card: rgba(255, 255, 255, 0.94);
-  --card-foreground: #132238;
+  --card-foreground: #102137;
   --popover: rgba(255, 255, 255, 0.98);
-  --popover-foreground: #132238;
+  --popover-foreground: #102137;
 
   --primary: #2563eb;
   --primary-foreground: #f8fbff;
   --secondary: #eef4ff;
   --secondary-foreground: #1d3760;
   --muted: #f3f6fb;
-  --muted-foreground: #607089;
+  --muted-foreground: #53657d;
   --accent: #dce9ff;
   --accent-foreground: #18345b;
   --destructive: #d94444;
@@ -112,15 +112,16 @@
 
   html {
     scroll-behavior: smooth;
+    scrollbar-color: rgba(37, 99, 235, 0.34) rgba(120, 145, 181, 0.14);
   }
 
   body {
     @apply min-h-screen bg-background text-foreground font-sans antialiased;
     margin: 0;
     background-image:
-      radial-gradient(circle at top left, rgba(111, 157, 255, 0.16), transparent 24rem),
-      radial-gradient(circle at top right, rgba(193, 222, 255, 0.22), transparent 20rem),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(243, 247, 253, 0.92) 34%, #f7f9fc 100%);
+      radial-gradient(circle at top left, rgba(111, 157, 255, 0.14), transparent 24rem),
+      radial-gradient(circle at top right, rgba(193, 222, 255, 0.2), transparent 20rem),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(242, 246, 252, 0.96) 34%, #f6f8fb 100%);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -145,6 +146,10 @@
       linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 42%);
   }
 
+  html.dark {
+    scrollbar-color: rgba(138, 180, 255, 0.28) rgba(151, 169, 200, 0.08);
+  }
+
   ::selection,
   *::selection {
     background: var(--selection-background);
@@ -163,13 +168,22 @@
   }
 
   *::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--primary) 18%, transparent);
+    background: color-mix(in srgb, var(--primary) 34%, transparent);
     border-radius: 999px;
     border: 2px solid transparent;
     background-clip: padding-box;
   }
 
   *::-webkit-scrollbar-track {
-    background: transparent;
+    background: color-mix(in srgb, var(--border) 48%, transparent);
+    border-radius: 999px;
+  }
+
+  .dark *::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--primary) 28%, transparent);
+  }
+
+  .dark *::-webkit-scrollbar-track {
+    background: color-mix(in srgb, var(--border) 32%, transparent);
   }
 }

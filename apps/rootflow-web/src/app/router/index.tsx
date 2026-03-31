@@ -10,6 +10,7 @@ import { SignUpPage } from "@/features/auth/pages/sign-up-page";
 import { ConversationsPage } from "@/features/conversations/page";
 import { DashboardPage } from "@/features/dashboard/page";
 import { KnowledgeBasePage } from "@/features/knowledge-base/page";
+import { SettingsPage } from "@/features/settings/page";
 
 export const router = createBrowserRouter([
   {
@@ -50,6 +51,14 @@ export const router = createBrowserRouter([
         handle: {
           title: "Conversations",
           subtitle: "Readable answer trails and session history designed for business teams.",
+        },
+      },
+      {
+        path: "settings",
+        element: <SettingsPage />,
+        handle: {
+          title: "Settings",
+          subtitle: "Placeholder controls that keep the product shell honest and ready for future implementation.",
         },
       },
     ],
