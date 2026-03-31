@@ -9,5 +9,6 @@ public sealed record ChatRetrievedChunkDebugDto(
     double Score,
     double VectorScore,
     double KeywordScore,
+    double PhraseScore,
     IReadOnlyList<string> MatchedTerms,
     string Reason);

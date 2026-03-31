@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 using RootFlow.Application.Abstractions.AI;
 using RootFlow.Application.Abstractions.Search;
@@ -5,7 +6,7 @@ using RootFlow.Application.Chat;
 
 namespace RootFlow.Infrastructure.AI;
 
-public sealed class FakeChatCompletionService : IChatCompletionService
+public sealed class PremiumFakeChatCompletionService : IChatCompletionService
 {
     private static readonly Regex BlockRegex = new(
         @"\[(\d+)\]\s+[^\n]+\n(.*?)(?=\n\[\d+\]\s+[^\n]+\n|\z)",
@@ -23,18 +24,20 @@ public sealed class FakeChatCompletionService : IChatCompletionService
         var blocks = ParseBlocks(context);
         var language = ChatLanguageDetector.Detect(currentMessage, question);
         var expandedQuestion = SemanticQueryExpander.Expand(question);
+        var answerIntent = SemanticQueryExpander.Expand(
+            string.IsNullOrWhiteSpace(currentMessage) ? question : currentMessage);
 
         if (blocks.Count == 0)
         {
             return Task.FromResult(new ChatCompletionResponse(
                 ChatLanguageDetector.GetNoContextAnswer(language),
-                "fake-chat-deterministic-v1"));
+                "fake-chat-premium-v1"));
         }
 
         var bestBlock = SelectBestBlock(blocks, expandedQuestion);
-        var answer = FormatStructuredAnswer(bestBlock.Content, expandedQuestion, language, bestBlock.Index);
+        var answer = FormatStructuredAnswer(bestBlock.Content, answerIntent, language, bestBlock.Index);
 
-        return Task.FromResult(new ChatCompletionResponse(answer, "fake-chat-deterministic-v1"));
+        return Task.FromResult(new ChatCompletionResponse(answer, "fake-chat-premium-v1"));
     }
 
     private static List<ContextBlock> ParseBlocks(string context)
@@ -111,25 +114,10 @@ public sealed class FakeChatCompletionService : IChatCompletionService
             {
                 return BuildStructuredAnswer(
                     language == ChatLanguage.Portuguese
-                        ? $"As principais habilidades identificadas são {string.Join(", ", skills.Take(4))}"
+                        ? $"As principais habilidades identificadas s\u00e3o {string.Join(", ", skills.Take(4))}"
                         : $"The key skills identified are {string.Join(", ", skills.Take(4))}",
                     language == ChatLanguage.Portuguese ? "Habilidades" : "Skills",
                     skills,
-                    citationIndex);
-            }
-        }
-
-        if (IsEducationQuestion(question))
-        {
-            var educationItems = ExtractSectionItems(content, "education", "educacao", "formacao");
-            if (educationItems.Length > 0)
-            {
-                return BuildStructuredAnswer(
-                    language == ChatLanguage.Portuguese
-                        ? "A formação identificada está resumida abaixo"
-                        : "The education details identified are summarized below",
-                    language == ChatLanguage.Portuguese ? "Formação" : "Education",
-                    educationItems,
                     citationIndex);
             }
         }
@@ -141,7 +129,7 @@ public sealed class FakeChatCompletionService : IChatCompletionService
             {
                 return BuildStructuredAnswer(
                     language == ChatLanguage.Portuguese
-                        ? $"A empresa atual identificada é {currentCompany}"
+                        ? $"A empresa atual identificada e {currentCompany}"
                         : $"The current company identified is {currentCompany}",
                     language == ChatLanguage.Portuguese ? "Empresa atual" : "Current company",
                     [currentCompany],
@@ -151,15 +139,36 @@ public sealed class FakeChatCompletionService : IChatCompletionService
 
         if (IsExperienceQuestion(question))
         {
-            var experienceItems = ExtractSectionItems(content, "professional experience", "experience", "experiencia", "historico profissional");
+            var experienceItems = ExtractSectionItems(
+                content,
+                "professional experience",
+                "experience",
+                "experiencia",
+                "historico profissional");
+
             if (experienceItems.Length > 0)
             {
                 return BuildStructuredAnswer(
                     language == ChatLanguage.Portuguese
-                        ? "A experiência profissional identificada está resumida abaixo"
+                        ? "A experiencia profissional identificada esta resumida abaixo"
                         : "The professional experience identified is summarized below",
-                    language == ChatLanguage.Portuguese ? "Experiência profissional" : "Professional experience",
+                    language == ChatLanguage.Portuguese ? "Experiencia profissional" : "Professional experience",
                     experienceItems,
+                    citationIndex);
+            }
+        }
+
+        if (IsEducationQuestion(question))
+        {
+            var educationItems = ExtractSectionItems(content, "education", "educacao", "formacao");
+            if (educationItems.Length > 0)
+            {
+                return BuildStructuredAnswer(
+                    language == ChatLanguage.Portuguese
+                        ? "A formacao identificada esta resumida abaixo"
+                        : "The education details identified are summarized below",
+                    language == ChatLanguage.Portuguese ? "Formacao" : "Education",
+                    educationItems,
                     citationIndex);
             }
         }
@@ -169,12 +178,13 @@ public sealed class FakeChatCompletionService : IChatCompletionService
             var mealLine = ExtractMealLine(content, question);
             if (!string.IsNullOrWhiteSpace(mealLine))
             {
-                var sectionLabel = language == ChatLanguage.Portuguese ? "Recomendação" : "Recommendation";
-                var directAnswer = language == ChatLanguage.Portuguese
-                    ? $"A melhor opção identificada é {mealLine}"
-                    : $"The best grounded option is {mealLine}";
-
-                return BuildStructuredAnswer(directAnswer, sectionLabel, [mealLine], citationIndex);
+                return BuildStructuredAnswer(
+                    language == ChatLanguage.Portuguese
+                        ? $"A melhor opcao identificada e {mealLine}"
+                        : $"The best grounded option is {mealLine}",
+                    language == ChatLanguage.Portuguese ? "Recomendacao" : "Recommendation",
+                    [mealLine],
+                    citationIndex);
             }
         }
 
@@ -183,19 +193,35 @@ public sealed class FakeChatCompletionService : IChatCompletionService
             var trainingLine = ExtractTrainingLine(content, question);
             if (!string.IsNullOrWhiteSpace(trainingLine))
             {
-                var sectionLabel = language == ChatLanguage.Portuguese ? "Treino" : "Training";
-                var directAnswer = language == ChatLanguage.Portuguese
-                    ? $"O treino recomendado é {trainingLine}"
-                    : $"The recommended training is {trainingLine}";
+                return BuildStructuredAnswer(
+                    language == ChatLanguage.Portuguese
+                        ? $"O treino recomendado e {trainingLine}"
+                        : $"The recommended training is {trainingLine}",
+                    language == ChatLanguage.Portuguese ? "Treino" : "Training",
+                    [trainingLine],
+                    citationIndex);
+            }
+        }
 
-                return BuildStructuredAnswer(directAnswer, sectionLabel, [trainingLine], citationIndex);
+        if (IsProcessQuestion(question.OriginalText))
+        {
+            var procedureItems = ExtractProcedureItems(content);
+            if (procedureItems.Length > 0)
+            {
+                return BuildStructuredAnswer(
+                    language == ChatLanguage.Portuguese
+                        ? "O procedimento identificado esta resumido abaixo"
+                        : "The grounded procedure is summarized below",
+                    language == ChatLanguage.Portuguese ? "Passos" : "Steps",
+                    procedureItems,
+                    citationIndex);
             }
         }
 
         var genericSummary = SummarizeGeneric(content, question);
         return BuildStructuredAnswer(
             language == ChatLanguage.Portuguese
-                ? $"A informação mais relevante encontrada é {genericSummary}"
+                ? $"A informacao mais relevante encontrada e {genericSummary}"
                 : $"The most relevant information found is {genericSummary}",
             language == ChatLanguage.Portuguese ? "Resposta" : "Answer",
             [genericSummary],
@@ -219,11 +245,11 @@ public sealed class FakeChatCompletionService : IChatCompletionService
             {
                 Content = value,
                 Score = Score(value, question),
-                PositionBonus = Math.Max(0, 3 - index) * 0.25
+                PositionBonus = Math.Max(0, 3 - index) * 0.25d
             })
             .OrderByDescending(static value => value.Score)
-            .ThenByDescending(static value => value.Content.Length)
             .ThenByDescending(static value => value.PositionBonus)
+            .ThenByDescending(static value => value.Content.Length)
             .Select(static value => value.Content)
             .FirstOrDefault() ?? normalized;
 
@@ -236,7 +262,7 @@ public sealed class FakeChatCompletionService : IChatCompletionService
         IReadOnlyList<string> items,
         int citationIndex)
     {
-        var builder = new System.Text.StringBuilder();
+        var builder = new StringBuilder();
         builder.AppendLine($"{FinalizeSentence(directAnswer)} [{citationIndex}]");
 
         if (items.Count > 0)
@@ -246,7 +272,7 @@ public sealed class FakeChatCompletionService : IChatCompletionService
 
             foreach (var item in items.Take(5))
             {
-                builder.AppendLine($"  - {FinalizeSentence(item)}");
+                builder.AppendLine($"  - {FinalizeSentence(item)} [{citationIndex}]");
             }
         }
 
@@ -363,10 +389,33 @@ public sealed class FakeChatCompletionService : IChatCompletionService
 
     private static string ExtractCurrentCompany(string content)
     {
+        var lines = content
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        foreach (var line in lines)
+        {
+            var normalizedLine = SemanticQueryExpander.NormalizeText(line);
+            if (!normalizedLine.Contains("current company", StringComparison.Ordinal)
+                && !normalizedLine.Contains("empresa atual", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var inlineItems = ExtractInlineRemainder(line);
+            if (inlineItems.Length > 0)
+            {
+                return inlineItems[0];
+            }
+        }
+
         var experienceItems = ExtractSectionItems(content, "professional experience", "experience", "experiencia");
         foreach (var item in experienceItems)
         {
-            var match = Regex.Match(item, @"\bat\s+(.+?)\s+(from|since|between|in)\b", RegexOptions.IgnoreCase);
+            var match = Regex.Match(
+                item,
+                @"\bat\s+(.+?)\s+(from|since|between|in)\b",
+                RegexOptions.IgnoreCase);
+
             if (match.Success)
             {
                 return match.Groups[1].Value.Trim();
@@ -379,19 +428,19 @@ public sealed class FakeChatCompletionService : IChatCompletionService
     private static string ExtractMealLine(string content, ExpandedSearchQuery question)
     {
         var targetLabels = new List<string>();
-        if (HasTerm(question, "breakfast", "cafe", "manha"))
+        if (HasQuestionTerm(question, "breakfast", "cafe", "manha"))
         {
-            targetLabels.Add("breakfast");
+            targetLabels.AddRange(["breakfast", "cafe", "cafe da manha"]);
         }
 
-        if (HasTerm(question, "lunch", "almoco"))
+        if (HasQuestionTerm(question, "lunch", "almoco"))
         {
-            targetLabels.Add("lunch");
+            targetLabels.AddRange(["lunch", "almoco"]);
         }
 
-        if (HasTerm(question, "dinner", "jantar", "supper"))
+        if (HasQuestionTerm(question, "dinner", "jantar", "supper"))
         {
-            targetLabels.Add("dinner");
+            targetLabels.AddRange(["dinner", "jantar", "supper"]);
         }
 
         var lines = content
@@ -402,7 +451,8 @@ public sealed class FakeChatCompletionService : IChatCompletionService
             var normalizedLine = SemanticQueryExpander.NormalizeText(line);
             if (targetLabels.Any(label => normalizedLine.StartsWith(label, StringComparison.Ordinal)))
             {
-                return string.Join(", ", ExtractInlineRemainder(line));
+                var items = ExtractInlineRemainder(line);
+                return items.Length > 0 ? string.Join(", ", items) : line.Trim();
             }
         }
 
@@ -417,38 +467,37 @@ public sealed class FakeChatCompletionService : IChatCompletionService
             .ToArray();
 
         var preferredLabels = new List<string>();
-        if (HasTerm(question, "today", "hoje"))
+        if (HasQuestionTerm(question, "today", "hoje"))
         {
-            preferredLabels.Add("today");
+            preferredLabels.AddRange(["today", "hoje"]);
         }
 
-        if (HasTerm(question, "monday", "segunda"))
+        if (HasQuestionTerm(question, "monday", "segunda"))
         {
-            preferredLabels.Add("monday");
-            preferredLabels.Add("today");
+            preferredLabels.AddRange(["monday", "segunda", "today", "hoje"]);
         }
 
-        if (HasTerm(question, "tuesday", "terca"))
+        if (HasQuestionTerm(question, "tuesday", "terca"))
         {
-            preferredLabels.Add("tuesday");
+            preferredLabels.AddRange(["tuesday", "terca"]);
         }
 
-        if (HasTerm(question, "wednesday", "quarta"))
+        if (HasQuestionTerm(question, "wednesday", "quarta"))
         {
-            preferredLabels.Add("wednesday");
+            preferredLabels.AddRange(["wednesday", "quarta"]);
         }
 
-        if (HasTerm(question, "thursday", "quinta"))
+        if (HasQuestionTerm(question, "thursday", "quinta"))
         {
-            preferredLabels.Add("thursday");
+            preferredLabels.AddRange(["thursday", "quinta"]);
         }
 
-        if (HasTerm(question, "friday", "sexta"))
+        if (HasQuestionTerm(question, "friday", "sexta"))
         {
-            preferredLabels.Add("friday");
+            preferredLabels.AddRange(["friday", "sexta"]);
         }
 
-        foreach (var label in preferredLabels)
+        foreach (var label in preferredLabels.Distinct(StringComparer.Ordinal))
         {
             var matchedLine = lines.FirstOrDefault(line =>
                 SemanticQueryExpander.NormalizeText(line).StartsWith(label, StringComparison.Ordinal));
@@ -456,7 +505,7 @@ public sealed class FakeChatCompletionService : IChatCompletionService
             if (!string.IsNullOrWhiteSpace(matchedLine))
             {
                 var items = ExtractInlineRemainder(matchedLine);
-                return items.Length > 0 ? string.Join(", ", items) : matchedLine;
+                return items.Length > 0 ? string.Join(", ", items) : matchedLine.Trim();
             }
         }
 
@@ -465,63 +514,108 @@ public sealed class FakeChatCompletionService : IChatCompletionService
 
     private static bool IsSkillsQuestion(ExpandedSearchQuery question)
     {
-        return HasTerm(question, "skill", "habilidade", "competencia", "stack", "technology", "tool", "framework");
+        return HasQuestionTerm(question, "skill", "skills", "habilidade", "habilidades", "competencia", "competencias", "stack", "technology", "tools", "framework");
     }
 
     private static bool IsEducationQuestion(ExpandedSearchQuery question)
     {
-        return HasTerm(question, "education", "educacao", "formacao", "degree", "graduacao", "course", "qualification");
+        return HasQuestionTerm(
+            question,
+            "education",
+            "academic background",
+            "educacao",
+            "formacao",
+            "formacao academica",
+            "degree",
+            "graduacao",
+            "course",
+            "qualification");
     }
 
     private static bool IsExperienceQuestion(ExpandedSearchQuery question)
     {
-        return HasTerm(question, "experience", "experiencia", "history", "historico", "career", "job", "role", "employer");
+        return HasQuestionTerm(
+            question,
+            "professional experience",
+            "professional experiences",
+            "work experience",
+            "work history",
+            "experience",
+            "experiencias",
+            "experiencia",
+            "historico profissional",
+            "history",
+            "career",
+            "job",
+            "role",
+            "employer");
     }
 
     private static bool IsCompanyQuestion(ExpandedSearchQuery question)
     {
-        return HasTerm(question, "company", "empresa", "employer", "current");
+        return HasQuestionTerm(question, "current company", "company", "empresa atual", "empresa", "employer", "current");
     }
 
     private static bool IsDietQuestion(ExpandedSearchQuery question)
     {
-        return HasTerm(question, "breakfast", "lunch", "dinner", "almoco", "jantar", "meal", "food", "dieta", "diet");
+        return HasQuestionTerm(question, "breakfast", "lunch", "dinner", "almoco", "jantar", "meal", "food", "dieta", "diet");
     }
 
     private static bool IsTrainingQuestion(ExpandedSearchQuery question)
     {
-        return HasTerm(question, "training", "treino", "workout", "exercise", "today", "hoje", "monday", "segunda");
+        return HasQuestionTerm(question, "training", "treino", "workout", "exercise", "today", "hoje", "monday", "segunda");
     }
 
-    private static bool HasTerm(ExpandedSearchQuery question, params string[] terms)
+    private static bool HasQuestionTerm(ExpandedSearchQuery question, params string[] terms)
     {
-        return terms
-            .SelectMany(SemanticQueryExpander.Tokenize)
-            .Any(question.TermWeights.ContainsKey);
+        var originalTokens = question.OriginalTokens.ToHashSet(StringComparer.Ordinal);
+        var normalizedQuestion = SemanticQueryExpander.NormalizeText(question.OriginalText);
+
+        foreach (var term in terms)
+        {
+            var normalizedTerm = SemanticQueryExpander.NormalizeText(term);
+            if (normalizedTerm.Contains(' ', StringComparison.Ordinal)
+                && normalizedQuestion.Contains(normalizedTerm, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            foreach (var token in SemanticQueryExpander.Tokenize(term))
+            {
+                if (originalTokens.Contains(token))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static string[] ExtractProcedureItems(string content)
+    {
+        return Regex.Split(content, @"(?<=[.!?])\s+|\n+")
+            .Select(static sentence => sentence.Trim())
+            .Where(static sentence => !string.IsNullOrWhiteSpace(sentence))
+            .Take(3)
+            .Select(FinalizeSentence)
+            .ToArray();
     }
 
     private static string FinalizeSentence(string sentence)
     {
-        if (sentence.Length > 220)
+        var normalized = sentence.Trim();
+        if (normalized.Length > 220)
         {
-            sentence = sentence[..220].TrimEnd();
+            normalized = normalized[..220].TrimEnd();
         }
 
-        if (!sentence.EndsWith(".", StringComparison.Ordinal))
+        if (!normalized.EndsWith(".", StringComparison.Ordinal))
         {
-            sentence += ".";
+            normalized += ".";
         }
 
-        return sentence;
-    }
-
-    private static bool IsProcessQuestion(string question)
-    {
-        var normalized = question.TrimStart();
-        return normalized.StartsWith("how do", StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith("how can", StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith("how should", StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith("how to", StringComparison.OrdinalIgnoreCase);
+        return normalized;
     }
 
     private static string ExtractSection(string input, string startMarker, string? endMarker = null)
@@ -543,6 +637,15 @@ public sealed class FakeChatCompletionService : IChatCompletionService
         }
 
         return input[start..end].Trim();
+    }
+
+    private static bool IsProcessQuestion(string question)
+    {
+        var normalized = question.TrimStart();
+        return normalized.StartsWith("how do", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("how can", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("how should", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("how to", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record ContextBlock(int Index, string Content, double Score = 0);

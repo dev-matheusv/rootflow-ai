@@ -10,4 +10,5 @@ public sealed record KnowledgeSearchMatch(
     double Score,
     double VectorScore,
     double KeywordScore,
+    double PhraseScore,
     IReadOnlyList<string> MatchedTerms);

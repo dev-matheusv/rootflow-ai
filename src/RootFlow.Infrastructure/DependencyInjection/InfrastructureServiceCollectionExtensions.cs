@@ -69,7 +69,7 @@ public static class InfrastructureServiceCollectionExtensions
         if (string.Equals(aiMode, "Fake", StringComparison.OrdinalIgnoreCase))
         {
             services.AddSingleton<IEmbeddingService, FakeEmbeddingService>();
-            services.AddSingleton<IChatCompletionService, FakeChatCompletionService>();
+            services.AddSingleton<IChatCompletionService, PremiumFakeChatCompletionService>();
         }
         else
         {

@@ -1,13 +1,12 @@
 using System.Security.Cryptography;
-using System.Text.RegularExpressions;
 using RootFlow.Application.Abstractions.AI;
+using RootFlow.Application.Abstractions.Search;
 
 namespace RootFlow.Infrastructure.AI;
 
 public sealed class FakeEmbeddingService : IEmbeddingService
 {
     private const int Dimensions = 1536;
-    private static readonly Regex TokenRegex = new("[a-z0-9]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public Task<float[]> GenerateEmbeddingAsync(string text, CancellationToken cancellationToken = default)
     {
@@ -25,18 +24,16 @@ public sealed class FakeEmbeddingService : IEmbeddingService
     private static float[] CreateEmbedding(string text)
     {
         var embedding = new float[Dimensions];
-        var normalizedText = text.Trim().ToLowerInvariant();
-        var matches = TokenRegex.Matches(normalizedText);
+        var tokens = SemanticQueryExpander.Tokenize(text);
 
-        if (matches.Count == 0)
+        if (tokens.Count == 0)
         {
             embedding[0] = 1f;
             return embedding;
         }
 
-        foreach (Match match in matches)
+        foreach (var token in tokens)
         {
-            var token = match.Value;
             var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(token));
             var bucket = Math.Abs(BitConverter.ToInt32(hash, 0)) % Dimensions;
             var sign = (hash[4] & 1) == 0 ? 1f : -1f;

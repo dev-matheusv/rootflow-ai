@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Npgsql;
 using Pgvector;
 using RootFlow.Application.Abstractions.Search;
@@ -7,14 +6,6 @@ namespace RootFlow.Infrastructure.Search;
 
 public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
 {
-    private static readonly Regex TokenRegex = new("[a-z0-9]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-    private static readonly HashSet<string> StopWords =
-    [
-        "a", "an", "and", "are", "at", "be", "based", "by", "do", "does", "for", "from", "how",
-        "i", "in", "is", "it", "of", "on", "or", "that", "the", "to", "what", "when", "where",
-        "which", "who", "why", "with", "you", "your"
-    ];
-
     private readonly NpgsqlDataSource _dataSource;
 
     public PostgresKnowledgeSearchService(NpgsqlDataSource dataSource)
@@ -52,7 +43,7 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
                            """;
 
         var candidates = new List<SearchCandidate>();
-        var candidateCount = Math.Max(maxResults * 8, 24);
+        var candidateCount = Math.Max(maxResults * 12, 40);
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
@@ -81,62 +72,108 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
         IReadOnlyList<SearchCandidate> candidates,
         int maxResults)
     {
-        var query = ParseQuery(queryText);
+        var query = SemanticQueryExpander.Expand(queryText);
         var rankedCandidates = candidates
             .Select(candidate => RankCandidate(candidate, query))
             .OrderByDescending(static candidate => candidate.Score)
             .ThenByDescending(static candidate => candidate.KeywordScore)
+            .ThenByDescending(static candidate => candidate.PhraseScore)
             .ThenByDescending(static candidate => candidate.VectorScore)
             .ToArray();
 
-        return Diversify(rankedCandidates, maxResults);
+        var relevantCandidates = SelectRelevantCandidates(rankedCandidates, maxResults);
+
+        if (relevantCandidates.Count == 0)
+        {
+            return Array.Empty<KnowledgeSearchMatch>();
+        }
+
+        return Diversify(relevantCandidates, maxResults);
     }
 
-    private static KnowledgeSearchMatch RankCandidate(SearchCandidate candidate, SearchQuery query)
+    private static KnowledgeSearchMatch RankCandidate(SearchCandidate candidate, ExpandedSearchQuery query)
     {
-        var documentNameTokens = Tokenize(candidate.DocumentName);
-        var sourceLabelTokens = Tokenize(candidate.SourceLabel);
-        var contentTokens = Tokenize(candidate.Content);
+        var documentNameTokens = SemanticQueryExpander.Tokenize(candidate.DocumentName).ToHashSet(StringComparer.Ordinal);
+        var sourceLabelTokens = SemanticQueryExpander.Tokenize(candidate.SourceLabel).ToHashSet(StringComparer.Ordinal);
+        var contentTokens = SemanticQueryExpander.Tokenize(candidate.Content).ToHashSet(StringComparer.Ordinal);
 
-        var matchedTerms = query.Tokens
-            .Where(token =>
-                documentNameTokens.Contains(token) ||
-                sourceLabelTokens.Contains(token) ||
-                contentTokens.Contains(token))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
+        var matchedTerms = new List<string>();
+        var totalTermWeight = query.TermWeights.Values.Sum();
+        var matchedWeight = 0d;
+        var titleMatchWeight = 0d;
+        var sourceLabelMatchWeight = 0d;
+        var contentMatchWeight = 0d;
+
+        foreach (var (term, weight) in query.TermWeights)
+        {
+            var termBoost = 0d;
+
+            if (documentNameTokens.Contains(term))
+            {
+                titleMatchWeight += weight;
+                termBoost = Math.Max(termBoost, 1.35d);
+            }
+
+            if (sourceLabelTokens.Contains(term))
+            {
+                sourceLabelMatchWeight += weight;
+                termBoost = Math.Max(termBoost, 1.2d);
+            }
+
+            if (contentTokens.Contains(term))
+            {
+                contentMatchWeight += weight;
+                termBoost = Math.Max(termBoost, 1d);
+            }
+
+            if (termBoost <= 0)
+            {
+                continue;
+            }
+
+            matchedTerms.Add(term);
+            matchedWeight += weight * termBoost;
+        }
 
         var phraseSearchText = NormalizeForPhraseSearch(
             string.Join(' ', candidate.DocumentName, candidate.SourceLabel, candidate.Content));
 
-        var phraseScore = query.Phrases.Length == 0
+        var phraseScore = query.Phrases.Count == 0
             ? 0
-            : (double)query.Phrases.Count(phrase => phraseSearchText.Contains(phrase, StringComparison.Ordinal)) / query.Phrases.Length;
+            : (double)query.Phrases.Count(phrase => phraseSearchText.Contains(phrase, StringComparison.Ordinal)) / query.Phrases.Count;
 
-        var titleMatchCount = query.Tokens.Count(documentNameTokens.Contains);
-        var sourceLabelMatchCount = query.Tokens.Count(sourceLabelTokens.Contains);
-        var contentMatchCount = query.Tokens.Count(contentTokens.Contains);
+        var originalMatchedTerms = query.OriginalTokens
+            .Where(matchedTerms.Contains)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
 
-        var tokenCoverage = query.Tokens.Length == 0
+        var exactCoverage = query.OriginalTokens.Count == 0
             ? 0
-            : (double)matchedTerms.Length / query.Tokens.Length;
+            : (double)originalMatchedTerms.Length / query.OriginalTokens.Count;
 
-        var weightedTokenCoverage = query.Tokens.Length == 0
+        var keywordScore = totalTermWeight == 0
+            ? 0
+            : Math.Min(1d, matchedWeight / (totalTermWeight * 1.35d));
+
+        var fieldDensityScore = totalTermWeight == 0
             ? 0
             : Math.Min(
                 1d,
-                ((titleMatchCount * 1.3) + (sourceLabelMatchCount * 1.1) + (contentMatchCount * 0.9)) /
-                (query.Tokens.Length * 1.3));
+                ((titleMatchWeight * 1.35d) + (sourceLabelMatchWeight * 1.15d) + contentMatchWeight) /
+                (totalTermWeight * 1.35d));
 
-        var keywordScore = query.Tokens.Length == 0 && query.Phrases.Length == 0
-            ? 0
-            : (tokenCoverage * 0.5) + (weightedTokenCoverage * 0.35) + (phraseScore * 0.15);
+        var combinedScore = (candidate.VectorScore * 0.50d)
+            + (keywordScore * 0.24d)
+            + (fieldDensityScore * 0.14d)
+            + (exactCoverage * 0.07d)
+            + (phraseScore * 0.05d);
 
-        var combinedScore = (candidate.VectorScore * 0.55) + (keywordScore * 0.35) + (phraseScore * 0.10);
+        combinedScore += ComputeIntentBoost(query, documentNameTokens, sourceLabelTokens, contentTokens);
+        combinedScore += ComputeStructuredContentBoost(candidate.Content, query);
 
-        if (query.Tokens.Length > 0 && matchedTerms.Length == 0)
+        if (query.OriginalTokens.Count > 0 && originalMatchedTerms.Length == 0 && phraseScore == 0)
         {
-            combinedScore *= 0.75;
+            combinedScore *= 0.88d;
         }
 
         return new KnowledgeSearchMatch(
@@ -149,7 +186,145 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
             combinedScore,
             candidate.VectorScore,
             keywordScore,
+            phraseScore,
             matchedTerms);
+    }
+
+    private static IReadOnlyList<KnowledgeSearchMatch> SelectRelevantCandidates(
+        IReadOnlyList<KnowledgeSearchMatch> rankedCandidates,
+        int maxResults)
+    {
+        if (rankedCandidates.Count == 0)
+        {
+            return Array.Empty<KnowledgeSearchMatch>();
+        }
+
+        var topScore = rankedCandidates[0].Score;
+        var topVector = rankedCandidates[0].VectorScore;
+
+        var relevant = rankedCandidates
+            .Where(candidate => IsRelevant(candidate, topScore, topVector))
+            .ToArray();
+
+        if (relevant.Length > 0)
+        {
+            return relevant;
+        }
+
+        if (rankedCandidates[0].MatchedTerms.Count > 0 || topScore >= 0.18d || topVector >= 0.24d)
+        {
+            return rankedCandidates
+                .Take(Math.Min(maxResults, Math.Min(3, rankedCandidates.Count)))
+                .ToArray();
+        }
+
+        return Array.Empty<KnowledgeSearchMatch>();
+    }
+
+    private static bool IsRelevant(
+        KnowledgeSearchMatch candidate,
+        double topScore,
+        double topVector)
+    {
+        if (candidate.KeywordScore >= 0.10d || candidate.PhraseScore >= 0.10d)
+        {
+            return true;
+        }
+
+        if (candidate.VectorScore >= 0.36d && candidate.Score >= 0.24d)
+        {
+            return true;
+        }
+
+        return candidate.Score >= (topScore * 0.72d)
+            && candidate.VectorScore >= Math.Max(0.28d, topVector * 0.78d);
+    }
+
+    private static double ComputeIntentBoost(
+        ExpandedSearchQuery query,
+        HashSet<string> documentNameTokens,
+        HashSet<string> sourceLabelTokens,
+        HashSet<string> contentTokens)
+    {
+        var boost = 0d;
+
+        if (HasAnyQueryTerm(query, "resume", "cv", "curriculo", "curriculum", "experience", "experiencia", "employer", "company", "education", "educacao", "degree", "qualification", "skill", "stack", "technology"))
+        {
+            boost += ComputeFieldCueBoost(
+                documentNameTokens,
+                sourceLabelTokens,
+                "resume", "cv", "curriculo", "curriculum", "experience", "experiencia", "education", "educacao", "skill", "qualification", "technology", "employer", "company", "job", "role");
+        }
+
+        if (HasAnyQueryTerm(query, "diet", "dieta", "meal", "food", "almoco", "lunch", "breakfast", "dinner"))
+        {
+            boost += ComputeFieldCueBoost(
+                documentNameTokens,
+                sourceLabelTokens,
+                "diet", "dieta", "meal", "food", "nutrition", "almoco", "lunch", "breakfast", "dinner", "jantar", "cafe");
+        }
+
+        if (HasAnyQueryTerm(query, "training", "treino", "workout", "exercise", "fitness", "gym"))
+        {
+            boost += ComputeFieldCueBoost(
+                documentNameTokens,
+                sourceLabelTokens,
+                "training", "treino", "workout", "exercise", "fitness", "gym", "strength", "cardio", "routine");
+        }
+
+        if (contentTokens.Count > 0 && query.OriginalTokens.Count > 0)
+        {
+            var directCoverage = (double)query.OriginalTokens.Count(contentTokens.Contains) / query.OriginalTokens.Count;
+            boost += Math.Min(0.04d, directCoverage * 0.04d);
+        }
+
+        return Math.Min(0.16d, boost);
+    }
+
+    private static bool HasAnyQueryTerm(ExpandedSearchQuery query, params string[] terms)
+    {
+        return terms.Any(query.TermWeights.ContainsKey);
+    }
+
+    private static double ComputeFieldCueBoost(
+        HashSet<string> documentNameTokens,
+        HashSet<string> sourceLabelTokens,
+        params string[] cueTokens)
+    {
+        var normalizedCues = cueTokens
+            .SelectMany(SemanticQueryExpander.Tokenize)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        var documentCueMatches = normalizedCues.Count(documentNameTokens.Contains);
+        var sourceCueMatches = normalizedCues.Count(sourceLabelTokens.Contains);
+
+        return Math.Min(
+            0.10d,
+            (documentCueMatches * 0.025d) + (sourceCueMatches * 0.018d));
+    }
+
+    private static double ComputeStructuredContentBoost(
+        string content,
+        ExpandedSearchQuery query)
+    {
+        if (!HasAnyQueryTerm(
+                query,
+                "resume", "cv", "curriculo", "curriculum", "experience", "experiencia", "education",
+                "educacao", "curso", "academico", "academica", "skill", "technology", "training", "treino", "diet", "meal", "food"))
+        {
+            return 0d;
+        }
+
+        var lines = content
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var bulletLines = lines.Count(line => line.StartsWith("-", StringComparison.Ordinal));
+        var labelLines = lines.Count(line => line.Contains(':', StringComparison.Ordinal));
+        var shortStructuredLines = lines.Count(line => line.Length <= 120);
+
+        var boost = (bulletLines * 0.012d) + (labelLines * 0.008d) + (shortStructuredLines * 0.002d);
+        return Math.Min(0.06d, boost);
     }
 
     private static IReadOnlyList<KnowledgeSearchMatch> Diversify(
@@ -190,36 +365,9 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
         return selected;
     }
 
-    private static HashSet<string> Tokenize(string value)
-    {
-        return TokenRegex.Matches(value.ToLowerInvariant())
-            .Select(static match => match.Value)
-            .Where(static token => !StopWords.Contains(token))
-            .ToHashSet(StringComparer.Ordinal);
-    }
-
-    private static SearchQuery ParseQuery(string queryText)
-    {
-        var tokens = TokenRegex.Matches(queryText.ToLowerInvariant())
-            .Select(static match => match.Value)
-            .Where(static token => !StopWords.Contains(token))
-            .ToArray();
-
-        var phrases = tokens.Length < 2
-            ? []
-            : tokens
-                .Zip(tokens.Skip(1), static (left, right) => $"{left} {right}")
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-
-        return new SearchQuery(
-            tokens.Distinct(StringComparer.Ordinal).ToArray(),
-            phrases);
-    }
-
     private static string NormalizeForPhraseSearch(string value)
     {
-        return string.Join(' ', TokenRegex.Matches(value.ToLowerInvariant()).Select(static match => match.Value));
+        return string.Join(' ', SemanticQueryExpander.Tokenize(value));
     }
 
     private sealed record SearchCandidate(
@@ -230,8 +378,4 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
         string Content,
         int Sequence,
         double VectorScore);
-
-    private sealed record SearchQuery(
-        string[] Tokens,
-        string[] Phrases);
 }

@@ -58,7 +58,7 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
             });
 
             services.AddSingleton<IEmbeddingService, FakeEmbeddingService>();
-            services.AddSingleton<IChatCompletionService, FakeChatCompletionService>();
+            services.AddSingleton<IChatCompletionService, PremiumFakeChatCompletionService>();
         });
         builder.ConfigureAppConfiguration((_, configBuilder) =>
         {
