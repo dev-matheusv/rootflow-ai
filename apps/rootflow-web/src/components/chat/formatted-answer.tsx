@@ -205,17 +205,33 @@ function parseBlocks(content: string): Block[] {
   return blocks;
 }
 
+function getBlockKey(block: Block, index: number) {
+  switch (block.type) {
+    case "heading":
+    case "paragraph":
+      return `${block.type}:${block.content}`;
+    case "list":
+      return `${block.type}:${block.title ?? "untitled"}:${block.items.join("|")}`;
+    case "note":
+      return `${block.type}:${block.label}:${block.content}`;
+    default:
+      return `${index}`;
+  }
+}
+
 export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
   const blocks = parseBlocks(content);
 
   return (
     <div className={cn("space-y-4", className)}>
       {blocks.map((block, index) => {
+        const blockKey = getBlockKey(block, index);
+
         switch (block.type) {
           case "heading":
             return (
               <div
-                key={`${block.type}-${index}`}
+                key={blockKey}
                 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/78"
               >
                 {block.content}
@@ -224,7 +240,7 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
 
           case "paragraph":
             return (
-              <p key={`${block.type}-${index}`} className="text-[0.98rem] leading-7 text-foreground/92">
+              <p key={blockKey} className="text-[0.98rem] leading-7 text-foreground/92">
                 {block.content}
               </p>
             );
@@ -232,7 +248,7 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
           case "list":
             return (
               <section
-                key={`${block.type}-${index}`}
+                key={blockKey}
                 className={cn(
                   "space-y-3 rounded-[22px] border border-border/70 bg-secondary/38 p-4",
                   block.title ? "shadow-[0_14px_30px_-28px_rgba(16,36,71,0.14)] dark:shadow-none" : "",
@@ -243,7 +259,7 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
                 ) : null}
                 <ul className="space-y-3">
                   {block.items.map((item, itemIndex) => (
-                    <li key={`${block.type}-${index}-${itemIndex}`} className="flex items-start gap-3">
+                    <li key={`${blockKey}:${itemIndex}:${item}`} className="flex items-start gap-3">
                       <span className="mt-[0.58rem] size-2 rounded-full bg-primary/80" />
                       <span className="text-[0.96rem] leading-7 text-foreground/90">{item}</span>
                     </li>
@@ -255,7 +271,7 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
           case "note":
             return (
               <aside
-                key={`${block.type}-${index}`}
+                key={blockKey}
                 className="flex gap-3 rounded-[22px] border border-primary/14 bg-primary/[0.055] p-4"
               >
                 <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">

@@ -1,55 +1,35 @@
-import {
-  Bot,
-  LayoutDashboard,
-  MessagesSquare,
-  Sparkles,
-} from "lucide-react";
 import { NavLink } from "react-router-dom";
 
+import { navigationItems } from "@/components/navigation/navigation-items";
 import { cn } from "@/lib/utils";
 
-const primaryItems = [
-  {
-    to: "/dashboard",
-    icon: LayoutDashboard,
-    label: "Dashboard",
-    caption: "Health, activity, and product overview",
-  },
-  {
-    to: "/knowledge-base",
-    icon: Sparkles,
-    label: "Knowledge Base",
-    caption: "Documents, ingestion, and readiness",
-  },
-  {
-    to: "/assistant",
-    icon: Bot,
-    label: "Assistant",
-    caption: "Grounded answers and source context",
-  },
-  {
-    to: "/conversations",
-    icon: MessagesSquare,
-    label: "Conversations",
-    caption: "Session history and answer trails",
-  },
-] as const;
+interface SidebarNavProps {
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}
 
-export function SidebarNav() {
+export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
   return (
     <section className="space-y-3">
-      <div className="px-2 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Workspace</div>
-      <nav className="space-y-2">
-        {primaryItems.map((item) => (
+      {collapsed ? null : (
+        <div className="px-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/78">
+          Workspace
+        </div>
+      )}
+      <nav className="space-y-1.5">
+        {navigationItems.map((item) => (
           <NavLink
-            key={item.to}
+            key={item.id}
             to={item.to}
+            title={collapsed ? item.label : undefined}
+            onClick={onNavigate}
             className={({ isActive }) =>
               cn(
-                "group relative flex items-start gap-3 rounded-[22px] border border-transparent px-3.5 py-3.5 transition-[transform,background-color,border-color,box-shadow,color] duration-200 hover:-translate-y-[1px] active:translate-y-0",
+                "group relative flex rounded-[20px] border border-transparent transition-[background-color,border-color,box-shadow,color] duration-200",
+                collapsed ? "justify-center px-0 py-2" : "items-start gap-3 px-3 py-3",
                 isActive
-                  ? "border-primary/16 bg-sidebar-accent text-sidebar-accent-foreground shadow-[0_22px_44px_-34px_rgba(33,87,188,0.18)] dark:shadow-[0_18px_36px_-32px_rgba(0,0,0,0.4)]"
-                  : "text-sidebar-foreground/84 hover:border-sidebar-border/90 hover:bg-sidebar-accent/76 hover:text-sidebar-foreground hover:shadow-[0_18px_38px_-34px_rgba(19,67,160,0.12)] dark:hover:shadow-[0_18px_32px_-30px_rgba(0,0,0,0.4)]",
+                  ? "border-primary/14 bg-sidebar-accent text-sidebar-accent-foreground shadow-[0_16px_32px_-26px_rgba(18,72,166,0.16)]"
+                  : "text-sidebar-foreground/76 hover:border-sidebar-border hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
               )
             }
           >
@@ -60,24 +40,28 @@ export function SidebarNav() {
                 <>
                   <div
                     className={cn(
-                      "absolute inset-y-3 left-1 w-1 rounded-full transition-[background-color,opacity] duration-200",
+                      "absolute left-1 top-1/2 h-8 w-1 -translate-y-1/2 rounded-full transition-[background-color,opacity] duration-200",
                       isActive ? "bg-primary opacity-100" : "bg-transparent opacity-0 group-hover:opacity-40",
                     )}
                   />
                   <div
                     className={cn(
-                      "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl border transition-[border-color,background-color,color,transform] duration-200",
+                      "flex size-10 shrink-0 items-center justify-center rounded-[16px] border transition-[border-color,background-color,color] duration-200",
                       isActive
-                        ? "border-primary/18 bg-primary/10 text-primary"
-                        : "border-sidebar-border/70 bg-background/72 text-muted-foreground group-hover:border-primary/16 group-hover:bg-background group-hover:text-primary",
+                        ? "border-primary/14 bg-primary/10 text-primary"
+                        : "border-sidebar-border/80 bg-background/70 text-muted-foreground group-hover:border-primary/16 group-hover:bg-background group-hover:text-primary",
                     )}
                   >
                     <Icon className="size-[18px]" />
                   </div>
-                  <div className="min-w-0 space-y-1">
-                    <div className="font-medium tracking-[-0.01em]">{item.label}</div>
-                    <p className="text-sm leading-6 text-muted-foreground">{item.caption}</p>
-                  </div>
+                  {collapsed ? (
+                    <span className="sr-only">{item.label}</span>
+                  ) : (
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="font-medium tracking-[-0.02em]">{item.label}</div>
+                      <p className="text-sm leading-6 text-muted-foreground">{item.caption}</p>
+                    </div>
+                  )}
                 </>
               );
             }}

@@ -47,7 +47,7 @@ export function KnowledgeBasePage() {
       <PageHeader
         eyebrow="Knowledge Base"
         title="Curate a business-ready source of truth."
-        description="Design the knowledge experience around trust: clear ingestion states, elegant upload patterns, and confidence that every answer can be traced back to a document."
+        description="Keep uploads, processing states, and document readiness easy to scan so the knowledge base feels operational, not busy."
         actions={
           <>
             <input
@@ -77,9 +77,9 @@ export function KnowledgeBasePage() {
               <div className="space-y-4">
                 <Badge>Ingestion surface</Badge>
                 <div className="space-y-3">
-                  <h2 className="font-display text-3xl tracking-[-0.05em] text-foreground">A premium upload flow that feels simple for business teams.</h2>
+                  <h2 className="font-display text-3xl tracking-[-0.05em] text-foreground">A quieter upload flow with clearer readiness signals.</h2>
                   <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-                    This area is designed for real client demos: large drop targets, clean empty states, and clear processing signals instead of technical clutter.
+                    Large targets, simple status language, and calmer spacing keep the ingestion surface usable in real team workflows.
                   </p>
                 </div>
               </div>

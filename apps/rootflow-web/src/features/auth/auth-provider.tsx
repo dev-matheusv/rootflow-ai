@@ -42,12 +42,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!storedSession) {
-      setStatus("unauthenticated");
       return;
     }
 
     let isCancelled = false;
-    setStatus("loading");
 
     void (async () => {
       try {
@@ -79,7 +77,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return () => {
       isCancelled = true;
     };
-  }, [queryClient, storedSession?.token]);
+  }, [queryClient, storedSession]);
 
   async function login(payload: LoginPayload) {
     const session = await rootflowApi.login(payload);
@@ -143,6 +141,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   return <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const context = useContext(AuthContext);
 

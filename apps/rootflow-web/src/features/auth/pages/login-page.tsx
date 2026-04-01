@@ -55,8 +55,8 @@ export function LoginPage() {
           Workspace sign in
         </>
       }
-      title="Enter a real RootFlow workspace session."
-      description="Sign in with email and password to restore your documents, conversations, and grounded assistant history inside the correct tenant boundary."
+      title="Sign in to your RootFlow workspace."
+      description="Restore your documents, conversations, and grounded assistant history inside the correct workspace with a cleaner, calmer access flow."
       highlights={[
         {
           title: "JWT-backed access",
@@ -72,7 +72,7 @@ export function LoginPage() {
         <CardHeader className="px-0 pt-0">
           <Badge className="w-fit">
             <Sparkles className="size-3.5" />
-            Premium SaaS access
+            Secure access
           </Badge>
           <CardTitle>Log in</CardTitle>
           <CardDescription>Use the account connected to your RootFlow workspace.</CardDescription>

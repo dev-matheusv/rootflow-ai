@@ -72,7 +72,7 @@ export function AssistantPage() {
   });
 
   const handleQuestionKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!((event.ctrlKey || event.metaKey) && event.key === "Enter")) {
+    if (event.key !== "Enter" || event.shiftKey) {
       return;
     }
 
@@ -97,8 +97,8 @@ export function AssistantPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Assistant"
-        title="Grounded answers should feel polished enough for customer-facing work."
-        description="RootFlow now presents each answer in a calmer, more readable workspace with clear spacing, trusted sources, and conversation flow that feels ready for real teams."
+        title="Ask grounded questions in a calmer, reviewable workspace."
+        description="The assistant surface is tuned for clarity: readable answers, visible source context, and less visual noise while you move through a conversation."
         actions={
           <>
             <Button onClick={handleNewSession}>
@@ -125,14 +125,13 @@ export function AssistantPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>Grounded responses</Badge>
                 <Badge variant="secondary">Readable sources</Badge>
-                <Badge variant="secondary">Premium chat UX</Badge>
               </div>
               <div className="space-y-3">
                 <h2 className="max-w-3xl font-display text-3xl tracking-[-0.05em] text-foreground">
-                  A premium chat workspace for precise answers, cleaner reading, and better source trust.
+                  Source-backed answers, without the clutter of a demo-style chat screen.
                 </h2>
                 <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
-                  The assistant should feel calm, structured, and reliable. Messages stay readable, supporting evidence stays visible, and every new answer fits cleanly into an ongoing conversation.
+                  Messages stay readable, supporting evidence stays close, and each new answer fits into a stable conversation flow that feels ready for real customer work.
                 </p>
               </div>
 
@@ -269,7 +268,7 @@ export function AssistantPage() {
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <CornerDownLeft className="size-4" />
-                    {isSendingQuestion ? "Searching with grounded context" : "Ctrl+Enter sends. Enter keeps a new line."}
+                    {isSendingQuestion ? "Searching with grounded context" : "Enter sends. Shift+Enter starts a new line."}
                   </div>
                   <Button type="submit" disabled={!canAsk} aria-busy={isSendingQuestion} className="min-w-[152px]">
                     {isSendingQuestion ? <LoaderCircle className="animate-spin" /> : <SendHorizonal />}

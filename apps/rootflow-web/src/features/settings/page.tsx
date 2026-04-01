@@ -43,13 +43,14 @@ export function SettingsPage() {
   const selectedSection =
     settingsSections.find((section) => section.id === searchParams.get("section")) ?? settingsSections[0];
   const activeSection = selectedSection.id;
+  const SelectedIcon = selectedSection.icon;
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Settings"
-        title="A real destination for product controls, not a fake-clickable dead end."
-        description="Workspace and access controls are now grounded in the live auth foundation, even where deeper settings remain intentionally minimal."
+        title="Keep workspace controls simple, clear, and ready to grow."
+        description="This surface stays intentionally focused: the routes are real, the entry points are consistent, and deeper controls can layer in without redesigning the shell."
         actions={
           <>
             <Button asChild>
@@ -104,51 +105,45 @@ export function SettingsPage() {
           <CardContent className="relative p-0">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),transparent_46%,rgba(191,219,254,0.18))] dark:bg-[linear-gradient(135deg,rgba(138,180,255,0.12),transparent_46%,rgba(58,78,112,0.18))]" />
             <div className="relative flex flex-col gap-6 p-6 md:p-8">
-              {(() => {
-                const Icon = selectedSection.icon;
-
-                return (
-                  <div key={selectedSection.id} className="space-y-6">
-                    <div className="flex items-start gap-4">
-                      <div className="flex size-14 shrink-0 items-center justify-center rounded-[26px] bg-primary/10 text-primary">
-                        <Icon className="size-6" />
-                      </div>
-                      <div className="space-y-2">
-                        <Badge>{selectedSection.title}</Badge>
-                        <h2 className="font-display text-3xl tracking-[-0.05em] text-foreground">{selectedSection.title}</h2>
-                        <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">{selectedSection.detail}</p>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="rounded-[24px] border border-border/75 bg-background/74 p-5">
-                        <div className="text-sm font-semibold text-foreground">Why this exists now</div>
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                          Users now arrive here from an authenticated workspace instead of a placeholder-only shell.
-                        </p>
-                      </div>
-                      <div className="rounded-[24px] border border-border/75 bg-background/74 p-5">
-                        <div className="text-sm font-semibold text-foreground">Future implementation path</div>
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                          Backend-connected forms, preference persistence, and account-level controls can be added here without redesigning the shell.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Button asChild>
-                        <Link to="/assistant">
-                          Continue in assistant
-                          <ArrowUpRight />
-                        </Link>
-                      </Button>
-                      <Button variant="outline" asChild>
-                        <Link to="/dashboard">Back to dashboard</Link>
-                      </Button>
-                    </div>
+              <div className="space-y-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex size-14 shrink-0 items-center justify-center rounded-[26px] bg-primary/10 text-primary">
+                    <SelectedIcon className="size-6" />
                   </div>
-                );
-              })()}
+                  <div className="space-y-2">
+                    <Badge>{selectedSection.title}</Badge>
+                    <h2 className="font-display text-3xl tracking-[-0.05em] text-foreground">{selectedSection.title}</h2>
+                    <p className="max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">{selectedSection.detail}</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-[24px] border border-border/75 bg-background/74 p-5">
+                    <div className="text-sm font-semibold text-foreground">Why this exists now</div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      Users now arrive here from an authenticated workspace instead of a placeholder-only shell.
+                    </p>
+                  </div>
+                  <div className="rounded-[24px] border border-border/75 bg-background/74 p-5">
+                    <div className="text-sm font-semibold text-foreground">Future implementation path</div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      Backend-connected forms, preference persistence, and account-level controls can be added here without redesigning the shell.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button asChild>
+                    <Link to="/assistant">
+                      Continue in assistant
+                      <ArrowUpRight />
+                    </Link>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link to="/dashboard">Back to dashboard</Link>
+                  </Button>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -41,8 +41,8 @@ export function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Command Center"
-        title="Build a knowledge assistant that feels enterprise-ready from day one."
-        description="RootFlow is positioned as a premium AI workspace for grounded business answers, reusable knowledge operations, and client-facing demos that already look polished."
+        title="Run the RootFlow workspace from one clear command center."
+        description="This dashboard stays focused on the signals that matter most: knowledge readiness, assistant activity, and the health of the live product surface."
         actions={
           <>
             <Button asChild>
@@ -67,10 +67,10 @@ export function DashboardPage() {
               </div>
               <div className="max-w-2xl space-y-3">
                 <h2 className="font-display text-3xl leading-tight tracking-[-0.05em] text-foreground md:text-[2.6rem]">
-                  A calm blue workspace that now behaves like a real SaaS product.
+                  A calmer workspace with the core signals kept close at hand.
                 </h2>
                 <p className="text-base leading-8 text-muted-foreground">
-                  RootFlow now has real session boundaries. Every document, grounded answer, and conversation in this interface is scoped to the authenticated workspace instead of a backend demo default.
+                  Documents, grounded answers, and conversations are all scoped to the authenticated workspace, with less visual noise competing for attention.
                 </p>
               </div>
               <div className="grid gap-3 sm:grid-cols-3">

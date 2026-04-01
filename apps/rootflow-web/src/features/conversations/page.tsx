@@ -49,7 +49,7 @@ export function ConversationsPage() {
       <PageHeader
         eyebrow="Conversations"
         title="Keep every answer trail readable and easy to revisit."
-        description="A serious product needs session history that feels polished for teams, not a raw log viewer. This area should support review, trust, and handoff."
+        description="Conversation history should support review and handoff without feeling like a raw log viewer."
       />
 
       <section className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">

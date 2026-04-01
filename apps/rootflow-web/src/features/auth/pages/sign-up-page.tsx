@@ -59,8 +59,8 @@ export function SignUpPage() {
           Create workspace
         </>
       }
-      title="Provision a RootFlow workspace in one move."
-      description="Create your account, provision a brand-new workspace, and start as the owner with a live JWT session already attached to the right tenant."
+      title="Create a new RootFlow workspace."
+      description="Set up the workspace, owner account, and secure session in one clean onboarding flow."
       highlights={[
         {
           title: "Brand-new workspace only",
@@ -76,7 +76,7 @@ export function SignUpPage() {
         <CardHeader className="px-0 pt-0">
           <Badge className="w-fit">
             <Sparkles className="size-3.5" />
-            Premium onboarding
+            Workspace onboarding
           </Badge>
           <CardTitle>Sign up</CardTitle>
           <CardDescription>Create a new RootFlow workspace with secure email and password authentication.</CardDescription>
