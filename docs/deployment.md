@@ -79,6 +79,23 @@ Set:
 
 If the platform injects `DATABASE_URL`, RootFlow will use it automatically.
 
+### Railway Docker deployment
+
+RootFlow can also deploy on Railway with the root-level [Dockerfile](C:/RootFlow/Dockerfile), which avoids monorepo detection issues in Railpack.
+
+- Docker build context: repository root
+- Container port: `8080`
+- Runtime binding: `ASPNETCORE_URLS=http://0.0.0.0:8080`
+
+Set these Railway variables:
+
+- `ROOTFLOW_DATABASE_URL` with the Supabase PostgreSQL connection string, or `DATABASE_URL`
+- `ROOTFLOW_JWT_KEY`
+- `OPENAI_API_KEY`
+- `ROOTFLOW_ALLOWED_ORIGINS=https://your-frontend-domain`
+
+The API already runs its built-in PostgreSQL schema migrations on startup through `PostgresDatabaseInitializer`, so no extra migration step is required in Railway.
+
 ## Vercel Frontend
 
 Configure the Vercel project with:
