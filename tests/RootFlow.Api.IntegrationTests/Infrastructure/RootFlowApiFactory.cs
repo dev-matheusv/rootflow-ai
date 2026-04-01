@@ -162,6 +162,7 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
                                        conversations,
                                        document_chunks,
                                        knowledge_documents,
+                                       workspace_invitations,
                                        workspace_memberships,
                                        app_users,
                                        workspaces

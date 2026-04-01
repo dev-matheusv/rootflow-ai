@@ -62,6 +62,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<IPasswordHashingService, AspNetPasswordHashingService>();
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
+        services.AddScoped<IWorkspaceInvitationRepository, PostgresWorkspaceInvitationRepository>();
         services.AddScoped<IWorkspaceRepository, PostgresWorkspaceRepository>();
         services.AddScoped<IKnowledgeDocumentRepository, PostgresKnowledgeDocumentRepository>();
         services.AddScoped<IDocumentChunkRepository, PostgresDocumentChunkRepository>();

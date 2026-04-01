@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useAuth } from "@/features/auth/auth-provider";
 import { AuthScaffold } from "@/features/auth/components/auth-scaffold";
 import { ApiError } from "@/lib/api/client";
@@ -97,11 +98,11 @@ export function LoginPage() {
                   Forgot password
                 </Link>
               </div>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="current-password"
                 placeholder="Enter your password"
+                disabled={form.formState.isSubmitting}
                 {...form.register("password")}
               />
               {form.formState.errors.password ? (

@@ -55,6 +55,7 @@ public sealed class AuthService
             _passwordHashingService.HashPassword(command.Password),
             createdAtUtc);
 
+        // Signup always provisions a new workspace; shared workspaces will join through explicit invites later.
         var workspace = new Workspace(
             Guid.NewGuid(),
             workspaceName,

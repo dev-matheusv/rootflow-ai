@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useAuth } from "@/features/auth/auth-provider";
 import { AuthScaffold } from "@/features/auth/components/auth-scaffold";
 import { ApiError } from "@/lib/api/client";
@@ -59,15 +60,15 @@ export function SignUpPage() {
         </>
       }
       title="Provision a RootFlow workspace in one move."
-      description="Create your account, spin up a workspace, and start as the owner with a live JWT session already attached to the right tenant."
+      description="Create your account, provision a brand-new workspace, and start as the owner with a live JWT session already attached to the right tenant."
       highlights={[
         {
-          title: "Owner membership on signup",
-          description: "RootFlow creates the user, workspace, and owner role together so the SaaS foundation starts cleanly.",
+          title: "Brand-new workspace only",
+          description: "Signup always provisions a new workspace. Joining an existing shared workspace will use explicit invites in a later phase.",
         },
         {
           title: "Ready for multi-user growth",
-          description: "The underlying model now supports future admins, members, and shared workspaces without redesigning the shell.",
+          description: "The underlying model now supports future admins, members, and shared workspaces without guessing membership from workspace names.",
         },
       ]}
     >
@@ -78,7 +79,7 @@ export function SignUpPage() {
             Premium onboarding
           </Badge>
           <CardTitle>Sign up</CardTitle>
-          <CardDescription>Start a new RootFlow workspace with secure email and password authentication.</CardDescription>
+          <CardDescription>Create a new RootFlow workspace with secure email and password authentication.</CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-0">
           <form className="space-y-5" onSubmit={form.handleSubmit(handleSubmit)}>
@@ -116,11 +117,11 @@ export function SignUpPage() {
               <label className="text-sm font-semibold text-foreground" htmlFor="password">
                 Password
               </label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="new-password"
                 placeholder="Choose a secure password"
+                disabled={form.formState.isSubmitting}
                 {...form.register("password")}
               />
               {form.formState.errors.password ? (
@@ -136,7 +137,7 @@ export function SignUpPage() {
 
             <div className="flex flex-col gap-3">
               <Button type="submit" className="w-full justify-between" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Creating workspace..." : "Create workspace"}
+                {form.formState.isSubmitting ? "Creating workspace..." : "Create new workspace"}
                 <ArrowRight />
               </Button>
               <Button variant="outline" className="w-full" asChild>

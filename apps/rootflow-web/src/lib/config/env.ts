@@ -1,4 +1,4 @@
-const localDevelopmentApiBaseUrl = "http://localhost:5011";
+const localDevelopmentApiPort = 5011;
 
 type ApiBaseUrlSource = "env" | "local-default" | "same-origin";
 
@@ -21,8 +21,9 @@ function resolveApiBaseUrl() {
   }
 
   if (typeof window !== "undefined" && isLocalHostname(window.location.hostname)) {
+    const hostname = window.location.hostname;
     return {
-      apiBaseUrl: localDevelopmentApiBaseUrl,
+      apiBaseUrl: normalizeApiBaseUrl(`http://${hostname}:${localDevelopmentApiPort}`),
       apiBaseUrlSource: "local-default" as ApiBaseUrlSource,
     };
   }

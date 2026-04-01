@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Bot, CheckCircle2, CornerDownLeft, LoaderCircle, MessageSquareQuote, Microscope, Quote, SendHorizonal } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type KeyboardEvent, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
 import { z } from "zod";
@@ -49,11 +49,16 @@ export function AssistantPage() {
   const messages = useMemo(() => conversationQuery.data?.messages ?? [], [conversationQuery.data?.messages]);
   const readyDocumentCount = documentsQuery.data?.filter((document) => document.status === 3).length ?? 0;
   const activeLatestAnswer = latestAnswer?.conversationId === conversationId ? latestAnswer : null;
-  const canReviewRetrieval = Boolean(activeLatestAnswer?.debug?.retrievedChunks.length);
+  const isSendingQuestion = askQuestionMutation.isPending || form.formState.isSubmitting;
+  const canReviewRetrieval = Boolean(activeLatestAnswer?.debug?.retrievedChunks?.length);
   const isDebugVisible = showDebug && canReviewRetrieval;
-  const canAsk = question.trim().length >= 3 && !askQuestionMutation.isPending && readyDocumentCount > 0;
+  const canAsk = question.trim().length >= 3 && !isSendingQuestion && readyDocumentCount > 0;
 
-  const onSubmit = form.handleSubmit(async (values) => {
+  const submitQuestion = form.handleSubmit(async (values) => {
+    if (askQuestionMutation.isPending) {
+      return;
+    }
+
     const answer = await askQuestionMutation.mutateAsync({
       question: values.question,
       conversationId,
@@ -65,6 +70,20 @@ export function AssistantPage() {
     setShowDebug(false);
     form.reset();
   });
+
+  const handleQuestionKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!((event.ctrlKey || event.metaKey) && event.key === "Enter")) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (!canAsk || event.nativeEvent.isComposing) {
+      return;
+    }
+
+    void submitQuestion();
+  };
 
   const handleNewSession = () => {
     setSearchParams({}, { replace: true });
@@ -217,7 +236,7 @@ export function AssistantPage() {
 
               <form
                 className="rounded-[30px] border border-border/80 bg-background/78 p-4 shadow-[0_18px_38px_-32px_rgba(16,36,71,0.16)] dark:shadow-[0_18px_36px_-30px_rgba(0,0,0,0.34)]"
-                onSubmit={onSubmit}
+                onSubmit={submitQuestion}
               >
                 <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-sm font-semibold text-foreground">Ask a grounded question</div>
@@ -229,7 +248,8 @@ export function AssistantPage() {
                   <Textarea
                     className="min-h-[136px] resize-none border-none bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
                     placeholder="Ask about a document, process, resume, policy, or any grounded business question..."
-                    disabled={askQuestionMutation.isPending}
+                    disabled={isSendingQuestion}
+                    onKeyDown={handleQuestionKeyDown}
                     {...form.register("question")}
                   />
                 </div>
@@ -249,11 +269,11 @@ export function AssistantPage() {
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <CornerDownLeft className="size-4" />
-                    {askQuestionMutation.isPending ? "Searching with grounded context" : "Answers stay concise, readable, and source-backed"}
+                    {isSendingQuestion ? "Searching with grounded context" : "Ctrl+Enter sends. Enter keeps a new line."}
                   </div>
-                  <Button type="submit" disabled={!canAsk} aria-busy={askQuestionMutation.isPending} className="min-w-[152px]">
-                    {askQuestionMutation.isPending ? <LoaderCircle className="animate-spin" /> : <SendHorizonal />}
-                    {askQuestionMutation.isPending ? "Sending..." : "Send question"}
+                  <Button type="submit" disabled={!canAsk} aria-busy={isSendingQuestion} className="min-w-[152px]">
+                    {isSendingQuestion ? <LoaderCircle className="animate-spin" /> : <SendHorizonal />}
+                    {isSendingQuestion ? "Sending..." : "Send question"}
                   </Button>
                 </div>
               </form>

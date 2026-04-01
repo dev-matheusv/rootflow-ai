@@ -195,6 +195,34 @@ public sealed class PostgresDatabaseInitializer
 
                 CREATE INDEX IF NOT EXISTS ix_workspace_memberships_user_created
                     ON workspace_memberships (user_id, created_at_utc);
+                """),
+            new DatabaseMigration(
+                "202604010001_workspace_invitation_foundation",
+                "Create workspace invitations for future explicit shared-workspace membership",
+                """
+                CREATE TABLE IF NOT EXISTS workspace_invitations (
+                    id uuid PRIMARY KEY,
+                    workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    email text NOT NULL,
+                    normalized_email text NOT NULL,
+                    role text NOT NULL,
+                    token text NOT NULL,
+                    invited_by_user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+                    status text NOT NULL,
+                    created_at_utc timestamptz NOT NULL,
+                    expires_at_utc timestamptz NOT NULL,
+                    accepted_at_utc timestamptz NULL,
+                    revoked_at_utc timestamptz NULL
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_invitations_token
+                    ON workspace_invitations (token);
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_invitations_workspace_email_status
+                    ON workspace_invitations (workspace_id, normalized_email, status);
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_invitations_workspace_created
+                    ON workspace_invitations (workspace_id, created_at_utc DESC);
                 """)
         ];
     }
