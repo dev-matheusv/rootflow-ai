@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Npgsql;
 
 namespace RootFlow.Infrastructure.Persistence;
@@ -5,14 +6,19 @@ namespace RootFlow.Infrastructure.Persistence;
 public sealed class PostgresDatabaseInitializer
 {
     private readonly NpgsqlDataSource _dataSource;
+    private readonly ILogger<PostgresDatabaseInitializer> _logger;
 
-    public PostgresDatabaseInitializer(NpgsqlDataSource dataSource)
+    public PostgresDatabaseInitializer(
+        NpgsqlDataSource dataSource,
+        ILogger<PostgresDatabaseInitializer> logger)
     {
         _dataSource = dataSource;
+        _logger = logger;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
+        _logger.LogInformation("Checking PostgreSQL schema migrations.");
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await EnsureMigrationsTableAsync(connection, cancellationToken);
 
@@ -24,6 +30,7 @@ public sealed class PostgresDatabaseInitializer
                 continue;
             }
 
+            _logger.LogInformation("Applying database migration {MigrationId}: {MigrationName}", migration.Id, migration.Name);
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
             await using (var migrationCommand = new NpgsqlCommand(migration.Sql, connection, transaction))
@@ -47,7 +54,10 @@ public sealed class PostgresDatabaseInitializer
             }
 
             await transaction.CommitAsync(cancellationToken);
+            _logger.LogInformation("Applied database migration {MigrationId}", migration.Id);
         }
+
+        _logger.LogInformation("PostgreSQL schema migrations are up to date.");
     }
 
     private static async Task EnsureMigrationsTableAsync(

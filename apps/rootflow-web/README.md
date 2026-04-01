@@ -28,7 +28,7 @@ This phase includes:
 - polished main product pages
 - route structure prepared for future auth pages
 
-API integration is intentionally not the focus yet.
+The frontend runtime expects an explicit API base URL through `VITE_API_BASE_URL`.
 
 ## Main Routes
 
@@ -82,6 +82,8 @@ http://localhost:5173
 
 In development, the top bar shows the resolved API base URL so you can immediately confirm which backend the frontend is using.
 
+The frontend no longer falls back to `localhost` or same-origin defaults at runtime. If `VITE_API_BASE_URL` is missing, requests fail fast with a clear configuration error.
+
 ### Optional Local HTTPS Backend
 
 If you want to run the backend with the HTTPS launch profile instead:
@@ -108,6 +110,19 @@ dotnet dev-certs https --trust
 - `https://localhost:7088` for `--launch-profile https`
 
 Restart the Vite dev server after changing `.env.local` so the updated value is picked up.
+
+## Deployment
+
+### Vercel
+
+Set the project root to `apps/rootflow-web`.
+
+- Install command: `npm ci`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Environment variable: `VITE_API_BASE_URL=https://your-api-domain`
+
+[`vercel.json`](C:/RootFlow/apps/rootflow-web/vercel.json) includes an SPA rewrite so client-side routes resolve correctly.
 
 ## Validation
 

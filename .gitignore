@@ -32,6 +32,7 @@ packages/
 # Local environment files
 .env
 .env.*
+!.env.example
 !apps/rootflow-web/.env.example
 appsettings.Local.json
 appsettings.*.local.json

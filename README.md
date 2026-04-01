@@ -77,14 +77,30 @@ This starts:
 - PostgreSQL on `localhost:5432`
 - persistent local volume for database data
 
-### 2. Run the API locally
+### 2. Configure environment variables
 
-Development mode is configured to use:
+The API reads its sensitive runtime values from environment variables.
 
-- the local Docker PostgreSQL database
-- OpenAI mode by default
+For local `dotnet run --launch-profile http` and `--launch-profile https`, the committed launch profiles already provide:
 
-This keeps local product behavior aligned with the real retrieval and answer pipeline.
+- `ConnectionStrings__Postgres`
+- `ROOTFLOW_JWT_KEY`
+
+Set `OPENAI_API_KEY` in your shell before starting the API, or switch to fake mode for local-only testing:
+
+```powershell
+$env:OPENAI_API_KEY="your-key"
+```
+
+Optional local fake mode:
+
+```powershell
+$env:AI__Mode="Fake"
+```
+
+Reference values are documented in [.env.example](C:/RootFlow/.env.example).
+
+### 3. Run the API locally
 
 ```powershell
 dotnet run --project src/RootFlow.Api --launch-profile http
@@ -94,7 +110,7 @@ The API will be available at:
 
 - `http://localhost:5011`
 
-### 3. Manual API smoke test
+### 4. Manual API smoke test
 
 Use:
 
@@ -173,30 +189,51 @@ dotnet test RootFlow.sln
 
 ## Configuration Summary
 
-Base settings are in:
+Base defaults remain in:
 
 - [appsettings.json](C:/RootFlow/src/RootFlow.Api/appsettings.json)
 
-Local development overrides are in:
+Development-only non-sensitive overrides remain in:
 
 - [appsettings.Development.json](C:/RootFlow/src/RootFlow.Api/appsettings.Development.json)
 
-Important settings:
+Important runtime settings:
 
-- `ConnectionStrings:Postgres`
-- `AI:Mode`
-- `OpenAI:BaseUrl`
-- `OpenAI:ChatModel`
-- `OpenAI:EmbeddingModel`
+- `ROOTFLOW_JWT_KEY`
+- `ROOTFLOW_DATABASE_URL`
+- `DATABASE_URL`
+- `ConnectionStrings__Postgres`
+- `ROOTFLOW_ALLOWED_ORIGINS`
+- `OPENAI_API_KEY`
+- `AI__Mode`
+- `OpenAI__BaseUrl`
+- `OpenAI__ChatModel`
+- `OpenAI__EmbeddingModel`
 - `Storage:RootPath`
+
+Precedence notes:
+
+- `ROOTFLOW_DATABASE_URL` and `DATABASE_URL` override `ConnectionStrings:Postgres`
+- `ROOTFLOW_JWT_KEY` overrides `Jwt:Key`
+- `OPENAI_API_KEY` overrides `OpenAI:ApiKey`
+
+See [deployment.md](C:/RootFlow/docs/deployment.md) for deploy-specific steps.
+
+## Deployment Targets
+
+- Railway or Render for the backend
+- Vercel for the frontend under `apps/rootflow-web`
+
+Build and deploy details are documented in [deployment.md](C:/RootFlow/docs/deployment.md).
 
 ## Current Local Validation Flow
 
 1. Start Docker Compose.
-2. Run the API in Development.
-3. Use the `.http` file to upload a document.
-4. Ask a question against the uploaded knowledge.
-5. Check the saved conversation history.
+2. Set `OPENAI_API_KEY` or `AI__Mode=Fake`.
+3. Run the API in Development.
+4. Use the `.http` file to upload a document.
+5. Ask a question against the uploaded knowledge.
+6. Check the saved conversation history.
 
 ## Roadmap
 

@@ -1,13 +1,7 @@
-const localDevelopmentApiPort = 5011;
-
-type ApiBaseUrlSource = "env" | "local-default" | "same-origin";
+type ApiBaseUrlSource = "env" | "missing";
 
 function normalizeApiBaseUrl(value: string) {
   return value.replace(/\/+$/, "");
-}
-
-function isLocalHostname(hostname: string) {
-  return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
 function resolveApiBaseUrl() {
@@ -20,31 +14,25 @@ function resolveApiBaseUrl() {
     };
   }
 
-  if (typeof window !== "undefined" && isLocalHostname(window.location.hostname)) {
-    const hostname = window.location.hostname;
-    return {
-      apiBaseUrl: normalizeApiBaseUrl(`http://${hostname}:${localDevelopmentApiPort}`),
-      apiBaseUrlSource: "local-default" as ApiBaseUrlSource,
-    };
-  }
-
   return {
-    apiBaseUrl: typeof window === "undefined" ? "" : normalizeApiBaseUrl(window.location.origin),
-    apiBaseUrlSource: "same-origin" as ApiBaseUrlSource,
+    apiBaseUrl: "",
+    apiBaseUrlSource: "missing" as ApiBaseUrlSource,
   };
 }
 
 const resolvedApiConfig = resolveApiBaseUrl();
+const apiConfigurationError = resolvedApiConfig.apiBaseUrl
+  ? null
+  : "VITE_API_BASE_URL is not configured. Copy apps/rootflow-web/.env.example to .env.local for local development or set the variable in your deploy target.";
 
-if (import.meta.env.DEV && resolvedApiConfig.apiBaseUrlSource === "local-default") {
-  console.warn(
-    `[RootFlow Web] VITE_API_BASE_URL is not set. Using the local API default at ${resolvedApiConfig.apiBaseUrl}. Copy .env.example to .env.local to make the target explicit.`,
-  );
+if (import.meta.env.DEV && apiConfigurationError) {
+  console.warn(`[RootFlow Web] ${apiConfigurationError}`);
 }
 
 export const env = {
   apiBaseUrl: resolvedApiConfig.apiBaseUrl,
   apiBaseUrlSource: resolvedApiConfig.apiBaseUrlSource,
   isApiBaseUrlExplicit: resolvedApiConfig.apiBaseUrlSource === "env",
-  isUsingLocalApiFallback: resolvedApiConfig.apiBaseUrlSource === "local-default",
+  isApiBaseUrlConfigured: Boolean(resolvedApiConfig.apiBaseUrl),
+  apiConfigurationError,
 };

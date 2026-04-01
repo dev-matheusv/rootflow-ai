@@ -7,7 +7,9 @@
       "launchBrowser": false,
       "applicationUrl": "http://localhost:5011",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ConnectionStrings__Postgres": "Host=localhost;Port=5432;Database=rootflow;Username=postgres;Password=postgres",
+        "ROOTFLOW_JWT_KEY": "rootflow-dev-jwt-key-change-me-2026-03-31"
       }
     },
     "https": {
@@ -16,7 +18,9 @@
       "launchBrowser": false,
       "applicationUrl": "https://localhost:7088;http://localhost:5011",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ConnectionStrings__Postgres": "Host=localhost;Port=5432;Database=rootflow;Username=postgres;Password=postgres",
+        "ROOTFLOW_JWT_KEY": "rootflow-dev-jwt-key-change-me-2026-03-31"
       }
     }
   }

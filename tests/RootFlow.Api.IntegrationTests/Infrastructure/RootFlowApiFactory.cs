@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Pgvector;
 using RootFlow.Application.Abstractions.AI;
@@ -182,7 +183,7 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
         builder.UseVector();
 
         await using var dataSource = builder.Build();
-        var initializer = new PostgresDatabaseInitializer(dataSource);
+        var initializer = new PostgresDatabaseInitializer(dataSource, NullLogger<PostgresDatabaseInitializer>.Instance);
         await initializer.InitializeAsync();
     }
 

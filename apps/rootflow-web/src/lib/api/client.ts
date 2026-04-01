@@ -21,6 +21,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const { parseAs = "json", headers, ...init } = options;
   const storedSession = getStoredAuthSession();
 
+  if (!env.isApiBaseUrlConfigured) {
+    throw new ApiError(env.apiConfigurationError ?? "The frontend API base URL is not configured.", 0);
+  }
+
   const response = await fetch(`${env.apiBaseUrl}${path}`, {
     ...init,
     headers: {

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using RootFlow.Api.Auth;
 using RootFlow.Api.Contracts.Auth;
@@ -17,26 +18,48 @@ using RootFlow.Application.Documents.Queries;
 using RootFlow.Infrastructure.DependencyInjection;
 using RootFlow.Infrastructure.Persistence;
 
+ConfigurePlatformUrlsFromPort();
+
 var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "RootFlowFrontend";
+var jwtOptions = ResolveJwtOptions(builder.Configuration);
+var allowedCorsOrigins = ResolveAllowedCorsOrigins(builder.Configuration, builder.Environment);
+
+builder.Logging.ClearProviders();
+if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("IntegrationTesting"))
+{
+    builder.Logging.AddSimpleConsole(options =>
+    {
+        options.SingleLine = true;
+        options.TimestampFormat = "HH:mm:ss ";
+    });
+}
+else
+{
+    builder.Logging.AddJsonConsole(options =>
+    {
+        options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
+    });
+}
 
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
-builder.Services.PostConfigure<JwtOptions>(options =>
+builder.Services.Configure<JwtOptions>(options =>
 {
-    options.Key = string.IsNullOrWhiteSpace(options.Key)
-        ? Environment.GetEnvironmentVariable("ROOTFLOW_JWT_KEY") ?? string.Empty
-        : options.Key;
+    options.Issuer = jwtOptions.Issuer;
+    options.Audience = jwtOptions.Audience;
+    options.Key = jwtOptions.Key;
+    options.ExpiresInMinutes = jwtOptions.ExpiresInMinutes;
+});
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
 });
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
-        jwtOptions.Key = string.IsNullOrWhiteSpace(jwtOptions.Key)
-            ? Environment.GetEnvironmentVariable("ROOTFLOW_JWT_KEY") ?? string.Empty
-            : jwtOptions.Key;
-
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -55,15 +78,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy(FrontendCorsPolicy, policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5173",
-                "https://localhost:5173",
-                "http://127.0.0.1:5173",
-                "https://127.0.0.1:5173",
-                "http://localhost:4173",
-                "https://localhost:4173",
-                "http://127.0.0.1:4173",
-                "https://127.0.0.1:4173")
+        policy.WithOrigins(allowedCorsOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -86,6 +101,12 @@ else
     app.UseExceptionHandler();
 }
 
+app.Logger.LogInformation(
+    "Starting RootFlow API in {Environment} with {CorsOriginCount} allowed frontend origins.",
+    app.Environment.EnvironmentName,
+    allowedCorsOrigins.Length);
+
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
@@ -348,6 +369,82 @@ static Dictionary<string, string[]> ValidateLoginRequest(LoginRequest request)
     }
 
     return errors;
+}
+
+static void ConfigurePlatformUrlsFromPort()
+{
+    var port = Environment.GetEnvironmentVariable("PORT");
+    var aspNetCoreUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+    var urls = Environment.GetEnvironmentVariable("URLS");
+
+    if (string.IsNullOrWhiteSpace(port) || !string.IsNullOrWhiteSpace(aspNetCoreUrls) || !string.IsNullOrWhiteSpace(urls))
+    {
+        return;
+    }
+
+    Environment.SetEnvironmentVariable("ASPNETCORE_URLS", $"http://0.0.0.0:{port.Trim()}");
+}
+
+static JwtOptions ResolveJwtOptions(IConfiguration configuration)
+{
+    var options = configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
+    options.Key = FirstNonEmpty(configuration["ROOTFLOW_JWT_KEY"], configuration["Jwt:Key"], options.Key) ?? string.Empty;
+
+    if (string.IsNullOrWhiteSpace(options.Key))
+    {
+        throw new InvalidOperationException(
+            "JWT signing key is not configured. Set ROOTFLOW_JWT_KEY or Jwt:Key before starting the API.");
+    }
+
+    return options;
+}
+
+static string[] ResolveAllowedCorsOrigins(IConfiguration configuration, IHostEnvironment environment)
+{
+    var configuredOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+    var envOrigins = SplitDelimitedValues(configuration["ROOTFLOW_ALLOWED_ORIGINS"]);
+    var resolvedOrigins = envOrigins
+        .Concat(configuredOrigins)
+        .Select(origin => origin.Trim())
+        .Where(origin => !string.IsNullOrWhiteSpace(origin))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    if (resolvedOrigins.Length > 0)
+    {
+        return resolvedOrigins;
+    }
+
+    if (environment.IsDevelopment() || environment.IsEnvironment("IntegrationTesting"))
+    {
+        return
+        [
+            "http://localhost:5173",
+            "https://localhost:5173",
+            "http://127.0.0.1:5173",
+            "https://127.0.0.1:5173",
+            "http://localhost:4173",
+            "https://localhost:4173",
+            "http://127.0.0.1:4173",
+            "https://127.0.0.1:4173"
+        ];
+    }
+
+    throw new InvalidOperationException(
+        "No allowed frontend origins are configured. Set ROOTFLOW_ALLOWED_ORIGINS or Cors:AllowedOrigins.");
+}
+
+static string[] SplitDelimitedValues(string? value)
+{
+    return string.IsNullOrWhiteSpace(value)
+        ? []
+        : value
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
+
+static string? FirstNonEmpty(params string?[] values)
+{
+    return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
 }
 
 public partial class Program
