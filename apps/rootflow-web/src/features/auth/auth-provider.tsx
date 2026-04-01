@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { createContext, useContext, useEffect, useState, type PropsWithChildren } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren } from "react";
 
 import type { AuthResponse, LoginPayload, SessionInfo, SignupPayload } from "@/lib/api/contracts";
 import { rootflowApi } from "@/lib/api/rootflow-api";
@@ -27,21 +27,39 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function getSessionIdentity(session: StoredAuthSession | null) {
+  if (!session) {
+    return null;
+  }
+
+  return `${session.token}:${session.session.user.id}:${session.session.workspace.id}`;
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
   const [storedSession, setStoredSession] = useState<StoredAuthSession | null>(() => getStoredAuthSession());
   const [status, setStatus] = useState<AuthStatus>(() => (getStoredAuthSession() ? "loading" : "unauthenticated"));
+  const sessionIdentityRef = useRef<string | null>(getSessionIdentity(getStoredAuthSession()));
 
   useEffect(() => {
     return subscribeToAuthSession((nextSession) => {
+      const nextIdentity = getSessionIdentity(nextSession);
+      const previousIdentity = sessionIdentityRef.current;
+
+      sessionIdentityRef.current = nextIdentity;
       setStoredSession(nextSession);
       setStatus(nextSession ? "authenticated" : "unauthenticated");
-      queryClient.clear();
+
+      if (previousIdentity !== nextIdentity) {
+        queryClient.clear();
+      }
     });
   }, [queryClient]);
 
   useEffect(() => {
-    if (!storedSession) {
+    const token = storedSession?.token;
+
+    if (status !== "loading" || !token) {
       return;
     }
 
@@ -54,8 +72,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return;
         }
 
+        const currentSession = getStoredAuthSession();
+        if (!currentSession || currentSession.token !== token) {
+          return;
+        }
+
         const refreshedSession: AuthResponse = {
-          ...storedSession,
+          ...currentSession,
           session,
         };
 
@@ -77,7 +100,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return () => {
       isCancelled = true;
     };
-  }, [queryClient, storedSession]);
+  }, [queryClient, status, storedSession?.token]);
 
   async function login(payload: LoginPayload) {
     const session = await rootflowApi.login(payload);
@@ -108,8 +131,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       logout();
       return;
     }
-
-    setStatus("loading");
 
     try {
       const session = await rootflowApi.getCurrentSession();
