@@ -28,6 +28,10 @@ export interface AuthResponse {
   session: SessionInfo;
 }
 
+export interface MessageResponse {
+  message: string;
+}
+
 export interface LoginPayload {
   email: string;
   password: string;
@@ -38,6 +42,15 @@ export interface SignupPayload {
   email: string;
   password: string;
   workspaceName: string;
+}
+
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  newPassword: string;
 }
 
 export interface DocumentSummary {

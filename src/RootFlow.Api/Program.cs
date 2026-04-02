@@ -225,6 +225,66 @@ auth.MapGet("/me", async (
 })
 .RequireAuthorization();
 
+auth.MapPost("/forgot-password", async (
+    ForgotPasswordRequest request,
+    AuthService authService,
+    CancellationToken cancellationToken) =>
+{
+    var validationErrors = ValidateForgotPasswordRequest(request);
+    if (validationErrors.Count > 0)
+    {
+        return Results.ValidationProblem(validationErrors);
+    }
+
+    try
+    {
+        var message = await authService.RequestPasswordResetAsync(
+            new ForgotPasswordCommand(request.Email),
+            cancellationToken);
+
+        return Results.Ok(new MessageResponse(message));
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [exception.ParamName ?? "request"] = [exception.Message]
+        });
+    }
+});
+
+auth.MapPost("/reset-password", async (
+    ResetPasswordRequest request,
+    AuthService authService,
+    CancellationToken cancellationToken) =>
+{
+    var validationErrors = ValidateResetPasswordRequest(request);
+    if (validationErrors.Count > 0)
+    {
+        return Results.ValidationProblem(validationErrors);
+    }
+
+    try
+    {
+        await authService.ResetPasswordAsync(
+            new ResetPasswordCommand(request.Token, request.NewPassword),
+            cancellationToken);
+
+        return Results.Ok(new MessageResponse("Your password has been updated. You can now sign in with the new password."));
+    }
+    catch (InvalidPasswordResetTokenException exception)
+    {
+        return Results.BadRequest(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [exception.ParamName ?? "request"] = [exception.Message]
+        });
+    }
+});
+
 documents.MapPost("", async (
     IFormFile file,
     ClaimsPrincipal user,
@@ -366,6 +426,35 @@ static Dictionary<string, string[]> ValidateLoginRequest(LoginRequest request)
     if (string.IsNullOrWhiteSpace(request.Password))
     {
         errors["password"] = ["Password is required."];
+    }
+
+    return errors;
+}
+
+static Dictionary<string, string[]> ValidateForgotPasswordRequest(ForgotPasswordRequest request)
+{
+    var errors = new Dictionary<string, string[]>();
+
+    if (string.IsNullOrWhiteSpace(request.Email))
+    {
+        errors["email"] = ["Email is required."];
+    }
+
+    return errors;
+}
+
+static Dictionary<string, string[]> ValidateResetPasswordRequest(ResetPasswordRequest request)
+{
+    var errors = new Dictionary<string, string[]>();
+
+    if (string.IsNullOrWhiteSpace(request.Token))
+    {
+        errors["token"] = ["Reset token is required."];
+    }
+
+    if (string.IsNullOrWhiteSpace(request.NewPassword))
+    {
+        errors["newPassword"] = ["New password is required."];
     }
 
     return errors;

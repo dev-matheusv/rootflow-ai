@@ -40,11 +40,19 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<AiOptions>(configuration.GetSection("AI"));
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
+        services.Configure<PasswordResetOptions>(configuration.GetSection("PasswordReset"));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
         services.Configure<TextChunkingOptions>(configuration.GetSection("Chunking"));
         services.PostConfigure<OpenAiOptions>(options =>
         {
             options.ApiKey = ResolveOpenAiApiKey(configuration, options);
+        });
+        services.PostConfigure<PasswordResetOptions>(options =>
+        {
+            options.FrontendBaseUrl = FirstNonEmpty(
+                configuration["ROOTFLOW_FRONTEND_BASE_URL"],
+                configuration["PasswordReset:FrontendBaseUrl"],
+                options.FrontendBaseUrl) ?? string.Empty;
         });
 
         services.AddSingleton<IClock, SystemClock>();
@@ -62,6 +70,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITextChunker, SimpleTextChunker>();
 
         services.AddScoped<IPasswordHashingService, AspNetPasswordHashingService>();
+        services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
         services.AddScoped<IWorkspaceInvitationRepository, PostgresWorkspaceInvitationRepository>();
         services.AddScoped<IWorkspaceRepository, PostgresWorkspaceRepository>();

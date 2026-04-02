@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net.Mail;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using RootFlow.Application.Abstractions.Auth;
@@ -15,17 +16,23 @@ namespace RootFlow.Application.Auth;
 public sealed class AuthService
 {
     private static readonly Regex NonAlphaNumericRegex = new("[^a-z0-9]+", RegexOptions.Compiled);
+    private static readonly TimeSpan PasswordResetTokenLifetime = TimeSpan.FromHours(1);
+    private const string PasswordResetRequestedMessage = "If the account exists, a reset link has been sent.";
+    private const string InvalidPasswordResetTokenMessage = "This reset link is invalid or has expired. Request a new one.";
     private readonly IAuthRepository _authRepository;
     private readonly IPasswordHashingService _passwordHashingService;
+    private readonly IPasswordResetNotifier _passwordResetNotifier;
     private readonly IClock _clock;
 
     public AuthService(
         IAuthRepository authRepository,
         IPasswordHashingService passwordHashingService,
+        IPasswordResetNotifier passwordResetNotifier,
         IClock clock)
     {
         _authRepository = authRepository;
         _passwordHashingService = passwordHashingService;
+        _passwordResetNotifier = passwordResetNotifier;
         _clock = clock;
     }
 
@@ -112,6 +119,73 @@ public sealed class AuthService
         return _authRepository.GetSessionAsync(userId, workspaceId, cancellationToken);
     }
 
+    public async Task<string> RequestPasswordResetAsync(
+        ForgotPasswordCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var email = NormalizeEmail(command.Email);
+        var user = await _authRepository.GetUserByNormalizedEmailAsync(email.ToUpperInvariant(), cancellationToken);
+        if (user is null || !user.IsActive)
+        {
+            return PasswordResetRequestedMessage;
+        }
+
+        var createdAtUtc = _clock.UtcNow;
+        var rawToken = GeneratePasswordResetToken();
+        var passwordResetToken = new PasswordResetToken(
+            Guid.NewGuid(),
+            user.Id,
+            HashPasswordResetToken(rawToken),
+            createdAtUtc,
+            createdAtUtc.Add(PasswordResetTokenLifetime));
+
+        await _authRepository.StorePasswordResetTokenAsync(passwordResetToken, cancellationToken);
+        await _passwordResetNotifier.SendResetLinkAsync(
+            new PasswordResetNotification(
+                user.Email,
+                user.FullName,
+                rawToken,
+                passwordResetToken.ExpiresAtUtc),
+            cancellationToken);
+
+        return PasswordResetRequestedMessage;
+    }
+
+    public async Task ResetPasswordAsync(
+        ResetPasswordCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(command.Token))
+        {
+            throw new ArgumentException("Reset token is required.", nameof(command.Token));
+        }
+
+        ValidatePassword(command.NewPassword);
+
+        var passwordResetToken = await _authRepository.GetPasswordResetTokenByHashAsync(
+            HashPasswordResetToken(command.Token),
+            cancellationToken);
+
+        var utcNow = _clock.UtcNow;
+        if (passwordResetToken is null || !passwordResetToken.IsActiveAt(utcNow))
+        {
+            throw new InvalidPasswordResetTokenException(InvalidPasswordResetTokenMessage);
+        }
+
+        var user = await _authRepository.GetUserByIdAsync(passwordResetToken.UserId, cancellationToken);
+        if (user is null || !user.IsActive)
+        {
+            throw new InvalidPasswordResetTokenException(InvalidPasswordResetTokenMessage);
+        }
+
+        await _authRepository.CompletePasswordResetAsync(
+            user.Id,
+            passwordResetToken.Id,
+            _passwordHashingService.HashPassword(command.NewPassword),
+            utcNow,
+            cancellationToken);
+    }
+
     private async Task<string> GenerateUniqueWorkspaceSlugAsync(
         string workspaceName,
         CancellationToken cancellationToken)
@@ -193,6 +267,22 @@ public sealed class AuthService
         {
             throw new ArgumentException("Password must be 128 characters or less.", nameof(password));
         }
+    }
+
+    private static string GeneratePasswordResetToken()
+    {
+        var tokenBytes = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToBase64String(tokenBytes)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
+    }
+
+    private static string HashPasswordResetToken(string token)
+    {
+        var normalizedToken = token.Trim();
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(normalizedToken));
+        return Convert.ToHexString(hashBytes);
     }
 
     private static string Slugify(string value)

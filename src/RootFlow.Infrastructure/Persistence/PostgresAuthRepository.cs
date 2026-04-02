@@ -15,7 +15,7 @@ public sealed class PostgresAuthRepository : IAuthRepository
         _dataSource = dataSource;
     }
 
-    public async Task<AppUser?> GetUserByNormalizedEmailAsync(
+    public Task<AppUser?> GetUserByNormalizedEmailAsync(
         string normalizedEmail,
         CancellationToken cancellationToken = default)
     {
@@ -28,32 +28,39 @@ public sealed class PostgresAuthRepository : IAuthRepository
                                   created_at_utc,
                                   is_active
                            FROM app_users
-                           WHERE normalized_email = @normalizedEmail;
+                           WHERE normalized_email = @normalizedEmail
+                           LIMIT 1;
                            """;
 
-        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        command.Parameters.AddWithValue("normalizedEmail", normalizedEmail);
+        return GetUserAsync(
+            sql,
+            static (command, state) => command.Parameters.AddWithValue("normalizedEmail", state),
+            normalizedEmail,
+            cancellationToken);
+    }
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
-        {
-            return null;
-        }
+    public Task<AppUser?> GetUserByIdAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  email,
+                                  normalized_email,
+                                  full_name,
+                                  password_hash,
+                                  created_at_utc,
+                                  is_active
+                           FROM app_users
+                           WHERE id = @userId
+                           LIMIT 1;
+                           """;
 
-        var user = new AppUser(
-            reader.GetGuid(0),
-            reader.GetString(1),
-            reader.GetString(3),
-            reader.GetString(4),
-            reader.GetFieldValue<DateTime>(5));
-
-        if (!reader.GetBoolean(6))
-        {
-            user.Deactivate();
-        }
-
-        return user;
+        return GetUserAsync(
+            sql,
+            static (command, state) => command.Parameters.AddWithValue("userId", state),
+            userId,
+            cancellationToken);
     }
 
     public async Task<bool> WorkspaceSlugExistsAsync(
@@ -248,6 +255,176 @@ public sealed class PostgresAuthRepository : IAuthRepository
             cancellationToken);
     }
 
+    public async Task StorePasswordResetTokenAsync(
+        PasswordResetToken passwordResetToken,
+        CancellationToken cancellationToken = default)
+    {
+        const string invalidateExistingSql = """
+                                             UPDATE password_reset_tokens
+                                             SET used_at_utc = @usedAtUtc
+                                             WHERE user_id = @userId
+                                               AND used_at_utc IS NULL;
+                                             """;
+
+        const string insertSql = """
+                                 INSERT INTO password_reset_tokens (
+                                     id,
+                                     user_id,
+                                     token_hash,
+                                     created_at_utc,
+                                     expires_at_utc,
+                                     used_at_utc
+                                 )
+                                 VALUES (
+                                     @id,
+                                     @userId,
+                                     @tokenHash,
+                                     @createdAtUtc,
+                                     @expiresAtUtc,
+                                     @usedAtUtc
+                                 );
+                                 """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        await using (var invalidateCommand = new NpgsqlCommand(invalidateExistingSql, connection, transaction))
+        {
+            invalidateCommand.Parameters.AddWithValue("usedAtUtc", passwordResetToken.CreatedAtUtc);
+            invalidateCommand.Parameters.AddWithValue("userId", passwordResetToken.UserId);
+            await invalidateCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var insertCommand = new NpgsqlCommand(insertSql, connection, transaction))
+        {
+            ConfigurePasswordResetTokenParameters(insertCommand, passwordResetToken);
+            await insertCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public Task<PasswordResetToken?> GetPasswordResetTokenByHashAsync(
+        string tokenHash,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  user_id,
+                                  token_hash,
+                                  created_at_utc,
+                                  expires_at_utc,
+                                  used_at_utc
+                           FROM password_reset_tokens
+                           WHERE token_hash = @tokenHash
+                           LIMIT 1;
+                           """;
+
+        return GetPasswordResetTokenAsync(
+            sql,
+            static (command, state) => command.Parameters.AddWithValue("tokenHash", state),
+            tokenHash,
+            cancellationToken);
+    }
+
+    public async Task CompletePasswordResetAsync(
+        Guid userId,
+        Guid passwordResetTokenId,
+        string passwordHash,
+        DateTime completedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        const string updateUserSql = """
+                                     UPDATE app_users
+                                     SET password_hash = @passwordHash
+                                     WHERE id = @userId
+                                       AND is_active = TRUE;
+                                     """;
+
+        const string consumeTokenSql = """
+                                       UPDATE password_reset_tokens
+                                       SET used_at_utc = @completedAtUtc
+                                       WHERE id = @passwordResetTokenId
+                                         AND user_id = @userId
+                                         AND used_at_utc IS NULL;
+                                       """;
+
+        const string consumeOtherTokensSql = """
+                                             UPDATE password_reset_tokens
+                                             SET used_at_utc = @completedAtUtc
+                                             WHERE user_id = @userId
+                                               AND id <> @passwordResetTokenId
+                                               AND used_at_utc IS NULL;
+                                             """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        await using (var updateUserCommand = new NpgsqlCommand(updateUserSql, connection, transaction))
+        {
+            updateUserCommand.Parameters.AddWithValue("passwordHash", passwordHash);
+            updateUserCommand.Parameters.AddWithValue("userId", userId);
+            var updatedUserCount = await updateUserCommand.ExecuteNonQueryAsync(cancellationToken);
+            if (updatedUserCount != 1)
+            {
+                throw new InvalidOperationException("Password reset could not be completed.");
+            }
+        }
+
+        await using (var consumeTokenCommand = new NpgsqlCommand(consumeTokenSql, connection, transaction))
+        {
+            consumeTokenCommand.Parameters.AddWithValue("completedAtUtc", completedAtUtc);
+            consumeTokenCommand.Parameters.AddWithValue("passwordResetTokenId", passwordResetTokenId);
+            consumeTokenCommand.Parameters.AddWithValue("userId", userId);
+            var consumedTokenCount = await consumeTokenCommand.ExecuteNonQueryAsync(cancellationToken);
+            if (consumedTokenCount != 1)
+            {
+                throw new InvalidOperationException("Password reset token is no longer active.");
+            }
+        }
+
+        await using (var consumeOtherTokensCommand = new NpgsqlCommand(consumeOtherTokensSql, connection, transaction))
+        {
+            consumeOtherTokensCommand.Parameters.AddWithValue("completedAtUtc", completedAtUtc);
+            consumeOtherTokensCommand.Parameters.AddWithValue("userId", userId);
+            consumeOtherTokensCommand.Parameters.AddWithValue("passwordResetTokenId", passwordResetTokenId);
+            await consumeOtherTokensCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task<AppUser?> GetUserAsync<TState>(
+        string sql,
+        Action<NpgsqlCommand, TState> configureParameters,
+        TState state,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        configureParameters(command, state);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        var user = new AppUser(
+            reader.GetGuid(0),
+            reader.GetString(1),
+            reader.GetString(3),
+            reader.GetString(4),
+            reader.GetFieldValue<DateTime>(5));
+
+        if (!reader.GetBoolean(6))
+        {
+            user.Deactivate();
+        }
+
+        return user;
+    }
+
     private async Task<AuthSessionDto?> GetSessionAsync<TState>(
         string sql,
         Action<NpgsqlCommand, TState> configureParameters,
@@ -276,8 +453,51 @@ public sealed class PostgresAuthRepository : IAuthRepository
             Enum.Parse<WorkspaceRole>(reader.GetString(6), ignoreCase: true));
     }
 
+    private async Task<PasswordResetToken?> GetPasswordResetTokenAsync<TState>(
+        string sql,
+        Action<NpgsqlCommand, TState> configureParameters,
+        TState state,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        configureParameters(command, state);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        var passwordResetToken = new PasswordResetToken(
+            reader.GetGuid(0),
+            reader.GetGuid(1),
+            reader.GetString(2),
+            reader.GetFieldValue<DateTime>(3),
+            reader.GetFieldValue<DateTime>(4));
+
+        if (!reader.IsDBNull(5))
+        {
+            passwordResetToken.MarkUsed(reader.GetFieldValue<DateTime>(5));
+        }
+
+        return passwordResetToken;
+    }
+
     private static void ConfigureSingleParameter(NpgsqlCommand command, Guid userId)
     {
         command.Parameters.AddWithValue("userId", userId);
+    }
+
+    private static void ConfigurePasswordResetTokenParameters(
+        NpgsqlCommand command,
+        PasswordResetToken passwordResetToken)
+    {
+        command.Parameters.AddWithValue("id", passwordResetToken.Id);
+        command.Parameters.AddWithValue("userId", passwordResetToken.UserId);
+        command.Parameters.AddWithValue("tokenHash", passwordResetToken.TokenHash);
+        command.Parameters.AddWithValue("createdAtUtc", passwordResetToken.CreatedAtUtc);
+        command.Parameters.AddWithValue("expiresAtUtc", passwordResetToken.ExpiresAtUtc);
+        command.Parameters.AddWithValue("usedAtUtc", (object?)passwordResetToken.UsedAtUtc ?? DBNull.Value);
     }
 }

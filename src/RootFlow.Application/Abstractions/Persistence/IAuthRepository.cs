@@ -10,6 +10,10 @@ public interface IAuthRepository
         string normalizedEmail,
         CancellationToken cancellationToken = default);
 
+    Task<AppUser?> GetUserByIdAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
     Task<bool> WorkspaceSlugExistsAsync(
         string slug,
         CancellationToken cancellationToken = default);
@@ -27,5 +31,20 @@ public interface IAuthRepository
     Task<AuthSessionDto?> GetSessionAsync(
         Guid userId,
         Guid workspaceId,
+        CancellationToken cancellationToken = default);
+
+    Task StorePasswordResetTokenAsync(
+        PasswordResetToken passwordResetToken,
+        CancellationToken cancellationToken = default);
+
+    Task<PasswordResetToken?> GetPasswordResetTokenByHashAsync(
+        string tokenHash,
+        CancellationToken cancellationToken = default);
+
+    Task CompletePasswordResetAsync(
+        Guid userId,
+        Guid passwordResetTokenId,
+        string passwordHash,
+        DateTime completedAtUtc,
         CancellationToken cancellationToken = default);
 }

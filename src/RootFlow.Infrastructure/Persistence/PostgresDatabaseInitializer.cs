@@ -233,6 +233,25 @@ public sealed class PostgresDatabaseInitializer
 
                 CREATE INDEX IF NOT EXISTS ix_workspace_invitations_workspace_created
                     ON workspace_invitations (workspace_id, created_at_utc DESC);
+                """),
+            new DatabaseMigration(
+                "202604010002_password_reset_foundation",
+                "Create password reset tokens for secure account recovery",
+                """
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    id uuid PRIMARY KEY,
+                    user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+                    token_hash text NOT NULL,
+                    created_at_utc timestamptz NOT NULL,
+                    expires_at_utc timestamptz NOT NULL,
+                    used_at_utc timestamptz NULL
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_password_reset_tokens_token_hash
+                    ON password_reset_tokens (token_hash);
+
+                CREATE INDEX IF NOT EXISTS ix_password_reset_tokens_user_created
+                    ON password_reset_tokens (user_id, created_at_utc DESC);
                 """)
         ];
     }

@@ -5,8 +5,11 @@ import type {
   ConversationHistory,
   ConversationSummary,
   DocumentSummary,
+  ForgotPasswordPayload,
   HealthResponse,
   LoginPayload,
+  MessageResponse,
+  ResetPasswordPayload,
   SessionInfo,
   SignupPayload,
   UploadDocumentPayload,
@@ -25,6 +28,22 @@ export const rootflowApi = {
     }),
   login: (payload: LoginPayload) =>
     apiRequest<AuthResponse>("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
+  forgotPassword: (payload: ForgotPasswordPayload) =>
+    apiRequest<MessageResponse>("/api/auth/forgot-password", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
+  resetPassword: (payload: ResetPasswordPayload) =>
+    apiRequest<MessageResponse>("/api/auth/reset-password", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
