@@ -53,18 +53,27 @@ public sealed class SimpleTextChunker : ITextChunker
         var chunks = new List<TextChunk>();
         var startSegmentIndex = 0;
         var sequence = 0;
+        var preferredChunkSize = Math.Max(240, (int)Math.Round(_options.ChunkSize * 0.72d));
 
         while (startSegmentIndex < segments.Count)
         {
             var buffer = new StringBuilder();
             var labels = new List<string>();
             var currentIndex = startSegmentIndex;
+            var anchorSectionKey = segments[startSegmentIndex].SectionKey;
 
             while (currentIndex < segments.Count)
             {
                 var segment = segments[currentIndex];
                 var separatorLength = buffer.Length == 0 ? 0 : 2;
+                var isNewSection = buffer.Length > 0
+                    && !string.Equals(anchorSectionKey, segment.SectionKey, StringComparison.Ordinal);
                 if (buffer.Length > 0 && buffer.Length + separatorLength + segment.Content.Length > _options.ChunkSize)
+                {
+                    break;
+                }
+
+                if (isNewSection && buffer.Length >= preferredChunkSize)
                 {
                     break;
                 }
@@ -136,7 +145,7 @@ public sealed class SimpleTextChunker : ITextChunker
 
         var segments = new List<TextSegment>();
         var currentLabel = "Document";
-        var paragraphIndex = 0;
+        var unlabeledParagraphIndex = 0;
 
         foreach (var section in sections)
         {
@@ -154,12 +163,11 @@ public sealed class SimpleTextChunker : ITextChunker
             }
 
             currentLabel = extracted.Heading;
-            paragraphIndex++;
-
-            var sourceLabel = BuildParagraphLabel(currentLabel, paragraphIndex);
-            foreach (var segmentContent in SplitOversizedContent(content))
+            var sourceLabel = BuildParagraphLabel(currentLabel, ref unlabeledParagraphIndex);
+            foreach (var rawSegmentContent in SplitOversizedContent(content))
             {
-                segments.Add(new TextSegment(segmentContent, sourceLabel));
+                var segmentContent = AttachSectionContext(rawSegmentContent, currentLabel);
+                segments.Add(new TextSegment(segmentContent, sourceLabel, BuildSectionKey(currentLabel)));
             }
         }
 
@@ -312,6 +320,11 @@ public sealed class SimpleTextChunker : ITextChunker
             return true;
         }
 
+        if (line.EndsWith(":", StringComparison.Ordinal) && !line.Contains(".", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
         if (line.Length > 80)
         {
             return false;
@@ -324,19 +337,36 @@ public sealed class SimpleTextChunker : ITextChunker
         }
 
         var upperCaseCount = line.Count(char.IsUpper);
-        return upperCaseCount >= letterCount * 0.8;
+        if (upperCaseCount >= letterCount * 0.8)
+        {
+            return true;
+        }
+
+        var words = line
+            .Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (words.Length is 0 or > 8)
+        {
+            return false;
+        }
+
+        var capitalizedWords = words.Count(static word => word.Length > 0 && char.IsUpper(word[0]));
+        return capitalizedWords >= Math.Max(1, words.Length - 1);
     }
 
     private static string CleanHeading(string line)
     {
-        return line.Trim().TrimStart('#').Trim();
+        return line.Trim().TrimStart('#').Trim().TrimEnd(':').Trim();
     }
 
-    private static string BuildParagraphLabel(string sectionLabel, int paragraphIndex)
+    private static string BuildParagraphLabel(string sectionLabel, ref int unlabeledParagraphIndex)
     {
-        return sectionLabel == "Document"
-            ? $"Paragraph {paragraphIndex}"
-            : $"{sectionLabel} - Paragraph {paragraphIndex}";
+        if (sectionLabel == "Document")
+        {
+            unlabeledParagraphIndex++;
+            return $"Paragraph {unlabeledParagraphIndex}";
+        }
+
+        return sectionLabel;
     }
 
     private static string BuildSourceLabel(IReadOnlyList<string> labels, int sequence)
@@ -367,6 +397,38 @@ public sealed class SimpleTextChunker : ITextChunker
             .Trim();
     }
 
+    private static string AttachSectionContext(string content, string sectionLabel)
+    {
+        if (sectionLabel == "Document")
+        {
+            return content.Trim();
+        }
+
+        var trimmedContent = content.Trim();
+        var firstLine = trimmedContent
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+
+        if (!string.IsNullOrWhiteSpace(firstLine))
+        {
+            var normalizedFirstLine = Normalize(firstLine);
+            var normalizedSectionLabel = Normalize(sectionLabel);
+            if (normalizedFirstLine.Contains(normalizedSectionLabel, StringComparison.Ordinal))
+            {
+                return trimmedContent;
+            }
+        }
+
+        return $"{sectionLabel}:{Environment.NewLine}{trimmedContent}";
+    }
+
+    private static string BuildSectionKey(string sectionLabel)
+    {
+        return sectionLabel == "Document"
+            ? "Document"
+            : sectionLabel;
+    }
+
     private static string TrimToSentenceBoundary(string content, int maxLength)
     {
         if (content.Length <= maxLength)
@@ -389,7 +451,7 @@ public sealed class SimpleTextChunker : ITextChunker
         return content.Split([' ', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries).Length;
     }
 
-    private sealed record TextSegment(string Content, string SourceLabel);
+    private sealed record TextSegment(string Content, string SourceLabel, string SectionKey);
 
     private sealed record HeadingExtraction(string Heading, string Content, bool IsHeadingOnly);
 }

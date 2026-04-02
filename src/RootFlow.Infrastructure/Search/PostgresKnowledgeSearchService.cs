@@ -103,6 +103,7 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
         var titleMatchWeight = 0d;
         var sourceLabelMatchWeight = 0d;
         var contentMatchWeight = 0d;
+        var matchedOriginalTerms = 0;
 
         foreach (var (term, weight) in query.TermWeights)
         {
@@ -146,6 +147,7 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
             .Where(matchedTerms.Contains)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
+        matchedOriginalTerms = originalMatchedTerms.Length;
 
         var exactCoverage = query.OriginalTokens.Count == 0
             ? 0
@@ -162,11 +164,15 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
                 ((titleMatchWeight * 1.35d) + (sourceLabelMatchWeight * 1.15d) + contentMatchWeight) /
                 (totalTermWeight * 1.35d));
 
-        var combinedScore = (candidate.VectorScore * 0.50d)
-            + (keywordScore * 0.24d)
+        var distinctTokenCount = Math.Max(1, contentTokens.Count + sourceLabelTokens.Count + documentNameTokens.Count);
+        var matchDensity = Math.Min(1d, (double)matchedTerms.Distinct(StringComparer.Ordinal).Count() / Math.Min(10, distinctTokenCount));
+
+        var combinedScore = (candidate.VectorScore * 0.46d)
+            + (keywordScore * 0.22d)
             + (fieldDensityScore * 0.14d)
-            + (exactCoverage * 0.07d)
-            + (phraseScore * 0.05d);
+            + (exactCoverage * 0.08d)
+            + (phraseScore * 0.06d)
+            + (matchDensity * 0.04d);
 
         combinedScore += ComputeIntentBoost(query, documentNameTokens, sourceLabelTokens, contentTokens);
         combinedScore += ComputeStructuredContentBoost(candidate.Content, query);
@@ -174,6 +180,11 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
         if (query.OriginalTokens.Count > 0 && originalMatchedTerms.Length == 0 && phraseScore == 0)
         {
             combinedScore *= 0.88d;
+        }
+
+        if (distinctTokenCount > 70 && matchedOriginalTerms <= 1 && phraseScore == 0)
+        {
+            combinedScore *= 0.92d;
         }
 
         return new KnowledgeSearchMatch(
@@ -231,9 +242,19 @@ public sealed class PostgresKnowledgeSearchService : IKnowledgeSearchService
             return true;
         }
 
-        if (candidate.VectorScore >= 0.36d && candidate.Score >= 0.24d)
+        if (candidate.MatchedTerms.Count >= 2 && candidate.Score >= 0.20d)
         {
             return true;
+        }
+
+        if (candidate.VectorScore >= 0.42d && candidate.Score >= 0.28d)
+        {
+            return true;
+        }
+
+        if (candidate.MatchedTerms.Count == 0 && candidate.PhraseScore == 0 && candidate.VectorScore < 0.46d)
+        {
+            return false;
         }
 
         return candidate.Score >= (topScore * 0.72d)

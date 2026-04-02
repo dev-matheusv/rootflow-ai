@@ -76,7 +76,7 @@ public sealed class ChatService
 
         var turnContext = ResolveTurnContext(existingMessages, command.Question);
         var retrievalQuery = SemanticQueryExpander.Expand(turnContext.RetrievalInput);
-        var retrievalWindow = Math.Clamp(Math.Max(command.MaxContextChunks, 8), 1, 10);
+        var retrievalWindow = Math.Clamp(command.MaxContextChunks, 1, 8);
 
         var queryEmbedding = await _embeddingService.GenerateEmbeddingAsync(
             retrievalQuery.RetrievalText,
@@ -88,20 +88,30 @@ public sealed class ChatService
             retrievalWindow,
             cancellationToken);
 
-        LogSearchResults(conversation.Id, command.Question, retrievalQuery.RetrievalText, searchResults);
+        var retrievalAssessment = AssessRetrieval(searchResults);
+        LogSearchResults(
+            conversation.Id,
+            command.Question,
+            retrievalQuery.RetrievalText,
+            retrievalAssessment.Strength,
+            searchResults);
 
-        var hasRelevantContext = searchResults.Count > 0;
+        var hasRelevantContext = retrievalAssessment.Strength is not RetrievalEvidenceStrength.None;
 
         string answer;
         string? modelName = null;
 
-        if (!hasRelevantContext)
+        if (retrievalAssessment.Strength == RetrievalEvidenceStrength.None)
         {
             answer = ChatLanguageDetector.GetNoContextAnswer(turnContext.Language);
         }
+        else if (retrievalAssessment.Strength == RetrievalEvidenceStrength.Weak)
+        {
+            answer = BuildWeakEvidenceAnswer(turnContext.Language, searchResults[0]);
+        }
         else
         {
-            var prompt = BuildPrompt(turnContext, searchResults);
+            var prompt = BuildPrompt(turnContext, searchResults, retrievalAssessment.Strength);
             var completion = await _chatCompletionService.CompleteAsync(prompt, cancellationToken);
             answer = CleanAnswer(completion.Content);
             modelName = completion.ModelName;
@@ -193,10 +203,18 @@ public sealed class ChatService
 
     private ChatCompletionRequest BuildPrompt(
         ResolvedTurnContext turnContext,
-        IReadOnlyList<KnowledgeSearchMatch> searchResults)
+        IReadOnlyList<KnowledgeSearchMatch> searchResults,
+        RetrievalEvidenceStrength evidenceStrength)
     {
         var noContextAnswer = ChatLanguageDetector.GetNoContextAnswer(turnContext.Language);
         var languageLabel = ChatLanguageDetector.GetPromptLanguageLabel(turnContext.Language);
+        var evidenceStrengthLabel = evidenceStrength switch
+        {
+            RetrievalEvidenceStrength.Strong => "strong",
+            RetrievalEvidenceStrength.Moderate => "moderate",
+            RetrievalEvidenceStrength.Weak => "weak",
+            _ => "none"
+        };
 
         var messages = new List<ChatPromptMessage>(2)
         {
@@ -211,6 +229,9 @@ public sealed class ChatService
                 If the context block list is empty, reply exactly: "{{noContextAnswer}}"
                 If at least one context block is provided, answer with the best grounded response you can. Do not fall back to uncertainty when usable evidence exists.
                 Start with a direct answer line.
+                If evidence is partial, say that clearly and stay narrow.
+                Distinguish direct document findings from best inference when you need to infer.
+                Only call something a finding from the documents when it is directly supported by the provided blocks.
                 When the answer includes multiple facts, categories, steps, meals, skills, roles, dates, employers, education items, or technologies, use a structured format with blank lines between sections.
                 Use top-level bullets for sections and indented "-" bullets for details.
                 Never return a dense paragraph when structured bullets would be clearer.
@@ -232,6 +253,7 @@ public sealed class ChatService
 
         var contextBuilder = new System.Text.StringBuilder();
         contextBuilder.AppendLine($"Answer language: {languageLabel}");
+        contextBuilder.AppendLine($"Evidence strength: {evidenceStrengthLabel}");
         contextBuilder.AppendLine("Use the context blocks below to answer the user's resolved intent.");
         contextBuilder.AppendLine("Most relevant blocks are listed first.");
         contextBuilder.AppendLine("Some blocks may be only partially relevant. Use the strongest evidence and ignore weak matches.");
@@ -268,6 +290,7 @@ public sealed class ChatService
         contextBuilder.AppendLine("Prefer the most specific block when several blocks discuss the same subject.");
         contextBuilder.AppendLine("When the answer is list-like, use clean sections and nested bullets instead of a dense paragraph.");
         contextBuilder.AppendLine("For short factual answers, keep it to one or two concise lines.");
+        contextBuilder.AppendLine("If you are inferring something from the documents, label it as a best inference instead of a direct finding.");
         contextBuilder.AppendLine("Add citations like [1] directly after supported statements.");
 
         messages.Add(new ChatPromptMessage(MessageRole.User, contextBuilder.ToString()));
@@ -578,10 +601,71 @@ public sealed class ChatService
         return char.ToLowerInvariant(value[0]) + value[1..];
     }
 
+    private static RetrievalAssessment AssessRetrieval(IReadOnlyList<KnowledgeSearchMatch> searchResults)
+    {
+        if (searchResults.Count == 0)
+        {
+            return new RetrievalAssessment(RetrievalEvidenceStrength.None);
+        }
+
+        var top = searchResults[0];
+        var lexicalSignal = top.KeywordScore >= 0.10d
+            || top.PhraseScore >= 0.10d
+            || top.MatchedTerms.Count >= 2;
+        var usableLexicalSignal = top.KeywordScore >= 0.02d
+            || top.PhraseScore > 0d
+            || top.MatchedTerms.Count > 0;
+        var topGroupCount = searchResults.Count(result =>
+            result.Score >= top.Score * 0.84d
+            || result.KeywordScore >= 0.10d
+            || result.PhraseScore >= 0.10d);
+
+        if (top.Score < 0.16d && top.VectorScore < 0.24d && !usableLexicalSignal)
+        {
+            return new RetrievalAssessment(RetrievalEvidenceStrength.None);
+        }
+
+        if (top.Score >= 0.42d && (lexicalSignal || top.VectorScore >= 0.50d))
+        {
+            return new RetrievalAssessment(RetrievalEvidenceStrength.Strong);
+        }
+
+        if (searchResults.Count == 1
+            && top.Score < 0.21d
+            && top.VectorScore < 0.28d
+            && !usableLexicalSignal
+            && topGroupCount == 1)
+        {
+            return new RetrievalAssessment(RetrievalEvidenceStrength.Weak);
+        }
+
+        return new RetrievalAssessment(RetrievalEvidenceStrength.Moderate);
+    }
+
+    private static string BuildWeakEvidenceAnswer(ChatLanguage language, KnowledgeSearchMatch closestMatch)
+    {
+        var location = BuildEvidenceLocation(closestMatch);
+
+        return language == ChatLanguage.Portuguese
+            ? $"Encontrei apenas evidência limitada relacionada a essa pergunta, então não posso responder com confiança com base nos documentos atuais. O trecho mais próximo está em {location}. [1]"
+            : $"I found only limited evidence related to that question, so I cannot answer confidently from the current documents. The closest relevant material is in {location}. [1]";
+    }
+
+    private static string BuildEvidenceLocation(KnowledgeSearchMatch match)
+    {
+        if (string.IsNullOrWhiteSpace(match.SourceLabel))
+        {
+            return $"\"{match.DocumentName}\"";
+        }
+
+        return $"\"{match.DocumentName}\" ({match.SourceLabel})";
+    }
+
     private void LogSearchResults(
         Guid conversationId,
         string question,
         string retrievalQuery,
+        RetrievalEvidenceStrength evidenceStrength,
         IReadOnlyList<KnowledgeSearchMatch> searchResults)
     {
         var rankedResults = searchResults
@@ -600,10 +684,11 @@ public sealed class ChatService
             .ToArray();
 
         _logger.LogInformation(
-            "RAG retrieval for conversation {ConversationId} and question {Question} using retrieval query {RetrievalQuery} returned {@Results}",
+            "RAG retrieval for conversation {ConversationId} and question {Question} using retrieval query {RetrievalQuery} assessed as {EvidenceStrength} returned {@Results}",
             conversationId,
             question,
             retrievalQuery,
+            evidenceStrength,
             rankedResults);
     }
 
@@ -729,6 +814,16 @@ public sealed class ChatService
 
         return builder.ToString().Trim();
     }
+
+    private enum RetrievalEvidenceStrength
+    {
+        None,
+        Weak,
+        Moderate,
+        Strong
+    }
+
+    private sealed record RetrievalAssessment(RetrievalEvidenceStrength Strength);
 
     private sealed record ResolvedTurnContext(
         string OriginalQuestion,
