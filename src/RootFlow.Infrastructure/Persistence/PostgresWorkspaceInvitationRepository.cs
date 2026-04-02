@@ -22,7 +22,7 @@ public sealed class PostgresWorkspaceInvitationRepository : IWorkspaceInvitation
                                email,
                                normalized_email,
                                role,
-                               token,
+                               token_hash,
                                invited_by_user_id,
                                status,
                                created_at_utc,
@@ -36,7 +36,7 @@ public sealed class PostgresWorkspaceInvitationRepository : IWorkspaceInvitation
                                @email,
                                @normalizedEmail,
                                @role,
-                               @token,
+                               @tokenHash,
                                @invitedByUserId,
                                @status,
                                @createdAtUtc,
@@ -53,14 +53,14 @@ public sealed class PostgresWorkspaceInvitationRepository : IWorkspaceInvitation
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public Task<WorkspaceInvitation?> GetByTokenAsync(string token, CancellationToken cancellationToken = default)
+    public Task<WorkspaceInvitation?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default)
     {
         const string sql = """
                            SELECT id,
                                   workspace_id,
                                   email,
                                   role,
-                                  token,
+                                  token_hash,
                                   invited_by_user_id,
                                   status,
                                   created_at_utc,
@@ -68,14 +68,14 @@ public sealed class PostgresWorkspaceInvitationRepository : IWorkspaceInvitation
                                   accepted_at_utc,
                                   revoked_at_utc
                            FROM workspace_invitations
-                           WHERE token = @token
+                           WHERE token_hash = @tokenHash
                            LIMIT 1;
                            """;
 
         return GetSingleAsync(
             sql,
-            static (command, state) => command.Parameters.AddWithValue("token", state),
-            token.Trim(),
+            static (command, state) => command.Parameters.AddWithValue("tokenHash", state),
+            tokenHash.Trim(),
             cancellationToken);
     }
 
@@ -89,7 +89,7 @@ public sealed class PostgresWorkspaceInvitationRepository : IWorkspaceInvitation
                                   workspace_id,
                                   email,
                                   role,
-                                  token,
+                                  token_hash,
                                   invited_by_user_id,
                                   status,
                                   created_at_utc,
@@ -188,7 +188,7 @@ public sealed class PostgresWorkspaceInvitationRepository : IWorkspaceInvitation
         command.Parameters.AddWithValue("email", invitation.Email);
         command.Parameters.AddWithValue("normalizedEmail", invitation.NormalizedEmail);
         command.Parameters.AddWithValue("role", invitation.Role.ToString());
-        command.Parameters.AddWithValue("token", invitation.Token);
+        command.Parameters.AddWithValue("tokenHash", invitation.TokenHash);
         command.Parameters.AddWithValue("invitedByUserId", invitation.InvitedByUserId);
         command.Parameters.AddWithValue("status", invitation.Status.ToString());
         command.Parameters.AddWithValue("createdAtUtc", invitation.CreatedAtUtc);

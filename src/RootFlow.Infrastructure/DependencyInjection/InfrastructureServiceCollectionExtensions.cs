@@ -10,10 +10,12 @@ using RootFlow.Application.Abstractions.Documents;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Abstractions.Search;
 using RootFlow.Application.Abstractions.Time;
+using RootFlow.Application.Abstractions.Workspaces;
 using RootFlow.Application.Auth;
 using RootFlow.Application.Chat;
 using RootFlow.Application.Conversations;
 using RootFlow.Application.Documents;
+using RootFlow.Application.Workspaces;
 using RootFlow.Infrastructure.AI;
 using RootFlow.Infrastructure.Auth;
 using RootFlow.Infrastructure.Configuration;
@@ -22,6 +24,7 @@ using RootFlow.Infrastructure.Persistence;
 using RootFlow.Infrastructure.Search;
 using RootFlow.Infrastructure.Storage;
 using RootFlow.Infrastructure.Time;
+using RootFlow.Infrastructure.Workspaces;
 
 namespace RootFlow.Infrastructure.DependencyInjection;
 
@@ -43,6 +46,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<PasswordResetOptions>(configuration.GetSection("PasswordReset"));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
         services.Configure<TextChunkingOptions>(configuration.GetSection("Chunking"));
+        services.Configure<WorkspaceInvitationOptions>(configuration.GetSection("WorkspaceInvitations"));
         services.PostConfigure<OpenAiOptions>(options =>
         {
             options.ApiKey = ResolveOpenAiApiKey(configuration, options);
@@ -52,6 +56,13 @@ public static class InfrastructureServiceCollectionExtensions
             options.FrontendBaseUrl = FirstNonEmpty(
                 configuration["ROOTFLOW_FRONTEND_BASE_URL"],
                 configuration["PasswordReset:FrontendBaseUrl"],
+                options.FrontendBaseUrl) ?? string.Empty;
+        });
+        services.PostConfigure<WorkspaceInvitationOptions>(options =>
+        {
+            options.FrontendBaseUrl = FirstNonEmpty(
+                configuration["ROOTFLOW_FRONTEND_BASE_URL"],
+                configuration["WorkspaceInvitations:FrontendBaseUrl"],
                 options.FrontendBaseUrl) ?? string.Empty;
         });
 
@@ -71,8 +82,10 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<IPasswordHashingService, AspNetPasswordHashingService>();
         services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
+        services.AddScoped<IWorkspaceInvitationNotifier, LoggingWorkspaceInvitationNotifier>();
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
         services.AddScoped<IWorkspaceInvitationRepository, PostgresWorkspaceInvitationRepository>();
+        services.AddScoped<IWorkspaceMembershipRepository, PostgresWorkspaceMembershipRepository>();
         services.AddScoped<IWorkspaceRepository, PostgresWorkspaceRepository>();
         services.AddScoped<IKnowledgeDocumentRepository, PostgresKnowledgeDocumentRepository>();
         services.AddScoped<IDocumentChunkRepository, PostgresDocumentChunkRepository>();
@@ -96,6 +109,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<DocumentService>();
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();
+        services.AddScoped<WorkspaceCollaborationService>();
 
         return services;
     }

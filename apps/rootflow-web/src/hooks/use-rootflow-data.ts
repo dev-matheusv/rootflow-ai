@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { AskQuestionPayload, DocumentSummary, UploadDocumentPayload } from "@/lib/api/contracts";
+import type { AskQuestionPayload, DocumentSummary, InviteWorkspaceMemberPayload, UploadDocumentPayload } from "@/lib/api/contracts";
 import { rootflowApi } from "@/lib/api/rootflow-api";
 import { queryKeys } from "@/lib/api/query-keys";
 
@@ -28,10 +28,24 @@ export function useDocumentsQuery(options?: UseDocumentsQueryOptions) {
   });
 }
 
+export function useWorkspaceMembersQuery(workspaceId?: string | null) {
+  return useQuery({
+    queryKey: workspaceId ? queryKeys.workspaceMembers(workspaceId) : ["workspace-members", "none"],
+    queryFn: () => rootflowApi.listWorkspaceMembers(workspaceId!),
+    enabled: Boolean(workspaceId),
+  });
+}
+
 export function useConversationsQuery() {
   return useQuery({
     queryKey: queryKeys.conversations,
     queryFn: rootflowApi.listConversations,
+  });
+}
+
+export function useInviteWorkspaceMemberMutation(workspaceId?: string | null) {
+  return useMutation({
+    mutationFn: (payload: InviteWorkspaceMemberPayload) => rootflowApi.inviteWorkspaceMember(workspaceId!, payload),
   });
 }
 

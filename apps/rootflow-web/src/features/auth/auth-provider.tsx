@@ -21,6 +21,7 @@ interface AuthContextValue {
   expiresAtUtc: string | null;
   login: (payload: LoginPayload) => Promise<void>;
   signup: (payload: SignupPayload) => Promise<void>;
+  applyAuthResponse: (response: AuthResponse) => void;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -103,17 +104,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [queryClient, status, storedSession?.token]);
 
   async function login(payload: LoginPayload) {
-    const session = await rootflowApi.login(payload);
-    persistAuthSession(session);
-    setStoredSession(session);
-    setStatus("authenticated");
-    queryClient.clear();
+    applyAuthResponse(await rootflowApi.login(payload));
   }
 
   async function signup(payload: SignupPayload) {
-    const session = await rootflowApi.signup(payload);
-    persistAuthSession(session);
-    setStoredSession(session);
+    applyAuthResponse(await rootflowApi.signup(payload));
+  }
+
+  function applyAuthResponse(response: AuthResponse) {
+    persistAuthSession(response);
+    setStoredSession(response);
     setStatus("authenticated");
     queryClient.clear();
   }
@@ -155,6 +155,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     expiresAtUtc: storedSession?.expiresAtUtc ?? null,
     login,
     signup,
+    applyAuthResponse,
     logout,
     refresh,
   };

@@ -6,7 +6,7 @@ public interface IWorkspaceInvitationRepository
 {
     Task CreateAsync(WorkspaceInvitation invitation, CancellationToken cancellationToken = default);
 
-    Task<WorkspaceInvitation?> GetByTokenAsync(string token, CancellationToken cancellationToken = default);
+    Task<WorkspaceInvitation?> GetByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default);
 
     Task<WorkspaceInvitation?> GetPendingForWorkspaceEmailAsync(
         Guid workspaceId,

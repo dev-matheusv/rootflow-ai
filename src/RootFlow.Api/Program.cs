@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using RootFlow.Api.Auth;
 using RootFlow.Api.Contracts.Auth;
 using RootFlow.Api.Contracts.Chat;
+using RootFlow.Api.Contracts.Workspaces;
 using RootFlow.Application.Auth;
 using RootFlow.Application.Auth.Commands;
 using RootFlow.Application.Abstractions.Documents;
@@ -15,6 +16,10 @@ using RootFlow.Application.Conversations.Queries;
 using RootFlow.Application.Documents;
 using RootFlow.Application.Documents.Commands;
 using RootFlow.Application.Documents.Queries;
+using RootFlow.Application.Workspaces;
+using RootFlow.Application.Workspaces.Commands;
+using RootFlow.Application.Workspaces.Queries;
+using RootFlow.Domain.Workspaces;
 using RootFlow.Infrastructure.DependencyInjection;
 using RootFlow.Infrastructure.Persistence;
 
@@ -135,9 +140,11 @@ app.MapGet("/health", () => Results.Ok(new
 var documents = app.MapGroup("/api/documents");
 var conversations = app.MapGroup("/api/conversations");
 var auth = app.MapGroup("/api/auth");
+var workspaces = app.MapGroup("/api/workspaces");
 
 documents.RequireAuthorization();
 conversations.RequireAuthorization();
+workspaces.RequireAuthorization();
 
 auth.MapPost("/signup", async (
     SignupRequest request,
@@ -282,6 +289,125 @@ auth.MapPost("/reset-password", async (
         {
             [exception.ParamName ?? "request"] = [exception.Message]
         });
+    }
+});
+
+workspaces.MapPost("/{workspaceId:guid}/invites", async (
+    Guid workspaceId,
+    InviteWorkspaceMemberRequest request,
+    ClaimsPrincipal user,
+    WorkspaceCollaborationService workspaceCollaborationService,
+    CancellationToken cancellationToken) =>
+{
+    if (user.GetRequiredWorkspaceId() != workspaceId)
+    {
+        return Results.Forbid();
+    }
+
+    var validationErrors = ValidateInviteWorkspaceMemberRequest(request);
+    if (validationErrors.Count > 0)
+    {
+        return Results.ValidationProblem(validationErrors);
+    }
+
+    if (!TryParseWorkspaceRole(request.Role, out var role))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["role"] = ["Role must be Owner, Admin, or Member."]
+        });
+    }
+
+    try
+    {
+        var invitation = await workspaceCollaborationService.InviteAsync(
+            new InviteWorkspaceMemberCommand(
+                workspaceId,
+                user.GetRequiredUserId(),
+                request.Email,
+                role),
+            cancellationToken);
+
+        return Results.Ok(invitation.ToResponse());
+    }
+    catch (WorkspaceAccessDeniedException exception)
+    {
+        return Results.Json(new { error = exception.Message }, statusCode: StatusCodes.Status403Forbidden);
+    }
+    catch (WorkspaceInviteConflictException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [exception.ParamName ?? "request"] = [exception.Message]
+        });
+    }
+});
+
+workspaces.MapPost("/invites/accept", async (
+    AcceptWorkspaceInviteRequest request,
+    ClaimsPrincipal user,
+    WorkspaceCollaborationService workspaceCollaborationService,
+    JwtTokenGenerator jwtTokenGenerator,
+    CancellationToken cancellationToken) =>
+{
+    var validationErrors = ValidateAcceptWorkspaceInviteRequest(request);
+    if (validationErrors.Count > 0)
+    {
+        return Results.ValidationProblem(validationErrors);
+    }
+
+    try
+    {
+        var session = await workspaceCollaborationService.AcceptInviteAsync(
+            new AcceptWorkspaceInviteCommand(user.GetRequiredUserId(), request.Token),
+            cancellationToken);
+
+        var token = jwtTokenGenerator.Generate(session);
+        return Results.Ok(token.ToResponse(session));
+    }
+    catch (InvalidWorkspaceInvitationException exception)
+    {
+        return Results.BadRequest(new { error = exception.Message });
+    }
+    catch (WorkspaceInviteConflictException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [exception.ParamName ?? "request"] = [exception.Message]
+        });
+    }
+});
+
+workspaces.MapGet("/{workspaceId:guid}/members", async (
+    Guid workspaceId,
+    ClaimsPrincipal user,
+    WorkspaceCollaborationService workspaceCollaborationService,
+    CancellationToken cancellationToken) =>
+{
+    if (user.GetRequiredWorkspaceId() != workspaceId)
+    {
+        return Results.Forbid();
+    }
+
+    try
+    {
+        var members = await workspaceCollaborationService.ListMembersAsync(
+            new ListWorkspaceMembersQuery(workspaceId, user.GetRequiredUserId()),
+            cancellationToken);
+
+        return Results.Ok(members.Select(member => member.ToResponse()));
+    }
+    catch (WorkspaceAccessDeniedException exception)
+    {
+        return Results.Json(new { error = exception.Message }, statusCode: StatusCodes.Status403Forbidden);
     }
 });
 
@@ -466,6 +592,41 @@ static Dictionary<string, string[]> ValidateResetPasswordRequest(ResetPasswordRe
     }
 
     return errors;
+}
+
+static Dictionary<string, string[]> ValidateInviteWorkspaceMemberRequest(InviteWorkspaceMemberRequest request)
+{
+    var errors = new Dictionary<string, string[]>();
+
+    if (string.IsNullOrWhiteSpace(request.Email))
+    {
+        errors["email"] = ["Email is required."];
+    }
+
+    return errors;
+}
+
+static Dictionary<string, string[]> ValidateAcceptWorkspaceInviteRequest(AcceptWorkspaceInviteRequest request)
+{
+    var errors = new Dictionary<string, string[]>();
+
+    if (string.IsNullOrWhiteSpace(request.Token))
+    {
+        errors["token"] = ["Invite token is required."];
+    }
+
+    return errors;
+}
+
+static bool TryParseWorkspaceRole(string? rawRole, out WorkspaceRole role)
+{
+    if (string.IsNullOrWhiteSpace(rawRole))
+    {
+        role = WorkspaceRole.Member;
+        return true;
+    }
+
+    return Enum.TryParse(rawRole.Trim(), ignoreCase: true, out role);
 }
 
 static void ConfigurePlatformUrlsFromPort()

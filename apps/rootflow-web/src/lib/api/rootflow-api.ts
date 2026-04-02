@@ -1,5 +1,6 @@
 import type {
   AskQuestionPayload,
+  AcceptWorkspaceInvitePayload,
   AuthResponse,
   ChatAnswer,
   ConversationHistory,
@@ -7,12 +8,15 @@ import type {
   DocumentSummary,
   ForgotPasswordPayload,
   HealthResponse,
+  InviteWorkspaceMemberPayload,
   LoginPayload,
   MessageResponse,
   ResetPasswordPayload,
   SessionInfo,
   SignupPayload,
   UploadDocumentPayload,
+  WorkspaceInvitationResult,
+  WorkspaceMember,
 } from "@/lib/api/contracts";
 import { apiRequest } from "@/lib/api/client";
 
@@ -50,7 +54,24 @@ export const rootflowApi = {
       },
       body: JSON.stringify(payload),
     }),
+  inviteWorkspaceMember: (workspaceId: string, payload: InviteWorkspaceMemberPayload) =>
+    apiRequest<WorkspaceInvitationResult>(`/api/workspaces/${workspaceId}/invites`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
+  acceptWorkspaceInvite: (payload: AcceptWorkspaceInvitePayload) =>
+    apiRequest<AuthResponse>("/api/workspaces/invites/accept", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
   getCurrentSession: () => apiRequest<SessionInfo>("/api/auth/me"),
+  listWorkspaceMembers: (workspaceId: string) => apiRequest<WorkspaceMember[]>(`/api/workspaces/${workspaceId}/members`),
   listDocuments: () => apiRequest<DocumentSummary[]>("/api/documents"),
   listConversations: () => apiRequest<ConversationSummary[]>("/api/conversations"),
   uploadDocument: async ({ file }: UploadDocumentPayload) => {

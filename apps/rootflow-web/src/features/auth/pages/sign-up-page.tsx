@@ -64,7 +64,7 @@ export function SignUpPage() {
       highlights={[
         {
           title: "Brand-new workspace only",
-          description: "Signup always provisions a new workspace. Joining an existing shared workspace will use explicit invites in a later phase.",
+          description: "Signup always provisions a new workspace. Joining an existing shared workspace now happens through explicit invite links.",
         },
         {
           title: "Ready for multi-user growth",

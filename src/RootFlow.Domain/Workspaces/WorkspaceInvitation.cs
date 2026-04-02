@@ -13,7 +13,7 @@ public sealed class WorkspaceInvitation
         Guid workspaceId,
         string email,
         WorkspaceRole role,
-        string token,
+        string tokenHash,
         Guid invitedByUserId,
         DateTime createdAtUtc,
         DateTime expiresAtUtc)
@@ -33,7 +33,7 @@ public sealed class WorkspaceInvitation
             throw new ArgumentException("Invited-by user id cannot be empty.", nameof(invitedByUserId));
         }
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tokenHash);
         if (expiresAtUtc <= createdAtUtc)
         {
             throw new ArgumentException("Invitation expiry must be after creation time.", nameof(expiresAtUtc));
@@ -44,7 +44,7 @@ public sealed class WorkspaceInvitation
         Email = NormalizeAndValidateEmail(email);
         NormalizedEmail = Email.ToUpperInvariant();
         Role = role;
-        Token = token.Trim();
+        TokenHash = tokenHash.Trim();
         InvitedByUserId = invitedByUserId;
         CreatedAtUtc = createdAtUtc;
         ExpiresAtUtc = expiresAtUtc;
@@ -61,7 +61,7 @@ public sealed class WorkspaceInvitation
 
     public WorkspaceRole Role { get; private set; }
 
-    public string Token { get; private set; } = null!;
+    public string TokenHash { get; private set; } = null!;
 
     public Guid InvitedByUserId { get; private set; }
 

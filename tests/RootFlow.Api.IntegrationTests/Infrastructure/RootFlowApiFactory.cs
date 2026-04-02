@@ -11,6 +11,7 @@ using Npgsql;
 using Pgvector;
 using RootFlow.Application.Abstractions.AI;
 using RootFlow.Application.Abstractions.Auth;
+using RootFlow.Application.Abstractions.Workspaces;
 using RootFlow.Api.Contracts.Auth;
 using RootFlow.Infrastructure.Configuration;
 using RootFlow.Infrastructure.AI;
@@ -41,6 +42,7 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
             services.RemoveAll<IEmbeddingService>();
             services.RemoveAll<IChatCompletionService>();
             services.RemoveAll<IPasswordResetNotifier>();
+            services.RemoveAll<IWorkspaceInvitationNotifier>();
             services.RemoveAll<NpgsqlDataSource>();
 
             services.PostConfigure<StorageOptions>(options =>
@@ -60,6 +62,9 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
             services.AddSingleton<TestPasswordResetNotifier>();
             services.AddSingleton<IPasswordResetNotifier>(serviceProvider =>
                 serviceProvider.GetRequiredService<TestPasswordResetNotifier>());
+            services.AddSingleton<TestWorkspaceInvitationNotifier>();
+            services.AddSingleton<IWorkspaceInvitationNotifier>(serviceProvider =>
+                serviceProvider.GetRequiredService<TestWorkspaceInvitationNotifier>());
         });
         builder.ConfigureAppConfiguration((_, configBuilder) =>
         {
@@ -135,12 +140,18 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
         await TruncateTablesAsync();
         ClearStorage();
         Services.GetRequiredService<TestPasswordResetNotifier>().Clear();
+        Services.GetRequiredService<TestWorkspaceInvitationNotifier>().Clear();
         await InitializeDatabaseAsync();
     }
 
     public PasswordResetNotification? GetLatestPasswordResetNotification(string email)
     {
         return Services.GetRequiredService<TestPasswordResetNotifier>().GetLatestForEmail(email);
+    }
+
+    public WorkspaceInvitationNotification? GetLatestWorkspaceInvitationNotification(string email)
+    {
+        return Services.GetRequiredService<TestWorkspaceInvitationNotifier>().GetLatestForEmail(email);
     }
 
     private static async Task EnsureDatabaseExistsAsync()

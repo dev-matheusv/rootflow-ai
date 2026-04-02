@@ -252,6 +252,38 @@ public sealed class PostgresDatabaseInitializer
 
                 CREATE INDEX IF NOT EXISTS ix_password_reset_tokens_user_created
                     ON password_reset_tokens (user_id, created_at_utc DESC);
+                """),
+            new DatabaseMigration(
+                "202604020001_workspace_invitation_token_hardening",
+                "Hash workspace invitation tokens and add workspace membership listing index",
+                """
+                CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_name = 'workspace_invitations'
+                          AND column_name = 'token'
+                    ) THEN
+                        ALTER TABLE workspace_invitations RENAME COLUMN token TO token_hash;
+                    END IF;
+                END
+                $$;
+
+                UPDATE workspace_invitations
+                SET token_hash = encode(digest(token_hash, 'sha256'), 'hex')
+                WHERE token_hash IS NOT NULL
+                  AND char_length(token_hash) <> 64;
+
+                DROP INDEX IF EXISTS ix_workspace_invitations_token;
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_invitations_token_hash
+                    ON workspace_invitations (token_hash);
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_memberships_workspace_created
+                    ON workspace_memberships (workspace_id, created_at_utc, id);
                 """)
         ];
     }

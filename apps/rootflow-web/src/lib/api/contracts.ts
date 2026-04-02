@@ -53,6 +53,31 @@ export interface ResetPasswordPayload {
   newPassword: string;
 }
 
+export interface InviteWorkspaceMemberPayload {
+  email: string;
+  role?: WorkspaceRole | null;
+}
+
+export interface AcceptWorkspaceInvitePayload {
+  token: string;
+}
+
+export interface WorkspaceInvitationResult {
+  message: string;
+  email: string;
+  role: WorkspaceRole;
+  expiresAtUtc: string;
+}
+
+export interface WorkspaceMember {
+  userId: string;
+  fullName: string;
+  email: string;
+  role: WorkspaceRole;
+  createdAtUtc: string;
+  isCurrentUser: boolean;
+}
+
 export interface DocumentSummary {
   id: string;
   workspaceId: string;

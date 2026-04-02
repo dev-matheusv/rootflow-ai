@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { WorkspaceCollaborationPanel } from "@/features/settings/components/workspace-collaboration-panel";
 import { cn } from "@/lib/utils";
 
 const settingsSections = [
@@ -32,8 +33,8 @@ const settingsSections = [
   {
     id: "access",
     title: "Access and authentication",
-    description: "JWT auth, memberships, and tenant context are live; invites and billing can layer on later.",
-    detail: "Owner-scoped workspace access is active now, with room for admin/member workflows in later phases.",
+    description: "JWT auth, memberships, and workspace invites now run through the same scoped RootFlow session model.",
+    detail: "Collaborators can be invited by email, accept into the correct workspace, and immediately switch into that workspace context.",
     icon: LockKeyhole,
   },
 ] as const;
@@ -117,20 +118,24 @@ export function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-[24px] border border-border/75 bg-background/74 p-5">
-                    <div className="text-sm font-semibold text-foreground">Why this exists now</div>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      Users now arrive here from an authenticated workspace instead of a placeholder-only shell.
-                    </p>
+                {activeSection === "access" ? (
+                  <WorkspaceCollaborationPanel />
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-[24px] border border-border/75 bg-background/74 p-5">
+                      <div className="text-sm font-semibold text-foreground">Why this exists now</div>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        Users now arrive here from an authenticated workspace instead of a placeholder-only shell.
+                      </p>
+                    </div>
+                    <div className="rounded-[24px] border border-border/75 bg-background/74 p-5">
+                      <div className="text-sm font-semibold text-foreground">Future implementation path</div>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        Backend-connected forms, preference persistence, and account-level controls can be added here without redesigning the shell.
+                      </p>
+                    </div>
                   </div>
-                  <div className="rounded-[24px] border border-border/75 bg-background/74 p-5">
-                    <div className="text-sm font-semibold text-foreground">Future implementation path</div>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      Backend-connected forms, preference persistence, and account-level controls can be added here without redesigning the shell.
-                    </p>
-                  </div>
-                </div>
+                )}
 
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button asChild>

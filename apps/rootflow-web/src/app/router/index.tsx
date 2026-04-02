@@ -103,10 +103,6 @@ export const router = createBrowserRouter([
   },
   {
     path: "/auth/invite",
-    element: (
-      <RedirectIfAuthenticated>
-        <AcceptInvitePage />
-      </RedirectIfAuthenticated>
-    ),
+    element: <AcceptInvitePage />,
   },
 ]);
