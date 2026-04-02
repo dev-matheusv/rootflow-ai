@@ -97,6 +97,10 @@ public static class InfrastructureServiceCollectionExtensions
                     configuration["ROOTFLOW_EMAIL_SMTP_ENABLE_SSL"],
                     configuration["EmailDelivery:SmtpEnableSsl"])
                 ?? options.SmtpEnableSsl;
+            options.SmtpTimeoutMilliseconds = FirstParsedInt(
+                    configuration["ROOTFLOW_EMAIL_SMTP_TIMEOUT_MS"],
+                    configuration["EmailDelivery:SmtpTimeoutMilliseconds"])
+                ?? options.SmtpTimeoutMilliseconds;
         });
 
         services.AddSingleton<IClock, SystemClock>();

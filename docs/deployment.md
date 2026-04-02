@@ -27,6 +27,7 @@ Recommended:
 - `ROOTFLOW_EMAIL_SMTP_USERNAME`
 - `ROOTFLOW_EMAIL_SMTP_PASSWORD`
 - `ROOTFLOW_EMAIL_SMTP_ENABLE_SSL`
+- `ROOTFLOW_EMAIL_SMTP_TIMEOUT_MS`
 - `AI__Mode`
 - `OpenAI__BaseUrl`
 - `OpenAI__ChatModel`
@@ -91,6 +92,7 @@ Set:
 - `ROOTFLOW_EMAIL_SMTP_USERNAME=your-smtp-username`
 - `ROOTFLOW_EMAIL_SMTP_PASSWORD=your-smtp-password`
 - `ROOTFLOW_EMAIL_SMTP_ENABLE_SSL=true`
+- `ROOTFLOW_EMAIL_SMTP_TIMEOUT_MS=15000`
 - `OPENAI_API_KEY`
 - either `ROOTFLOW_DATABASE_URL`, `DATABASE_URL`, or `ConnectionStrings__Postgres`
 
@@ -118,6 +120,7 @@ Set these Railway variables:
 - `ROOTFLOW_EMAIL_SMTP_USERNAME=your-smtp-username`
 - `ROOTFLOW_EMAIL_SMTP_PASSWORD=your-smtp-password`
 - `ROOTFLOW_EMAIL_SMTP_ENABLE_SSL=true`
+- `ROOTFLOW_EMAIL_SMTP_TIMEOUT_MS=15000`
 
 The API already runs its built-in PostgreSQL schema migrations on startup through `PostgresDatabaseInitializer`, so no extra migration step is required in Railway.
 
@@ -130,6 +133,21 @@ Use any provider that exposes standard SMTP credentials so the application stays
 3. Collect the provider SMTP host, port, username, password, and TLS/SSL requirement.
 4. Set the Railway variables above, then redeploy the API.
 5. Confirm that `ROOTFLOW_FRONTEND_BASE_URL` points to the real frontend domain so password reset and invite links resolve back into the deployed web app.
+
+### Gmail SMTP Formatting
+
+If you use Gmail SMTP, configure:
+
+- `ROOTFLOW_EMAIL_SMTP_HOST=smtp.gmail.com`
+- `ROOTFLOW_EMAIL_SMTP_PORT=587`
+- `ROOTFLOW_EMAIL_SMTP_ENABLE_SSL=true`
+- `ROOTFLOW_EMAIL_SMTP_USERNAME` as the full Gmail or Google Workspace email address
+- `ROOTFLOW_EMAIL_SMTP_PASSWORD` as a Gmail app password
+- `ROOTFLOW_EMAIL_FROM_ADDRESS` as the same mailbox address or a configured Gmail alias
+
+Google's documentation for Gmail SMTP references TLS/STARTTLS on port 587 and SSL on port 465, and app-password authentication for SMTP-connected apps:
+- https://support.google.com/a/answer/176600
+- https://support.google.com/mail/answer/7104828
 
 ## Vercel Frontend
 

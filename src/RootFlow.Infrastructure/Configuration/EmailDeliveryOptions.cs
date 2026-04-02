@@ -15,4 +15,6 @@ public sealed class EmailDeliveryOptions
     public string SmtpPassword { get; set; } = string.Empty;
 
     public bool SmtpEnableSsl { get; set; } = true;
+
+    public int SmtpTimeoutMilliseconds { get; set; } = 15000;
 }

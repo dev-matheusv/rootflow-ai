@@ -29,7 +29,7 @@ export function AuthScaffold({ badge, title, description, highlights, children }
             <div className="relative mb-7 overflow-hidden rounded-[30px] border border-white/16 bg-[linear-gradient(135deg,#08265f_0%,#0c47af_38%,#0f7ad4_100%)] px-6 py-6 text-white shadow-[0_32px_90px_-56px_rgba(7,65,169,0.72)] sm:px-7 sm:py-7 lg:px-8 lg:py-8">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(255,255,255,0.22),transparent_34%),radial-gradient(circle_at_100%_100%,rgba(255,255,255,0.12),transparent_30%)]" />
               <div className="pointer-events-none absolute right-[-8%] top-[12%] h-40 w-40 rounded-full bg-[radial-gradient(circle,_rgba(255,255,255,0.14),transparent_70%)] blur-3xl" />
-              <div className="relative grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-end">
+              <div className="relative grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
                 <div className="space-y-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/62">
                     RootFlow
@@ -38,11 +38,11 @@ export function AuthScaffold({ badge, title, description, highlights, children }
                     Premium grounded knowledge for modern teams, with a calmer product surface and consistent brand treatment.
                   </p>
                 </div>
-                <div className="justify-self-start rounded-[24px] border border-white/14 bg-white/7 px-5 py-4 shadow-[0_18px_42px_-30px_rgba(4,18,52,0.72)] backdrop-blur-xl sm:px-6 sm:py-4">
+                <div className="flex w-full justify-center">
                   <RootFlowBrand
                     variant="dark-mark"
                     size="lg"
-                    className="h-16 max-w-none sm:h-[4.85rem] lg:h-[5.2rem]"
+                    className="h-[5.2rem] max-w-none sm:h-[5.9rem] lg:h-[6.2rem]"
                   />
                 </div>
               </div>
