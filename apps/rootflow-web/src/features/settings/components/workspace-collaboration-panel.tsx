@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/features/auth/auth-provider";
 import { useInviteWorkspaceMemberMutation, useWorkspaceMembersQuery } from "@/hooks/use-rootflow-data";
@@ -46,47 +46,20 @@ export function WorkspaceCollaborationPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[0.88fr_1.12fr]">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">{session?.workspace.name}</Badge>
+        <Badge variant="secondary">@{session?.workspace.slug}</Badge>
+        <Badge variant="success">{currentRole}</Badge>
+        <Badge variant="secondary">
+          <Clock3 className="size-3.5" />
+          Timed invites
+        </Badge>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
         <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
-            <CardTitle>Workspace context</CardTitle>
-            <CardDescription>Access stays scoped to the active workspace and membership role.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-[22px] border border-border/70 bg-card/72 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <ShieldCheck className="size-4 text-primary" />
-                Current workspace
-              </div>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                <span className="font-semibold text-foreground">{session?.workspace.name}</span> is active for your current JWT session.
-              </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">@{session?.workspace.slug}</Badge>
-                <Badge variant="success">{currentRole}</Badge>
-              </div>
-            </div>
-
-            <div className="rounded-[22px] border border-border/70 bg-card/72 p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <Clock3 className="size-4 text-primary" />
-                Invite behavior
-              </div>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Invite links are time-bound and single-use. When outbound email is configured, RootFlow sends them directly and preserves a safe local fallback in development.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 bg-background/72 shadow-none">
-          <CardHeader>
-            <CardTitle>Invite collaborators</CardTitle>
-            <CardDescription>
-              {canInvite
-                ? "Send a collaborator invite into this workspace without changing the existing auth or session flow."
-                : "Only owners and admins can invite new members into this workspace."}
-            </CardDescription>
+            <CardTitle>Invite</CardTitle>
           </CardHeader>
           <CardContent>
             {canInvite ? (
@@ -149,62 +122,63 @@ export function WorkspaceCollaborationPanel() {
                 </Button>
               </form>
             ) : (
-              <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm leading-6 text-muted-foreground">
-                Your current role is <span className="font-semibold text-foreground">{currentRole}</span>. You can still review the current
-                workspace members below.
+              <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm text-muted-foreground">
+                Your role is <span className="font-semibold text-foreground">{currentRole}</span>. You can still review members below.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70 bg-background/72 shadow-none">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-primary" />
+              <CardTitle>Members</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {membersQuery.isLoading ? (
+              <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm text-muted-foreground">
+                Loading members...
+              </div>
+            ) : membersQuery.error ? (
+              <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-4 text-sm text-destructive">
+                {membersQuery.error instanceof ApiError
+                  ? membersQuery.error.message
+                  : "We could not load workspace members right now."}
+              </div>
+            ) : membersQuery.data && membersQuery.data.length > 0 ? (
+              <div className="space-y-3">
+                {membersQuery.data.map((member) => (
+                  <div
+                    key={member.userId}
+                    className="flex flex-col gap-3 rounded-[22px] border border-border/70 bg-card/72 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-foreground">{member.fullName}</span>
+                        {member.isCurrentUser ? <Badge variant="secondary">You</Badge> : null}
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground">{member.email}</div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={member.role === "Owner" ? "default" : member.role === "Admin" ? "success" : "secondary"}>
+                        {member.role}
+                      </Badge>
+                      <div className="text-xs text-muted-foreground">Joined {new Date(member.createdAtUtc).toLocaleDateString()}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm text-muted-foreground">
+                No members yet.
               </div>
             )}
           </CardContent>
         </Card>
       </div>
-
-      <Card className="border-border/70 bg-background/72 shadow-none">
-        <CardHeader>
-          <CardTitle>Workspace members</CardTitle>
-          <CardDescription>Everyone listed here can collaborate inside the current workspace boundary.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {membersQuery.isLoading ? (
-            <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm text-muted-foreground">
-              Loading workspace members...
-            </div>
-          ) : membersQuery.error ? (
-            <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-4 text-sm text-destructive">
-              {membersQuery.error instanceof ApiError
-                ? membersQuery.error.message
-                : "We could not load workspace members right now."}
-            </div>
-          ) : membersQuery.data && membersQuery.data.length > 0 ? (
-            <div className="space-y-3">
-              {membersQuery.data.map((member) => (
-                <div
-                  key={member.userId}
-                  className="flex flex-col gap-3 rounded-[22px] border border-border/70 bg-card/72 p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-foreground">{member.fullName}</span>
-                      {member.isCurrentUser ? <Badge variant="secondary">You</Badge> : null}
-                    </div>
-                    <div className="mt-1 text-sm text-muted-foreground">{member.email}</div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={member.role === "Owner" ? "default" : member.role === "Admin" ? "success" : "secondary"}>
-                      {member.role}
-                    </Badge>
-                    <div className="text-xs text-muted-foreground">Joined {new Date(member.createdAtUtc).toLocaleDateString()}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm text-muted-foreground">
-              No members are attached to this workspace yet.
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

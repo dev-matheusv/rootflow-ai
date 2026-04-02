@@ -28,24 +28,31 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
   return (
     <div className="flex h-full flex-col">
       {showBrand ? (
-        <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between gap-3")}>
+        <div
+          className={cn(
+            "flex items-center border-b border-sidebar-border/70 pb-4",
+            collapsed ? "justify-center px-1" : "justify-start px-2",
+          )}
+        >
           {collapsed ? (
-            <div className="flex h-16 w-16 items-center justify-center">
+            <div className="flex h-11 w-11 items-center justify-center">
               <RootFlowBrand variant="icon" size="sm" className="h-8 w-8" />
             </div>
           ) : (
-            <RootFlowBrand variant="logo" size="sm" className="h-9" />
+            <div className="flex h-11 items-center">
+              <RootFlowBrand variant="logo" size="sm" className="h-8" />
+            </div>
           )}
         </div>
       ) : null}
 
-      <div className={cn("flex-1", showBrand ? (collapsed ? "mt-7" : "mt-10") : "mt-2")}>
+      <div className={cn("flex-1", showBrand ? "mt-6" : "mt-2")}>
         <SidebarNav collapsed={collapsed} onNavigate={onNavigate} />
       </div>
 
       <div
         className={cn(
-          "mt-6 rounded-[24px] border border-sidebar-border/80 bg-background/74 backdrop-blur-xl",
+          "mt-6 rounded-[22px] border border-sidebar-border/75 bg-background/70",
           collapsed ? "p-2.5" : "p-3.5",
         )}
       >

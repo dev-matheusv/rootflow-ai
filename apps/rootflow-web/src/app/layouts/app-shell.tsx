@@ -17,10 +17,10 @@ export function AppShell() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 opacity-[0.68]">
-        <div className="absolute left-[-10%] top-[-14%] h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,_rgba(66,132,255,0.12),transparent_64%)] blur-3xl" />
-        <div className="absolute right-[-8%] top-[12%] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,_rgba(168,217,255,0.16),transparent_60%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(54,74,110,0.2),transparent_60%)]" />
-        <div className="absolute bottom-[-18%] left-[28%] h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(circle,_rgba(65,104,186,0.08),transparent_66%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(43,62,94,0.14),transparent_66%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.42]">
+        <div className="absolute left-[-10%] top-[-14%] h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,_rgba(66,132,255,0.08),transparent_64%)] blur-3xl" />
+        <div className="absolute right-[-8%] top-[12%] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,_rgba(168,217,255,0.1),transparent_60%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(54,74,110,0.12),transparent_60%)]" />
+        <div className="absolute bottom-[-18%] left-[28%] h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(circle,_rgba(65,104,186,0.05),transparent_66%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(43,62,94,0.09),transparent_66%)]" />
       </div>
 
       <div className="relative mx-auto flex min-h-screen max-w-[1680px]">

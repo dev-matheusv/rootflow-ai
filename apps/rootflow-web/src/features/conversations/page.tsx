@@ -9,7 +9,7 @@ import { FormattedAnswer } from "@/components/chat/formatted-answer";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useConversationQuery, useConversationsQuery } from "@/hooks/use-rootflow-data";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
@@ -47,34 +47,28 @@ export function ConversationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Conversations"
-        title="Keep every answer trail readable and easy to revisit."
-        description="Conversation history should support review and handoff without feeling like a raw log viewer."
+        title="Conversations"
       />
 
       <section className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
-        <Card>
+        <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
-            <CardTitle>Recent sessions</CardTitle>
-            <CardDescription>Live conversation summaries from the RootFlow backend, ordered by most recent activity.</CardDescription>
+            <CardTitle>Sessions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {conversationsQuery.isLoading ? (
-              <LoadingState
-                title="Loading conversations"
-                description="Fetching the stored session list so navigation reflects the real backend state."
-              />
+              <LoadingState title="Loading conversations" description="Fetching sessions." />
             ) : conversationsQuery.isError ? (
               <ErrorState
-                title="Could not load conversation list"
-                description="The frontend could not reach the RootFlow conversation summary endpoint."
+                title="Could not load conversations"
+                description="Try again."
                 onRetry={() => conversationsQuery.refetch()}
               />
             ) : conversations.length === 0 ? (
               <EmptyState
                 icon={MessageCircleMore}
                 title="No conversations yet"
-                description="Ask a real question in the Assistant page and RootFlow will store the conversation here automatically."
+                description="Ask a question in Assistant to create one."
               />
             ) : (
               conversations.map((conversation) => {
@@ -92,12 +86,10 @@ export function ConversationsPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="space-y-1">
                         <div className="text-sm font-semibold text-foreground">{conversation.title}</div>
-                        <p className="text-sm leading-6 text-muted-foreground">
-                          {conversation.lastMessagePreview ?? "This conversation is stored and ready to inspect."}
-                        </p>
+                        <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{conversation.lastMessagePreview ?? "No preview"}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge variant="secondary">{conversation.messageCount} messages</Badge>
+                        <Badge variant="secondary">{conversation.messageCount}</Badge>
                         {isActive ? <Pin className="size-4 text-primary" /> : null}
                       </div>
                     </div>
@@ -113,16 +105,13 @@ export function ConversationsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <CardTitle>Conversation detail</CardTitle>
-                <CardDescription>Structured to show both the answer and the decision trail behind it.</CardDescription>
-              </div>
+              <CardTitle>Detail</CardTitle>
               <Badge>
                 <Sparkles className="size-3.5" />
-                Source-backed
+                Stored
               </Badge>
             </div>
           </CardHeader>
@@ -131,17 +120,14 @@ export function ConversationsPage() {
               <EmptyState
                 icon={Sparkles}
                 title="Select a conversation"
-                description="When you create real assistant sessions, this page will show the stored history from the RootFlow backend."
+                description="Stored messages appear here."
               />
             ) : conversationQuery.isLoading ? (
-              <LoadingState
-                title="Loading conversation history"
-                description="Fetching the selected session from the RootFlow conversation endpoint."
-              />
+              <LoadingState title="Loading conversation" description="Fetching messages." />
             ) : conversationQuery.isError ? (
               <ErrorState
-                title="Could not load this conversation"
-                description="The selected session could not be retrieved from the backend. Try another conversation or continue from the Assistant page."
+                title="Could not load conversation"
+                description="Try another session or retry."
                 onRetry={() => conversationQuery.refetch()}
               />
             ) : (
@@ -176,20 +162,6 @@ export function ConversationsPage() {
                     </div>
                   );
                 })}
-
-                <div className="rounded-[24px] border border-dashed border-border/80 bg-secondary/25 p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                      <MessageCircleMore className="size-[18px]" />
-                    </div>
-                    <div className="space-y-1">
-                      <div className="text-sm font-semibold text-foreground">Live conversation loaded</div>
-                      <p className="text-sm leading-6 text-muted-foreground">
-                        This detail view and the session list both come from live RootFlow endpoints, so the conversation trail stays consistent across navigation.
-                      </p>
-                    </div>
-                  </div>
-                </div>
               </>
             )}
 
