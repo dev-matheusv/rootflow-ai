@@ -32,6 +32,7 @@ export function ConversationsPage() {
     requestedConversationId && conversations.some((conversation) => conversation.conversationId === requestedConversationId)
       ? requestedConversationId
       : conversations[0]?.conversationId ?? null;
+  const selectedConversationSummary = conversations.find((conversation) => conversation.conversationId === selectedConversationId) ?? null;
   const conversationQuery = useConversationQuery(selectedConversationId);
 
   useEffect(() => {
@@ -53,7 +54,10 @@ export function ConversationsPage() {
       <section className="grid gap-3 xl:grid-cols-[0.82fr_1.18fr]">
         <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
-            <CardTitle>Sessions</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Sessions</CardTitle>
+              <Badge variant="secondary">{conversations.length}</Badge>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {conversationsQuery.isLoading ? (
@@ -79,8 +83,8 @@ export function ConversationsPage() {
                     key={conversation.conversationId}
                     type="button"
                     onClick={() => setSearchParams({ conversationId: conversation.conversationId })}
-                    className={`w-full rounded-[24px] border p-4 text-left transition-colors ${
-                      isActive ? "border-primary/18 bg-primary/8" : "border-border/70 bg-background/60 hover:bg-secondary/35"
+                    className={`w-full rounded-[20px] border p-3.5 text-left transition-colors ${
+                      isActive ? "border-primary/18 bg-primary/7" : "border-border/65 bg-background/54 hover:bg-secondary/28"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -96,7 +100,7 @@ export function ConversationsPage() {
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       <Clock3 className="size-3.5" />
                       <span>Updated {formatRelativeDate(conversation.updatedAtUtc)}</span>
-                      <span>Created {formatRelativeDate(conversation.createdAtUtc)}</span>
+                      <span>{conversation.messageCount} messages</span>
                     </div>
                   </button>
                 );
@@ -132,16 +136,27 @@ export function ConversationsPage() {
               />
             ) : (
               <>
+                {selectedConversationSummary ? (
+                  <div className="rounded-[22px] border border-border/60 bg-background/54 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="min-w-0 text-sm font-semibold text-foreground">{selectedConversationSummary.title}</div>
+                      <Badge variant="secondary">{selectedConversationSummary.messageCount} messages</Badge>
+                    </div>
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      Updated {formatRelativeDate(selectedConversationSummary.updatedAtUtc)}
+                    </div>
+                  </div>
+                ) : null}
                 {conversationQuery.data?.messages.map((message) => {
                   const isUser = message.role === 2;
 
                   return (
                     <div
                       key={message.id}
-                      className={`flex gap-4 rounded-[28px] border p-4 shadow-[0_16px_30px_-30px_rgba(16,36,71,0.18)] dark:shadow-[0_18px_32px_-30px_rgba(0,0,0,0.34)] ${
+                      className={`flex gap-4 rounded-[22px] border p-4 ${
                         isUser
                           ? "border-[#cadeff] bg-[#eaf2ff] dark:border-[#314662] dark:bg-[#22314a]"
-                          : "border-border/75 bg-background/72"
+                          : "border-border/70 bg-background/60"
                       }`}
                     >
                       <Avatar className="size-11">

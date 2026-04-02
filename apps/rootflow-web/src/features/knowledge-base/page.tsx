@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useDocumentsQuery, useUploadDocumentMutation } from "@/hooks/use-rootflow-data";
-import { formatFileSize, formatRelativeDate } from "@/lib/formatting/formatters";
+import { formatFileSize, formatRelativeDate, getDocumentTypeLabel } from "@/lib/formatting/formatters";
 import { useRef, useState, type ChangeEvent } from "react";
 import { CheckCircle2, Clock3, FileText, Filter, FolderKanban, UploadCloud } from "lucide-react";
 
@@ -23,6 +23,13 @@ export function KnowledgeBasePage() {
   const visibleDocuments = filterProcessedOnly ? documents.filter((document) => document.status === 3) : documents;
   const processedCount = documents.filter((document) => document.status === 3).length;
   const failedCount = documents.filter((document) => document.status === 4).length;
+  const sortedByRecentUpdate = [...documents].sort(
+    (left, right) =>
+      new Date(right.processedAtUtc ?? right.createdAtUtc).getTime() -
+      new Date(left.processedAtUtc ?? left.createdAtUtc).getTime(),
+  );
+  const latestDocument = sortedByRecentUpdate[0];
+  const processingDocuments = documents.filter((document) => document.status === 2).slice(0, 2);
 
   const handleFileSelection = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -86,7 +93,14 @@ export function KnowledgeBasePage() {
         <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
-              <CardTitle>Documents</CardTitle>
+              <div className="space-y-1">
+                <CardTitle>Documents</CardTitle>
+                <div className="text-sm text-muted-foreground">
+                  {latestDocument
+                    ? `Latest update ${formatRelativeDate(latestDocument.processedAtUtc ?? latestDocument.createdAtUtc)}`
+                    : "No document activity yet"}
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 {processingCount > 0 ? (
                   <Badge variant="secondary">
@@ -127,7 +141,7 @@ export function KnowledgeBasePage() {
               visibleDocuments.map((document) => (
                 <div
                   key={document.id}
-                  className="grid gap-3 rounded-[24px] border border-border/70 bg-background/65 p-4 md:grid-cols-[minmax(0,1fr)_160px_140px_110px]"
+                  className="grid gap-3 rounded-[22px] border border-border/60 bg-background/56 p-3.5 md:grid-cols-[minmax(0,1.35fr)_160px_120px_88px] md:items-center"
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -155,7 +169,9 @@ export function KnowledgeBasePage() {
                   </div>
                   <div className="text-sm text-muted-foreground">
                     <div className="font-medium text-foreground">Type</div>
-                    <div>{document.contentType}</div>
+                    <div className="truncate font-medium text-foreground" title={document.contentType}>
+                      {getDocumentTypeLabel(document.originalFileName, document.contentType)}
+                    </div>
                   </div>
                 </div>
               ))
@@ -166,7 +182,10 @@ export function KnowledgeBasePage() {
         <div className="space-y-4">
           <Card className="border-border/70 bg-background/72 shadow-none">
             <CardHeader>
-              <CardTitle>Upload</CardTitle>
+              <div className="space-y-1">
+                <CardTitle>Upload</CardTitle>
+                <div className="text-sm text-muted-foreground">PDF, DOCX, DOC, TXT, MD</div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <Button className="w-full justify-between" onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
@@ -191,7 +210,21 @@ export function KnowledgeBasePage() {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Supports .txt, .md, .pdf, .doc, and .docx.</p>
+                <div className="space-y-3 rounded-[20px] border border-border/60 bg-background/54 p-4">
+                  <div className="text-sm font-semibold text-foreground">Recent activity</div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Latest file</span>
+                      <span className="truncate text-right text-foreground" title={latestDocument?.originalFileName}>
+                        {latestDocument?.originalFileName ?? "None"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Ready now</span>
+                      <span className="text-foreground">{processedCount}</span>
+                    </div>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -204,10 +237,22 @@ export function KnowledgeBasePage() {
                 </div>
                 <CardTitle>Processing</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">
                   {processingCount} document{processingCount === 1 ? "" : "s"} in progress. This page refreshes automatically.
                 </p>
+                {processingDocuments.length > 0 ? (
+                  <div className="space-y-2 rounded-[20px] border border-border/60 bg-background/54 p-3.5">
+                    {processingDocuments.map((document) => (
+                      <div key={document.id} className="flex items-center justify-between gap-3 text-sm">
+                        <span className="truncate text-foreground" title={document.originalFileName}>
+                          {document.originalFileName}
+                        </span>
+                        <span className="shrink-0 text-muted-foreground">{formatRelativeDate(document.createdAtUtc)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
           ) : null}

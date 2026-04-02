@@ -22,7 +22,13 @@ export function DashboardPage() {
   const conversations = conversationsQuery.data ?? [];
   const processedCount = documents.filter((document) => document.status === 3).length;
   const processingCount = documents.filter((document) => document.status === 2).length;
+  const failedCount = documents.filter((document) => document.status === 4).length;
   const latestConversation = conversations[0];
+  const latestDocument = [...documents].sort(
+    (left, right) =>
+      new Date(right.processedAtUtc ?? right.createdAtUtc).getTime() -
+      new Date(left.processedAtUtc ?? left.createdAtUtc).getTime(),
+  )[0];
 
   const metrics = [
     { label: "Documents", value: String(documents.length), note: "Total", icon: BookOpenText },
@@ -108,22 +114,38 @@ export function DashboardPage() {
               <Badge variant="secondary">{session?.role ?? "Member"}</Badge>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[22px] border border-border/65 bg-card/72 p-4">
-                <div className="text-sm font-semibold text-foreground">Latest conversation</div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {latestConversation
-                    ? `${latestConversation.title} updated ${formatRelativeDate(latestConversation.updatedAtUtc)}`
-                    : "No conversations yet"}
-                </p>
+            <div className="rounded-[22px] border border-border/60 bg-background/54">
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="text-sm font-semibold text-foreground">Status</div>
+                <Badge variant={failedCount > 0 ? "warning" : healthQuery.data?.status === "healthy" ? "success" : "secondary"}>
+                  {failedCount > 0 ? `${failedCount} failed` : healthQuery.data?.status === "healthy" ? "Healthy" : "Checking"}
+                </Badge>
               </div>
-              <div className="rounded-[22px] border border-border/65 bg-card/72 p-4">
-                <div className="text-sm font-semibold text-foreground">Processing</div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {processingCount === 0
-                    ? "No documents in progress"
-                    : `${processingCount} document${processingCount === 1 ? "" : "s"} in progress`}
-                </p>
+              <div className="divide-y divide-border/60">
+                <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">Latest document</span>
+                  <span className="truncate text-right text-foreground" title={latestDocument?.originalFileName}>
+                    {latestDocument?.originalFileName ?? "None"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">Latest conversation</span>
+                  <span className="truncate text-right text-foreground" title={latestConversation?.title}>
+                    {latestConversation?.title ?? "None"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">Updated</span>
+                  <span className="text-foreground">
+                    {latestConversation ? formatRelativeDate(latestConversation.updatedAtUtc) : "No activity"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">Processing</span>
+                  <span className="text-foreground">
+                    {processingCount === 0 ? "Clear" : `${processingCount} active`}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -142,6 +164,13 @@ export function DashboardPage() {
             <CardTitle>Next</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="rounded-[22px] border border-border/60 bg-background/54 p-3.5">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary">{documents.length} docs</Badge>
+                <Badge variant="secondary">{conversations.length} sessions</Badge>
+                <Badge variant="secondary">{processedCount} ready</Badge>
+              </div>
+            </div>
             <Button variant="outline" className="w-full justify-between" asChild>
               <Link to="/knowledge-base">Open documents</Link>
             </Button>

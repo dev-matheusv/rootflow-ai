@@ -41,6 +41,48 @@ export function formatFileSize(bytes: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+export function getDocumentTypeLabel(fileName: string, contentType: string): string {
+  const normalizedFileName = fileName.toLowerCase();
+  const normalizedContentType = contentType.toLowerCase();
+
+  const extensionMap: Record<string, string> = {
+    ".pdf": "PDF",
+    ".docx": "DOCX",
+    ".doc": "DOC",
+    ".txt": "TXT",
+    ".md": "MD",
+    ".markdown": "MD",
+    ".rtf": "RTF",
+  };
+
+  for (const [extension, label] of Object.entries(extensionMap)) {
+    if (normalizedFileName.endsWith(extension)) {
+      return label;
+    }
+  }
+
+  const contentTypeMap: Record<string, string> = {
+    "application/pdf": "PDF",
+    "application/msword": "DOC",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
+    "text/plain": "TXT",
+    "text/markdown": "MD",
+    "text/x-markdown": "MD",
+    "application/rtf": "RTF",
+  };
+
+  if (contentTypeMap[normalizedContentType]) {
+    return contentTypeMap[normalizedContentType];
+  }
+
+  const subtype = normalizedContentType.split("/")[1];
+  if (!subtype) {
+    return "File";
+  }
+
+  return subtype.toUpperCase();
+}
+
 export function getDocumentStatusLabel(status: number): string {
   switch (status) {
     case 1:

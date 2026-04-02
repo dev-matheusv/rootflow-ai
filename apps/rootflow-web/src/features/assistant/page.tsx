@@ -47,7 +47,32 @@ export function AssistantPage() {
     name: "question",
   }) ?? "";
   const messages = useMemo(() => conversationQuery.data?.messages ?? [], [conversationQuery.data?.messages]);
+  const documents = documentsQuery.data ?? [];
   const readyDocumentCount = documentsQuery.data?.filter((document) => document.status === 3).length ?? 0;
+  const latestReadyDocument = useMemo(
+    () =>
+      [...documents]
+        .filter((document) => document.status === 3)
+        .sort(
+          (left, right) =>
+            new Date(right.processedAtUtc ?? right.createdAtUtc).getTime() -
+            new Date(left.processedAtUtc ?? left.createdAtUtc).getTime(),
+        )[0],
+    [documents],
+  );
+  const suggestedPrompts = latestReadyDocument
+    ? [
+        { label: "Summarize my documents", prompt: "Summarize my documents" },
+        { label: "Key topics", prompt: "What are the key topics?" },
+        { label: "Explain latest file", prompt: `Explain ${latestReadyDocument.originalFileName}` },
+        { label: "What changed?", prompt: `What changed in ${latestReadyDocument.originalFileName}?` },
+      ]
+    : [
+        { label: "Summarize my documents", prompt: "Summarize my documents" },
+        { label: "Key topics", prompt: "What are the key topics?" },
+        { label: "Explain this document", prompt: "Explain this document" },
+        { label: "What changed?", prompt: "What changed in this file?" },
+      ];
   const activeLatestAnswer = latestAnswer?.conversationId === conversationId ? latestAnswer : null;
   const isSendingQuestion = askQuestionMutation.isPending || form.formState.isSubmitting;
   const canReviewRetrieval = Boolean(activeLatestAnswer?.debug?.retrievedChunks?.length);
@@ -91,6 +116,10 @@ export function AssistantPage() {
     setShowDebug(false);
     askQuestionMutation.reset();
     form.reset();
+  };
+
+  const handlePromptSelect = (prompt: string) => {
+    form.setValue("question", prompt, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
   };
 
   return (
@@ -144,13 +173,48 @@ export function AssistantPage() {
                         onRetry={() => conversationQuery.refetch()}
                       />
                     ) : messages.length === 0 ? (
-                      <EmptyState
-                        icon={Bot}
-                        title="Ask a question"
-                        description={
-                          conversationId ? "This session is ready." : "Answers will use processed documents."
-                        }
-                      />
+                      <div className="space-y-3">
+                        <EmptyState
+                          icon={Bot}
+                          title="Ask a question"
+                          description={conversationId ? "This session is ready." : "Answers will use processed documents."}
+                        />
+                        <div className="grid gap-3 sm:grid-cols-[0.92fr_1.08fr]">
+                          <div className="rounded-[22px] border border-border/60 bg-background/54 p-4">
+                            <div className="text-sm font-semibold text-foreground">Available now</div>
+                            <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                              <div className="flex items-center justify-between gap-3">
+                                <span>Ready documents</span>
+                                <span className="text-foreground">{readyDocumentCount}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-3">
+                                <span>Latest ready</span>
+                                <span className="truncate text-right text-foreground" title={latestReadyDocument?.originalFileName}>
+                                  {latestReadyDocument?.originalFileName ?? "None"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="rounded-[22px] border border-border/60 bg-background/54 p-4">
+                            <div className="text-sm font-semibold text-foreground">Try one</div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {suggestedPrompts.map((prompt) => (
+                                <Button
+                                  key={prompt.label}
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-auto rounded-full px-3 py-1.5 text-left"
+                                  onClick={() => handlePromptSelect(prompt.prompt)}
+                                  title={prompt.prompt}
+                                >
+                                  {prompt.label}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     ) : (
                       <div className="rounded-[24px] border border-border/75 bg-background/66 p-4 sm:p-5">
                         <div className="space-y-6">
@@ -222,6 +286,14 @@ export function AssistantPage() {
                 className="rounded-[24px] border border-border/75 bg-background/74 p-4"
                 onSubmit={submitQuestion}
               >
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">{readyDocumentCount} ready</Badge>
+                  {latestReadyDocument ? (
+                    <Badge variant="secondary" className="max-w-full truncate" title={latestReadyDocument.originalFileName}>
+                      Latest: {latestReadyDocument.originalFileName}
+                    </Badge>
+                  ) : null}
+                </div>
                 <div className="rounded-[24px] border border-border/75 bg-background/88 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/28 focus-within:bg-background focus-within:shadow-[0_16px_32px_-26px_rgba(37,99,235,0.18)]">
                   <Textarea
                     className="min-h-[136px] resize-none border-none bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
@@ -241,6 +313,21 @@ export function AssistantPage() {
                 ) : null}
                 {readyDocumentCount === 0 && !documentsQuery.isLoading ? (
                   <p className="mt-2 text-sm text-muted-foreground">Upload a processed document first.</p>
+                ) : null}
+                {readyDocumentCount > 0 && question.trim().length === 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {suggestedPrompts.slice(0, 3).map((prompt) => (
+                      <button
+                        key={prompt.label}
+                        type="button"
+                        className="rounded-full border border-border/70 bg-background/84 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/20 hover:text-foreground"
+                        onClick={() => handlePromptSelect(prompt.prompt)}
+                        title={prompt.prompt}
+                      >
+                        {prompt.label}
+                      </button>
+                    ))}
+                  </div>
                 ) : null}
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
