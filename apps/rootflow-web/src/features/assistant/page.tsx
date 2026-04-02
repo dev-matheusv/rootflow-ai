@@ -1,11 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Bot, CornerDownLeft, LoaderCircle, MessageSquareQuote, Microscope, Quote, SendHorizonal } from "lucide-react";
+import { Bot, CornerDownLeft, LoaderCircle, Microscope, Quote, SendHorizonal } from "lucide-react";
 import { type KeyboardEvent, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
-import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { FormattedAnswer } from "@/components/chat/formatted-answer";
@@ -149,144 +148,131 @@ export function AssistantPage() {
           <Card className="border-border/70 bg-background/72 shadow-none">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
-                <CardTitle>{conversationId ? "Conversation" : "New session"}</CardTitle>
-                <Badge variant="secondary">{readyDocumentCount} ready</Badge>
+                <CardTitle>{conversationId ? "Current session" : "New session"}</CardTitle>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="secondary">{readyDocumentCount} ready</Badge>
+                  {latestReadyDocument ? (
+                    <Badge variant="secondary" className="max-w-[220px] truncate" title={latestReadyDocument.originalFileName}>
+                      {latestReadyDocument.originalFileName}
+                    </Badge>
+                  ) : null}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-                {documentsQuery.isLoading ? (
-                  <LoadingState title="Loading documents" description="Checking what is ready." />
-                ) : documentsQuery.isError ? (
-                  <ErrorState
-                    title="Could not load documents"
-                    description="Check the connection and try again."
-                    onRetry={() => documentsQuery.refetch()}
-                  />
-                ) : readyDocumentCount > 0 ? (
-                  <>
-                    {conversationId && conversationQuery.isLoading ? (
-                      <LoadingState title="Loading conversation" description="Restoring messages." />
-                    ) : conversationId && conversationQuery.isError ? (
-                      <ErrorState
-                        title="Could not restore conversation"
-                        description="Start a new session or try again."
-                        onRetry={() => conversationQuery.refetch()}
-                      />
-                    ) : messages.length === 0 ? (
-                      <div className="space-y-3">
-                        <EmptyState
-                          icon={Bot}
-                          title="Ask a question"
-                          description={conversationId ? "This session is ready." : "Answers will use processed documents."}
-                        />
-                        <div className="grid gap-3 sm:grid-cols-[0.92fr_1.08fr]">
-                          <div className="rounded-[22px] border border-border/60 bg-background/54 p-4">
-                            <div className="text-sm font-semibold text-foreground">Available now</div>
-                            <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                              <div className="flex items-center justify-between gap-3">
-                                <span>Ready documents</span>
-                                <span className="text-foreground">{readyDocumentCount}</span>
-                              </div>
-                              <div className="flex items-center justify-between gap-3">
-                                <span>Latest ready</span>
-                                <span className="truncate text-right text-foreground" title={latestReadyDocument?.originalFileName}>
-                                  {latestReadyDocument?.originalFileName ?? "None"}
-                                </span>
-                              </div>
-                            </div>
+              {documentsQuery.isLoading ? (
+                <LoadingState title="Loading documents" description="Checking what is ready." />
+              ) : documentsQuery.isError ? (
+                <ErrorState
+                  title="Could not load documents"
+                  description="Check the connection and try again."
+                  onRetry={() => documentsQuery.refetch()}
+                />
+              ) : readyDocumentCount > 0 ? (
+                <>
+                  {conversationId && conversationQuery.isLoading ? (
+                    <LoadingState title="Loading conversation" description="Restoring messages." />
+                  ) : conversationId && conversationQuery.isError ? (
+                    <ErrorState
+                      title="Could not restore conversation"
+                      description="Start a new session or try again."
+                      onRetry={() => conversationQuery.refetch()}
+                    />
+                  ) : messages.length === 0 ? (
+                    <div className="space-y-4 pb-1">
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                        <span>{conversationId ? "Session restored." : "Ready to answer."}</span>
+                        <span>{readyDocumentCount} processed document{readyDocumentCount === 1 ? "" : "s"} available.</span>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-[0.9fr_1.1fr]">
+                        <div className="space-y-2 text-sm text-muted-foreground">
+                          <div className="text-sm font-semibold text-foreground">Available now</div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Ready documents</span>
+                            <span className="text-foreground">{readyDocumentCount}</span>
                           </div>
-                          <div className="rounded-[22px] border border-border/60 bg-background/54 p-4">
-                            <div className="text-sm font-semibold text-foreground">Try one</div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {suggestedPrompts.map((prompt) => (
-                                <Button
-                                  key={prompt.label}
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-auto rounded-full px-3 py-1.5 text-left"
-                                  onClick={() => handlePromptSelect(prompt.prompt)}
-                                  title={prompt.prompt}
-                                >
-                                  {prompt.label}
-                                </Button>
-                              ))}
-                            </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Latest ready</span>
+                            <span className="truncate text-right text-foreground" title={latestReadyDocument?.originalFileName}>
+                              {latestReadyDocument?.originalFileName ?? "None"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-sm font-semibold text-foreground">Try one</div>
+                          <div className="flex flex-wrap gap-2">
+                            {suggestedPrompts.map((prompt) => (
+                              <Button
+                                key={prompt.label}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-auto rounded-full px-3 py-1.5 text-left"
+                                onClick={() => handlePromptSelect(prompt.prompt)}
+                                title={prompt.prompt}
+                              >
+                                {prompt.label}
+                              </Button>
+                            ))}
                           </div>
                         </div>
                       </div>
-                    ) : (
-                      <div className="rounded-[24px] border border-border/75 bg-background/66 p-4 sm:p-5">
-                        <div className="space-y-6">
-                          {messages.map((message) => {
-                            const isUser = message.role === 2;
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {messages.map((message) => {
+                        const isUser = message.role === 2;
 
-                            return (
-                              <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                                <article
-                                  className={`max-w-[72ch] rounded-[26px] border px-5 py-4 ${
-                                    isUser
-                                      ? "rounded-br-lg border-[#cadeff] bg-[#eaf2ff] text-[#14315c] dark:border-[#314662] dark:bg-[#22314a] dark:text-[#edf4ff]"
-                                      : "rounded-bl-lg border-border/80 bg-white text-foreground dark:bg-[#1a2230]"
-                                  }`}
-                                >
-                                  <div
-                                    className={`mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] ${
-                                      isUser ? "text-[#3f669e] dark:text-[#a9c8ff]" : "text-primary/75"
-                                    }`}
-                                  >
-                                    {isUser ? "You" : "RootFlow"}
-                                  </div>
-                                  {isUser ? (
-                                    <p className="whitespace-pre-wrap text-[0.96rem] leading-7 text-inherit">{message.content}</p>
-                                  ) : (
-                                    <FormattedAnswer content={message.content} />
-                                  )}
-                                </article>
+                        return (
+                          <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+                            <article
+                              className={`max-w-[76ch] ${
+                                isUser
+                                  ? "rounded-[24px] rounded-br-lg border border-[#cadeff] bg-[#eaf2ff] px-5 py-4 text-[#14315c] dark:border-[#314662] dark:bg-[#22314a] dark:text-[#edf4ff]"
+                                  : "border-l-2 border-border/70 pl-4 text-foreground"
+                              }`}
+                            >
+                              <div
+                                className={`mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] ${
+                                  isUser ? "text-[#3f669e] dark:text-[#a9c8ff]" : "text-primary/75"
+                                }`}
+                              >
+                                {isUser ? "You" : "RootFlow"}
                               </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                              {isUser ? (
+                                <p className="whitespace-pre-wrap text-[0.96rem] leading-7 text-inherit">{message.content}</p>
+                              ) : (
+                                <FormattedAnswer content={message.content} className="max-w-[72ch]" />
+                              )}
+                            </article>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                    {askQuestionMutation.isPending ? (
-                      <div className="rounded-[22px] border border-border/75 bg-white/92 px-5 py-4 dark:bg-[#1a2230]">
-                        <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/90">
-                          <LoaderCircle className="size-3.5 animate-spin" />
-                          RootFlow
-                        </div>
-                        <p className="text-sm text-muted-foreground">Searching documents and preparing an answer.</p>
+                  {askQuestionMutation.isPending ? (
+                    <div className="border-l-2 border-primary/18 pl-4">
+                      <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/90">
+                        <LoaderCircle className="size-3.5 animate-spin" />
+                        RootFlow
                       </div>
-                    ) : null}
-                  </>
-                ) : (
-                  <EmptyState
-                    icon={MessageSquareQuote}
-                    title="No processed documents"
-                    description={
-                      documentsQuery.data?.length
-                        ? "Uploads are still processing."
-                        : "Upload a document first."
-                    }
-                  />
-                )}
-            </CardContent>
-          </Card>
+                      <p className="text-sm text-muted-foreground">Searching documents and preparing an answer.</p>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="rounded-[18px] border border-dashed border-border/65 bg-background/42 px-4 py-3 text-sm text-muted-foreground">
+                  {documentsQuery.data?.length ? "Documents are still processing." : "Upload a document to start asking questions."}
+                </div>
+              )}
 
-          <Card className="border-border/70 bg-background/72 shadow-none">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle>Ask</CardTitle>
-                <div className="text-xs text-muted-foreground">{conversationId ? "Current session" : "New session"}</div>
-              </div>
-            </CardHeader>
-            <CardContent>
+              <div className="border-t border-border/60 pt-4">
               <form
-                className="rounded-[24px] border border-border/75 bg-background/74 p-4"
+                className="space-y-4 rounded-[24px] border border-border/75 bg-background/62 p-4"
                 onSubmit={submitQuestion}
               >
-                <div className="mb-3 flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">{readyDocumentCount} ready</Badge>
                   {latestReadyDocument ? (
                     <Badge variant="secondary" className="max-w-full truncate" title={latestReadyDocument.originalFileName}>
@@ -294,9 +280,9 @@ export function AssistantPage() {
                     </Badge>
                   ) : null}
                 </div>
-                <div className="rounded-[24px] border border-border/75 bg-background/88 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/28 focus-within:bg-background focus-within:shadow-[0_16px_32px_-26px_rgba(37,99,235,0.18)]">
+                <div className="rounded-[22px] border border-border/70 bg-background/88 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/28 focus-within:bg-background focus-within:shadow-[0_14px_28px_-24px_rgba(37,99,235,0.18)]">
                   <Textarea
-                    className="min-h-[136px] resize-none border-none bg-transparent px-2 py-2 shadow-none focus-visible:ring-0"
+                    className="min-h-[120px] resize-none border-none bg-transparent px-2 py-2 text-[0.96rem] leading-7 shadow-none focus-visible:ring-0"
                     placeholder="Ask about a document, process, policy, or record..."
                     disabled={isSendingQuestion}
                     onKeyDown={handleQuestionKeyDown}
@@ -315,7 +301,7 @@ export function AssistantPage() {
                   <p className="mt-2 text-sm text-muted-foreground">Upload a processed document first.</p>
                 ) : null}
                 {readyDocumentCount > 0 && question.trim().length === 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {suggestedPrompts.slice(0, 3).map((prompt) => (
                       <button
                         key={prompt.label}
@@ -329,7 +315,7 @@ export function AssistantPage() {
                     ))}
                   </div>
                 ) : null}
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <CornerDownLeft className="size-4" />
                     {isSendingQuestion ? "Searching" : "Enter sends. Shift+Enter adds a line."}
@@ -340,6 +326,7 @@ export function AssistantPage() {
                   </Button>
                 </div>
               </form>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -353,7 +340,7 @@ export function AssistantPage() {
               activeLatestAnswer.sources.map((source, index) => (
                 <article
                   key={source.chunkId}
-                  className="rounded-[24px] border border-border/80 bg-card/94 p-4"
+                  className="space-y-3 border-b border-border/60 pb-4 last:border-b-0 last:pb-0"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge>Source {index + 1}</Badge>
@@ -372,34 +359,27 @@ export function AssistantPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-[22px] border border-primary/12 bg-primary/[0.05] p-4 dark:bg-primary/[0.08]">
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/75">Excerpt</div>
-                    <p className="overflow-hidden text-sm leading-6 text-foreground/84 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:6]">
-                      {source.excerpt}
-                    </p>
-                  </div>
+                  <p className="overflow-hidden text-sm leading-6 text-foreground/84 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:6]">
+                    {source.excerpt}
+                  </p>
                 </article>
               ))
             ) : activeLatestAnswer ? (
-              <EmptyState
-                icon={MessageSquareQuote}
-                title="No sources returned"
-                description="Ask again after checking that documents are processed."
-              />
+              <div className="rounded-[18px] border border-dashed border-border/65 bg-background/42 px-4 py-3 text-sm text-muted-foreground">
+                No sources returned. Ask again after checking that documents are processed.
+              </div>
             ) : (
-              <EmptyState
-                icon={MessageSquareQuote}
-                title="No sources yet"
-                description={conversationId ? "Ask the next question to review sources." : "Sources appear after the first answer."}
-              />
+              <div className="rounded-[18px] border border-dashed border-border/65 bg-background/42 px-4 py-3 text-sm text-muted-foreground">
+                {conversationId ? "Ask the next question to review sources." : "Sources appear after the first answer."}
+              </div>
             )}
 
             {isDebugVisible && activeLatestAnswer?.debug?.retrievedChunks.length ? (
-              <div className="rounded-[24px] border border-dashed border-border/80 bg-background/60 p-4">
+              <div className="rounded-[22px] border border-dashed border-border/70 bg-background/50 p-4">
                 <div className="space-y-3">
                   <div className="text-sm font-semibold text-foreground">Retrieval</div>
                   {activeLatestAnswer.debug.retrievedChunks.map((chunk) => (
-                    <div key={chunk.chunkId} className="rounded-[20px] border border-border/80 bg-background/82 p-4">
+                    <div key={chunk.chunkId} className="border-b border-border/60 pb-3 last:border-b-0 last:pb-0">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-semibold text-foreground">
                           #{chunk.rank} {chunk.documentName}
@@ -415,7 +395,7 @@ export function AssistantPage() {
             ) : null}
 
             {conversationId ? (
-              <div className="rounded-[24px] border border-dashed border-border/80 bg-background/60 p-4">
+              <div className="rounded-[22px] border border-dashed border-border/70 bg-background/50 p-4">
                 <div className="space-y-2">
                   <div className="text-sm font-semibold text-foreground">Conversation history</div>
                   <p className="text-sm text-muted-foreground">

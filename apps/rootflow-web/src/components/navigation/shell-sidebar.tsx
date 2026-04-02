@@ -34,16 +34,16 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
         >
           {collapsed ? (
             <div className="flex items-center justify-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-background/66">
+              <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-sidebar-border/60 bg-background/58">
                 <RootFlowBrand variant="icon" size="sm" className="h-8 w-8" />
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="flex h-10 items-center">
-                <RootFlowBrand variant="logo" size="sm" className="h-7.5" />
+            <div className="space-y-2.5">
+              <div className="flex h-9 items-center px-0.5">
+                <RootFlowBrand variant="logo" size="sm" className="h-7" />
               </div>
-              <div className="space-y-1 px-1">
+              <div className="space-y-1 px-0.5">
                 <div className="flex items-center gap-2">
                   <div className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground">{workspaceName}</div>
                   <Badge variant="secondary" className="shrink-0 px-2 py-0.5 text-[10px] font-semibold">
@@ -61,22 +61,17 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
         <SidebarNav collapsed={collapsed} onNavigate={onNavigate} />
       </div>
 
-      <div
-        className={cn(
-          "mt-5 rounded-[20px] border border-sidebar-border/70 bg-background/62",
-          collapsed ? "p-2.5" : "p-3",
-        )}
-      >
+      <div className={cn("mt-5 border-t border-sidebar-border/70 pt-4", collapsed ? "px-1" : "px-0.5")}>
         {collapsed ? (
           <div className="flex justify-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-background/84">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-sidebar-border/60 bg-background/58">
               <Avatar className="size-9">
                 <AvatarFallback>{initials || "RF"}</AvatarFallback>
               </Avatar>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 px-2">
             <Avatar className="size-10">
               <AvatarFallback>{initials || "RF"}</AvatarFallback>
             </Avatar>

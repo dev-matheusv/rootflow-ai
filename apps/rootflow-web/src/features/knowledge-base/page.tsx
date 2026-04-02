@@ -1,4 +1,3 @@
-import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { Badge } from "@/components/ui/badge";
@@ -128,66 +127,64 @@ export function KnowledgeBasePage() {
                 onRetry={() => documentsQuery.refetch()}
               />
             ) : visibleDocuments.length === 0 ? (
-              <EmptyState
-                icon={UploadCloud}
-                title={filterProcessedOnly ? "No processed documents" : "No documents"}
-                description={
-                  filterProcessedOnly
-                    ? "Uploads are still processing."
-                    : "Upload a document to start retrieval."
-                }
-              />
+              <div className="rounded-[18px] border border-dashed border-border/65 bg-background/42 px-4 py-3 text-sm text-muted-foreground">
+                {filterProcessedOnly
+                  ? "No processed documents yet. Uploads still in progress will appear here."
+                  : "No documents yet. Upload a file to start retrieval."}
+              </div>
             ) : (
-              visibleDocuments.map((document) => (
-                <div
-                  key={document.id}
-                  className="grid gap-3 rounded-[22px] border border-border/60 bg-background/56 p-3.5 md:grid-cols-[minmax(0,1.35fr)_160px_120px_88px] md:items-center"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                      <FileText className="size-5" />
+              <div className="overflow-hidden rounded-[22px] border border-border/60 bg-background/54">
+                {visibleDocuments.map((document) => (
+                  <div
+                    key={document.id}
+                    className="grid gap-3 px-4 py-3.5 md:grid-cols-[minmax(0,1.35fr)_160px_120px_88px] md:items-center [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/60"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                        <FileText className="size-4.5" />
+                      </div>
+                      <div className="min-w-0 space-y-1">
+                        <div className="truncate text-sm font-semibold text-foreground">{document.originalFileName}</div>
+                        <div className="text-xs text-muted-foreground">{formatFileSize(document.sizeBytes)}</div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-foreground">{document.originalFileName}</div>
-                      <div className="text-sm text-muted-foreground">{formatFileSize(document.sizeBytes)}</div>
+                    <div className="text-sm text-muted-foreground">
+                      <div className="font-medium text-foreground">Status</div>
+                      <div className="mt-1">
+                        <StatusBadge status={document.status} />
+                        {document.status === 4 && document.failureReason ? (
+                          <p className="mt-2 text-xs leading-5 text-destructive">{document.failureReason}</p>
+                        ) : document.status === 2 ? (
+                          <p className="mt-2 text-xs leading-5 text-muted-foreground">Processing</p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      <div className="font-medium text-foreground">Updated</div>
+                      <div>{formatRelativeDate(document.processedAtUtc ?? document.createdAtUtc)}</div>
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      <div className="font-medium text-foreground">Type</div>
+                      <div className="truncate font-medium text-foreground" title={document.contentType}>
+                        {getDocumentTypeLabel(document.originalFileName, document.contentType)}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    <div className="font-medium text-foreground">Status</div>
-                    <div className="mt-1">
-                      <StatusBadge status={document.status} />
-                      {document.status === 4 && document.failureReason ? (
-                        <p className="mt-2 text-xs leading-5 text-destructive">{document.failureReason}</p>
-                      ) : document.status === 2 ? (
-                        <p className="mt-2 text-xs leading-5 text-muted-foreground">Processing</p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    <div className="font-medium text-foreground">Updated</div>
-                    <div>{formatRelativeDate(document.processedAtUtc ?? document.createdAtUtc)}</div>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    <div className="font-medium text-foreground">Type</div>
-                    <div className="truncate font-medium text-foreground" title={document.contentType}>
-                      {getDocumentTypeLabel(document.originalFileName, document.contentType)}
-                    </div>
-                  </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
 
-        <div className="space-y-4">
-          <Card className="border-border/70 bg-background/72 shadow-none">
-            <CardHeader>
-              <div className="space-y-1">
-                <CardTitle>Upload</CardTitle>
-                <div className="text-sm text-muted-foreground">PDF, DOCX, DOC, TXT, MD</div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+        <Card className="border-border/70 bg-background/72 shadow-none">
+          <CardHeader>
+            <div className="space-y-1">
+              <CardTitle>Upload</CardTitle>
+              <div className="text-sm text-muted-foreground">PDF, DOCX, DOC, TXT, MD</div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-4">
               <Button className="w-full justify-between" onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
                 {uploadMutation.isPending ? "Uploading..." : "Choose file"}
                 <UploadCloud />
@@ -226,37 +223,43 @@ export function KnowledgeBasePage() {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
 
-          {processingCount > 0 ? (
-            <Card className="border-border/70 bg-background/72 shadow-none">
-              <CardHeader>
-                <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <Clock3 className="size-5" />
-                </div>
-                <CardTitle>Processing</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  {processingCount} document{processingCount === 1 ? "" : "s"} in progress. This page refreshes automatically.
-                </p>
-                {processingDocuments.length > 0 ? (
-                  <div className="space-y-2 rounded-[20px] border border-border/60 bg-background/54 p-3.5">
-                    {processingDocuments.map((document) => (
-                      <div key={document.id} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="truncate text-foreground" title={document.originalFileName}>
-                          {document.originalFileName}
-                        </span>
-                        <span className="shrink-0 text-muted-foreground">{formatRelativeDate(document.createdAtUtc)}</span>
-                      </div>
-                    ))}
+            <div className="border-t border-border/60 pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-foreground">Processing</div>
+                  <div className="text-sm text-muted-foreground">
+                    {processingCount > 0
+                      ? `${processingCount} document${processingCount === 1 ? "" : "s"} in progress`
+                      : "No active processing"}
                   </div>
+                </div>
+                {processingCount > 0 ? (
+                  <Badge variant="secondary">
+                    <Clock3 className="size-3.5" />
+                    Live
+                  </Badge>
                 ) : null}
-              </CardContent>
-            </Card>
-          ) : null}
-        </div>
+              </div>
+              {processingDocuments.length > 0 ? (
+                <div className="mt-3 overflow-hidden rounded-[20px] border border-border/60 bg-background/54">
+                  {processingDocuments.map((document) => (
+                    <div
+                      key={document.id}
+                      className="flex items-center justify-between gap-3 px-3.5 py-3 text-sm [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/60"
+                    >
+                      <span className="truncate text-foreground" title={document.originalFileName}>
+                        {document.originalFileName}
+                      </span>
+                      <span className="shrink-0 text-muted-foreground">{formatRelativeDate(document.createdAtUtc)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );

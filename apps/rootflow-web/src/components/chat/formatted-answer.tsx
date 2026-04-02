@@ -223,7 +223,7 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
   const blocks = parseBlocks(content);
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-4 text-foreground", className)}>
       {blocks.map((block, index) => {
         const blockKey = getBlockKey(block, index);
 
@@ -240,27 +240,21 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
 
           case "paragraph":
             return (
-              <p key={blockKey} className="text-[0.98rem] leading-7 text-foreground/92">
+              <p key={blockKey} className="text-[0.98rem] leading-7 text-foreground/94">
                 {block.content}
               </p>
             );
 
           case "list":
             return (
-              <section
-                key={blockKey}
-                className={cn(
-                  "space-y-3 rounded-[22px] border border-border/70 bg-secondary/38 p-4",
-                  block.title ? "shadow-[0_14px_30px_-28px_rgba(16,36,71,0.14)] dark:shadow-none" : "",
-                )}
-              >
+              <section key={blockKey} className="space-y-2.5">
                 {block.title ? (
                   <div className="text-sm font-semibold tracking-[-0.01em] text-foreground">{block.title}</div>
                 ) : null}
-                <ul className="space-y-3">
+                <ul className="space-y-2.5">
                   {block.items.map((item, itemIndex) => (
                     <li key={`${blockKey}:${itemIndex}:${item}`} className="flex items-start gap-3">
-                      <span className="mt-[0.58rem] size-2 rounded-full bg-primary/80" />
+                      <span className="mt-[0.62rem] size-1.5 rounded-full bg-primary/80" />
                       <span className="text-[0.96rem] leading-7 text-foreground/90">{item}</span>
                     </li>
                   ))}
@@ -272,9 +266,9 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
             return (
               <aside
                 key={blockKey}
-                className="flex gap-3 rounded-[22px] border border-primary/14 bg-primary/[0.055] p-4"
+                className="flex gap-3 border-l-2 border-primary/24 pl-4"
               >
-                <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-2xl bg-primary/8 text-primary">
                   <Info className="size-4" />
                 </div>
                 <div className="space-y-1">

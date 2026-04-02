@@ -1,7 +1,6 @@
 import { BookOpenText, Bot, DatabaseZap, MessagesSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { EmptyState } from "@/components/feedback/empty-state";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { Badge } from "@/components/ui/badge";
@@ -150,11 +149,9 @@ export function DashboardPage() {
             </div>
 
             {documents.length === 0 ? (
-              <EmptyState
-                icon={BookOpenText}
-                title="No documents"
-                description="Upload a document to start retrieval."
-              />
+              <div className="rounded-[18px] border border-dashed border-border/65 bg-background/42 px-4 py-3 text-sm text-muted-foreground">
+                No documents yet. Upload one to start retrieval.
+              </div>
             ) : null}
           </CardContent>
         </Card>
