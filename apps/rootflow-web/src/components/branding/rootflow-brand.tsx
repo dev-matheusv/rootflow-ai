@@ -14,7 +14,6 @@ const brandAssets: Record<
   RootFlowBrandVariant,
   {
     alt: string;
-    darkSrc?: string;
     sizes: Record<RootFlowBrandSize, string>;
     src: string;
   }
@@ -30,7 +29,6 @@ const brandAssets: Record<
   },
   logo: {
     src: "/rootflow-logo-sem-fundo.png",
-    darkSrc: "/rootflow-logo-com-fundo.png",
     alt: "RootFlow",
     sizes: {
       sm: "h-10",
@@ -67,28 +65,6 @@ export function RootFlowBrand({
   alt,
 }: RootFlowBrandProps) {
   const asset = brandAssets[variant];
-  const imageClassName = cn("block w-auto max-w-full shrink-0 select-none object-contain", asset.sizes[size], className);
-
-  if (asset.darkSrc) {
-    return (
-      <>
-        <img
-          src={asset.src}
-          alt={alt ?? asset.alt}
-          decoding="async"
-          draggable={false}
-          className={cn(imageClassName, "dark:hidden")}
-        />
-        <img
-          src={asset.darkSrc}
-          alt={alt ?? asset.alt}
-          decoding="async"
-          draggable={false}
-          className={cn(imageClassName, "hidden dark:block")}
-        />
-      </>
-    );
-  }
 
   return (
     <img
@@ -96,7 +72,7 @@ export function RootFlowBrand({
       alt={alt ?? asset.alt}
       decoding="async"
       draggable={false}
-      className={imageClassName}
+      className={cn("block w-auto max-w-full shrink-0 select-none object-contain", asset.sizes[size], className)}
     />
   );
 }

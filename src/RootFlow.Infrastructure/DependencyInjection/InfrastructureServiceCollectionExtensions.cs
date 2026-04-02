@@ -69,6 +69,10 @@ public static class InfrastructureServiceCollectionExtensions
         });
         services.PostConfigure<EmailDeliveryOptions>(options =>
         {
+            options.Provider = FirstNonEmpty(
+                configuration["ROOTFLOW_EMAIL_PROVIDER"],
+                configuration["EmailDelivery:Provider"],
+                options.Provider) ?? options.Provider;
             options.FromAddress = FirstNonEmpty(
                 configuration["ROOTFLOW_EMAIL_FROM_ADDRESS"],
                 configuration["EmailDelivery:FromAddress"],
@@ -101,6 +105,14 @@ public static class InfrastructureServiceCollectionExtensions
                     configuration["ROOTFLOW_EMAIL_SMTP_TIMEOUT_MS"],
                     configuration["EmailDelivery:SmtpTimeoutMilliseconds"])
                 ?? options.SmtpTimeoutMilliseconds;
+            options.ResendApiKey = FirstNonEmpty(
+                configuration["ROOTFLOW_EMAIL_RESEND_API_KEY"],
+                configuration["EmailDelivery:ResendApiKey"],
+                options.ResendApiKey) ?? string.Empty;
+            options.ResendBaseUrl = FirstNonEmpty(
+                configuration["ROOTFLOW_EMAIL_RESEND_BASE_URL"],
+                configuration["EmailDelivery:ResendBaseUrl"],
+                options.ResendBaseUrl) ?? options.ResendBaseUrl;
         });
 
         services.AddSingleton<IClock, SystemClock>();
@@ -113,11 +125,24 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddSingleton<PostgresDatabaseInitializer>();
         services.AddSingleton<RootFlowAppLinkBuilder>();
-        services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
         services.AddScoped<IFileStorage, LocalFileStorage>();
         services.AddScoped<IDocumentTextExtractor, SimpleDocumentTextExtractor>();
         services.AddScoped<ITextChunker, SimpleTextChunker>();
+        services.AddScoped<SmtpEmailSender>();
+        services.AddHttpClient<ResendEmailSender>((serviceProvider, client) =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<EmailDeliveryOptions>>().Value;
+            var baseUrl = options.ResendBaseUrl.EndsWith("/", StringComparison.Ordinal)
+                ? options.ResendBaseUrl
+                : $"{options.ResendBaseUrl}/";
+
+            client.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
+            client.Timeout = ResendEmailSender.ResolveTimeout(options);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("RootFlow/1.0");
+        });
+        services.AddScoped<ConfigurableEmailSender>();
+        services.AddScoped<IEmailSender>(serviceProvider => serviceProvider.GetRequiredService<ConfigurableEmailSender>());
 
         services.AddScoped<IPasswordHashingService, AspNetPasswordHashingService>();
         services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();

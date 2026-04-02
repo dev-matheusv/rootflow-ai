@@ -20,6 +20,7 @@ Recommended:
 
 - `ROOTFLOW_ALLOWED_ORIGINS`
 - `ROOTFLOW_FRONTEND_BASE_URL`
+- `ROOTFLOW_EMAIL_PROVIDER`
 - `ROOTFLOW_EMAIL_FROM_ADDRESS`
 - `ROOTFLOW_EMAIL_FROM_NAME`
 - `ROOTFLOW_EMAIL_SMTP_HOST`
@@ -28,6 +29,8 @@ Recommended:
 - `ROOTFLOW_EMAIL_SMTP_PASSWORD`
 - `ROOTFLOW_EMAIL_SMTP_ENABLE_SSL`
 - `ROOTFLOW_EMAIL_SMTP_TIMEOUT_MS`
+- `ROOTFLOW_EMAIL_RESEND_API_KEY`
+- `ROOTFLOW_EMAIL_RESEND_BASE_URL`
 - `AI__Mode`
 - `OpenAI__BaseUrl`
 - `OpenAI__ChatModel`
@@ -87,6 +90,7 @@ Set:
 - `ROOTFLOW_FRONTEND_BASE_URL=https://your-frontend-domain`
 - `ROOTFLOW_EMAIL_FROM_ADDRESS=notifications@your-rootflow-domain.com`
 - `ROOTFLOW_EMAIL_FROM_NAME=RootFlow`
+- `ROOTFLOW_EMAIL_PROVIDER=Smtp`
 - `ROOTFLOW_EMAIL_SMTP_HOST=smtp.your-provider.com`
 - `ROOTFLOW_EMAIL_SMTP_PORT=587`
 - `ROOTFLOW_EMAIL_SMTP_USERNAME=your-smtp-username`
@@ -115,6 +119,7 @@ Set these Railway variables:
 - `ROOTFLOW_FRONTEND_BASE_URL=https://your-frontend-domain`
 - `ROOTFLOW_EMAIL_FROM_ADDRESS=notifications@your-rootflow-domain.com`
 - `ROOTFLOW_EMAIL_FROM_NAME=RootFlow`
+- `ROOTFLOW_EMAIL_PROVIDER=Smtp`
 - `ROOTFLOW_EMAIL_SMTP_HOST=smtp.your-provider.com`
 - `ROOTFLOW_EMAIL_SMTP_PORT=587`
 - `ROOTFLOW_EMAIL_SMTP_USERNAME=your-smtp-username`
@@ -148,6 +153,25 @@ If you use Gmail SMTP, configure:
 Google's documentation for Gmail SMTP references TLS/STARTTLS on port 587 and SSL on port 465, and app-password authentication for SMTP-connected apps:
 - https://support.google.com/a/answer/176600
 - https://support.google.com/mail/answer/7104828
+
+### Recommended Production API Path
+
+RootFlow now also supports Resend through the same `IEmailSender` abstraction. This avoids SMTP delivery issues from constrained runtimes and is the fastest path to unblock end-to-end QA if Gmail SMTP from Railway is timing out.
+
+Set:
+
+- `ROOTFLOW_EMAIL_PROVIDER=Resend`
+- `ROOTFLOW_EMAIL_FROM_NAME=RootFlow`
+- `ROOTFLOW_EMAIL_FROM_ADDRESS=notifications@your-rootflow-domain.com`
+- `ROOTFLOW_EMAIL_RESEND_API_KEY=re_xxxxxxxxx`
+- `ROOTFLOW_EMAIL_RESEND_BASE_URL=https://api.resend.com/`
+
+Keep:
+
+- `ROOTFLOW_FRONTEND_BASE_URL=https://your-frontend-domain`
+
+Resend's send-email API expects `from`, `to`, `subject`, and HTML/text bodies over HTTPS:
+- https://resend.com/docs/api-reference/emails
 
 ## Vercel Frontend
 
