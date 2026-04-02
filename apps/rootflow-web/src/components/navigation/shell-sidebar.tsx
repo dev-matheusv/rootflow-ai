@@ -3,6 +3,7 @@ import { Building2 } from "lucide-react";
 import { RootFlowBrand } from "@/components/branding/rootflow-brand";
 import { SidebarNav } from "@/components/navigation/sidebar-nav";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/features/auth/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -59,12 +60,17 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
         ) : (
           <>
             <div className="flex items-center gap-3">
-              <div className="flex size-11 items-center justify-center rounded-[18px] bg-primary/10 text-primary">
+              <div className="flex size-10 items-center justify-center rounded-[16px] bg-primary/10 text-primary">
                 <Building2 className="size-5" />
               </div>
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-foreground">{workspaceName}</div>
-                <div className="text-xs text-muted-foreground">@{workspaceSlug} - {role}</div>
+                <div className="flex items-center gap-2">
+                  <div className="truncate text-sm font-semibold text-foreground">{workspaceName}</div>
+                  <Badge variant="secondary" className="shrink-0 px-2 py-0.5 text-[10px] font-semibold">
+                    {role}
+                  </Badge>
+                </div>
+                <div className="truncate text-xs text-muted-foreground">@{workspaceSlug}</div>
               </div>
             </div>
 
