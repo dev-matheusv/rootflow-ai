@@ -44,11 +44,11 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
                 </Button>
 
                 {isDesktop ? (
-                  <RootFlowBrand variant="logo" size="sm" className="pr-1" />
+                  <RootFlowBrand variant="logo" size="sm" className="h-9 pr-1" />
                 ) : (
                   <div className="relative flex h-11 w-11 items-center justify-center">
                     <div className="absolute inset-0 rounded-[18px] bg-[radial-gradient(circle,_rgba(15,99,236,0.16),rgba(255,255,255,0)_74%)]" />
-                    <RootFlowBrand variant="icon" size="md" className="relative h-[2.15rem] w-[2.15rem]" />
+                    <RootFlowBrand variant="icon" size="md" className="relative h-[2.35rem] w-[2.35rem]" />
                   </div>
                 )}
               </div>

@@ -29,6 +29,14 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
         Path.GetTempPath(),
         "rootflow-integration-tests",
         Guid.NewGuid().ToString("N"));
+    private readonly string? _originalRootFlowDatabaseUrl = Environment.GetEnvironmentVariable("ROOTFLOW_DATABASE_URL");
+    private readonly string? _originalJwtKey = Environment.GetEnvironmentVariable("ROOTFLOW_JWT_KEY");
+
+    public RootFlowApiFactory()
+    {
+        Environment.SetEnvironmentVariable("ROOTFLOW_DATABASE_URL", TestConnectionString);
+        Environment.SetEnvironmentVariable("ROOTFLOW_JWT_KEY", TestJwtKey);
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -127,6 +135,9 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
     public new async Task DisposeAsync()
     {
         await base.DisposeAsync();
+
+        Environment.SetEnvironmentVariable("ROOTFLOW_DATABASE_URL", _originalRootFlowDatabaseUrl);
+        Environment.SetEnvironmentVariable("ROOTFLOW_JWT_KEY", _originalJwtKey);
 
         if (Directory.Exists(_storageRootPath))
         {

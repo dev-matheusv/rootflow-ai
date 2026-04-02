@@ -167,6 +167,45 @@ public sealed class WorkspaceCollaborationServiceTests
         Assert.Contains(members, candidate => candidate.UserId == member.Id && !candidate.IsCurrentUser);
     }
 
+    [Fact]
+    public async Task InviteAsync_RejectsMembersWhoTryToInvite()
+    {
+        var clock = new FakeClock(new DateTime(2026, 4, 2, 18, 0, 0, DateTimeKind.Utc));
+        var authRepository = new FakeAuthRepository();
+        var workspaceRepository = new FakeWorkspaceRepository();
+        var membershipRepository = new FakeWorkspaceMembershipRepository();
+        var invitationRepository = new FakeWorkspaceInvitationRepository();
+        var notifier = new FakeWorkspaceInvitationNotifier();
+
+        var member = authRepository.AddUser("member@rootflow.test", "Member User");
+        var workspace = workspaceRepository.AddWorkspace("Acme Ops", "acme-ops", clock.UtcNow);
+        membershipRepository.AddExisting(new WorkspaceMembership(
+            Guid.NewGuid(),
+            workspace.Id,
+            member.Id,
+            WorkspaceRole.Member,
+            clock.UtcNow));
+
+        var service = CreateService(
+            authRepository,
+            workspaceRepository,
+            membershipRepository,
+            invitationRepository,
+            notifier,
+            clock);
+
+        var exception = await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            service.InviteAsync(new InviteWorkspaceMemberCommand(
+                workspace.Id,
+                member.Id,
+                "another@rootflow.test",
+                WorkspaceRole.Member)));
+
+        Assert.Equal("Only workspace owners and admins can send invites.", exception.Message);
+        Assert.Null(invitationRepository.StoredInvitation);
+        Assert.Empty(notifier.Notifications);
+    }
+
     private static WorkspaceCollaborationService CreateService(
         FakeAuthRepository authRepository,
         FakeWorkspaceRepository workspaceRepository,

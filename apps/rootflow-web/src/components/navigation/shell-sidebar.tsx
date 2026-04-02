@@ -38,7 +38,7 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
             </div>
           ) : (
             <>
-              <RootFlowBrand variant="logo" size="sm" />
+              <RootFlowBrand variant="logo" size="sm" className="h-9" />
               <Badge variant="secondary">Beta</Badge>
             </>
           )}

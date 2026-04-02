@@ -73,7 +73,7 @@ export function WorkspaceCollaborationPanel() {
                 Invite behavior
               </div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Invite links are time-bound and single-use. In development, the join link is logged instead of emailed.
+                Invite links are time-bound and single-use. RootFlow emails them when outbound delivery is configured and keeps a safe log fallback in local development.
               </p>
             </div>
           </CardContent>
@@ -84,7 +84,7 @@ export function WorkspaceCollaborationPanel() {
             <CardTitle>Invite collaborators</CardTitle>
             <CardDescription>
               {canInvite
-                ? "Send an email invitation into this workspace without changing the existing auth flow."
+                ? "Send a real email invitation into this workspace without changing the existing auth or session flow."
                 : "Only owners and admins can invite new members into this workspace."}
             </CardDescription>
           </CardHeader>

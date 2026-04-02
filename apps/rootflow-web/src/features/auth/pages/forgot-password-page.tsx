@@ -58,7 +58,7 @@ export function ForgotPasswordPage() {
         },
         {
           title: "Single-use reset links",
-          description: "Reset tokens are time-bound, one-time, and ready to connect to a real email provider without changing the frontend flow.",
+          description: "Reset tokens are time-bound, one-time, and delivered through RootFlow's shared outbound email configuration without changing the frontend flow.",
         },
       ]}
     >
@@ -69,7 +69,7 @@ export function ForgotPasswordPage() {
             Secure recovery
           </Badge>
           <CardTitle>Forgot password</CardTitle>
-          <CardDescription>Enter your work email and we'll send a reset link if the account exists.</CardDescription>
+          <CardDescription>Enter your work email and RootFlow will send a reset link if the account exists.</CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-0">
           {successMessage ? (

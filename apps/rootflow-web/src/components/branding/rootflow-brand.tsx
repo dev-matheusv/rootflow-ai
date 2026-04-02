@@ -20,7 +20,7 @@ const brandAssets: Record<
 > = {
   icon: {
     src: "/rootflow-icon.png",
-    alt: "RootFlow",
+    alt: "RootFlow icon",
     sizes: {
       sm: "h-8 w-8",
       md: "h-9 w-9",
@@ -28,11 +28,11 @@ const brandAssets: Record<
     },
   },
   logo: {
-    src: "/rootflow-logo.png",
+    src: "/rootflow-logo-sem-fundo.png",
     alt: "RootFlow",
     sizes: {
-      sm: "h-8",
-      md: "h-10",
+      sm: "h-10",
+      md: "h-12",
       lg: "h-16 sm:h-[4.5rem]",
     },
   },

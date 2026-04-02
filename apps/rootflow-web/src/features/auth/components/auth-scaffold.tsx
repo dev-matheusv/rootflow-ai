@@ -66,7 +66,7 @@ export function AuthScaffold({ badge, title, description, highlights, children }
           <section className="rounded-[34px] border border-border/70 bg-card/88 p-5 shadow-[0_28px_70px_-48px_rgba(16,36,71,0.16)] backdrop-blur-2xl sm:p-6 lg:p-8">
             <div className="mb-8 flex items-center">
               <div className="inline-flex items-center justify-center rounded-[24px] border border-border/65 bg-background/86 px-4 py-3 shadow-[0_18px_40px_-34px_rgba(16,36,71,0.2)] backdrop-blur-xl">
-                <RootFlowBrand variant="mark" size="md" className="h-12 sm:h-[3.25rem]" />
+                <RootFlowBrand variant="logo" size="lg" className="h-[4.4rem] max-w-none sm:h-[4.8rem]" />
               </div>
             </div>
             {children}

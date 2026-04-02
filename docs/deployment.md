@@ -19,6 +19,14 @@ Required when `AI__Mode=OpenAI`:
 Recommended:
 
 - `ROOTFLOW_ALLOWED_ORIGINS`
+- `ROOTFLOW_FRONTEND_BASE_URL`
+- `ROOTFLOW_EMAIL_FROM_ADDRESS`
+- `ROOTFLOW_EMAIL_FROM_NAME`
+- `ROOTFLOW_EMAIL_SMTP_HOST`
+- `ROOTFLOW_EMAIL_SMTP_PORT`
+- `ROOTFLOW_EMAIL_SMTP_USERNAME`
+- `ROOTFLOW_EMAIL_SMTP_PASSWORD`
+- `ROOTFLOW_EMAIL_SMTP_ENABLE_SSL`
 - `AI__Mode`
 - `OpenAI__BaseUrl`
 - `OpenAI__ChatModel`
@@ -29,6 +37,7 @@ Notes:
 - `ROOTFLOW_DATABASE_URL` and `DATABASE_URL` take precedence over `ConnectionStrings__Postgres`
 - `postgres://` and `postgresql://` URLs are normalized into Npgsql connection strings at startup
 - `ROOTFLOW_JWT_KEY` takes precedence over `Jwt:Key`
+- `ROOTFLOW_FRONTEND_BASE_URL` takes precedence over both `PasswordReset:FrontendBaseUrl` and `WorkspaceInvitations:FrontendBaseUrl`
 - `OPENAI_API_KEY` takes precedence over `OpenAI:ApiKey`
 - database migrations still run automatically on startup and remain idempotent through `schema_migrations`
 - `PORT` is honored automatically when `ASPNETCORE_URLS` is not already set, which keeps Railway and Render startup straightforward
@@ -74,6 +83,14 @@ Set:
 
 - `ROOTFLOW_JWT_KEY`
 - `ROOTFLOW_ALLOWED_ORIGINS=https://your-frontend-domain`
+- `ROOTFLOW_FRONTEND_BASE_URL=https://your-frontend-domain`
+- `ROOTFLOW_EMAIL_FROM_ADDRESS=notifications@your-rootflow-domain.com`
+- `ROOTFLOW_EMAIL_FROM_NAME=RootFlow`
+- `ROOTFLOW_EMAIL_SMTP_HOST=smtp.your-provider.com`
+- `ROOTFLOW_EMAIL_SMTP_PORT=587`
+- `ROOTFLOW_EMAIL_SMTP_USERNAME=your-smtp-username`
+- `ROOTFLOW_EMAIL_SMTP_PASSWORD=your-smtp-password`
+- `ROOTFLOW_EMAIL_SMTP_ENABLE_SSL=true`
 - `OPENAI_API_KEY`
 - either `ROOTFLOW_DATABASE_URL`, `DATABASE_URL`, or `ConnectionStrings__Postgres`
 
@@ -93,8 +110,26 @@ Set these Railway variables:
 - `ROOTFLOW_JWT_KEY`
 - `OPENAI_API_KEY`
 - `ROOTFLOW_ALLOWED_ORIGINS=https://your-frontend-domain`
+- `ROOTFLOW_FRONTEND_BASE_URL=https://your-frontend-domain`
+- `ROOTFLOW_EMAIL_FROM_ADDRESS=notifications@your-rootflow-domain.com`
+- `ROOTFLOW_EMAIL_FROM_NAME=RootFlow`
+- `ROOTFLOW_EMAIL_SMTP_HOST=smtp.your-provider.com`
+- `ROOTFLOW_EMAIL_SMTP_PORT=587`
+- `ROOTFLOW_EMAIL_SMTP_USERNAME=your-smtp-username`
+- `ROOTFLOW_EMAIL_SMTP_PASSWORD=your-smtp-password`
+- `ROOTFLOW_EMAIL_SMTP_ENABLE_SSL=true`
 
 The API already runs its built-in PostgreSQL schema migrations on startup through `PostgresDatabaseInitializer`, so no extra migration step is required in Railway.
+
+## Email Provider Setup
+
+Use any provider that exposes standard SMTP credentials so the application stays provider-agnostic.
+
+1. Create or connect a sending domain in your email provider.
+2. Verify the sender address or domain you plan to use for `ROOTFLOW_EMAIL_FROM_ADDRESS`.
+3. Collect the provider SMTP host, port, username, password, and TLS/SSL requirement.
+4. Set the Railway variables above, then redeploy the API.
+5. Confirm that `ROOTFLOW_FRONTEND_BASE_URL` points to the real frontend domain so password reset and invite links resolve back into the deployed web app.
 
 ## Vercel Frontend
 

@@ -1,23 +1,26 @@
+using System.Globalization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using RootFlow.Application.Abstractions.Workspaces;
-using RootFlow.Infrastructure.Configuration;
+using RootFlow.Infrastructure.Email;
 
 namespace RootFlow.Infrastructure.Workspaces;
 
 public sealed class LoggingWorkspaceInvitationNotifier : IWorkspaceInvitationNotifier
 {
-    private readonly WorkspaceInvitationOptions _options;
+    private readonly IEmailSender _emailSender;
+    private readonly RootFlowAppLinkBuilder _appLinkBuilder;
     private readonly IHostEnvironment _hostEnvironment;
     private readonly ILogger<LoggingWorkspaceInvitationNotifier> _logger;
 
     public LoggingWorkspaceInvitationNotifier(
-        IOptions<WorkspaceInvitationOptions> options,
+        IEmailSender emailSender,
+        RootFlowAppLinkBuilder appLinkBuilder,
         IHostEnvironment hostEnvironment,
         ILogger<LoggingWorkspaceInvitationNotifier> logger)
     {
-        _options = options.Value;
+        _emailSender = emailSender;
+        _appLinkBuilder = appLinkBuilder;
         _hostEnvironment = hostEnvironment;
         _logger = logger;
     }
@@ -26,7 +29,43 @@ public sealed class LoggingWorkspaceInvitationNotifier : IWorkspaceInvitationNot
         WorkspaceInvitationNotification notification,
         CancellationToken cancellationToken = default)
     {
-        var inviteLink = BuildInviteLink(notification.Token);
+        return SendAsync(notification, cancellationToken);
+    }
+
+    private async Task SendAsync(
+        WorkspaceInvitationNotification notification,
+        CancellationToken cancellationToken)
+    {
+        var inviteLink = BuildInviteLink(notification.Token, requireAbsoluteUrl: _emailSender.IsConfigured);
+        if (_emailSender.IsConfigured)
+        {
+            var inviterName = string.IsNullOrWhiteSpace(notification.InvitedByFullName)
+                ? "A RootFlow workspace admin"
+                : notification.InvitedByFullName.Trim();
+
+            await _emailSender.SendAsync(
+                RootFlowEmailTemplate.CreateMessage(
+                    notification.Email,
+                    null,
+                    new ActionEmailTemplate(
+                        $"You're invited to join {notification.WorkspaceName} on RootFlow",
+                        $"Accept your invite to collaborate in {notification.WorkspaceName} on RootFlow.",
+                        "Workspace invite",
+                        $"Join {notification.WorkspaceName}",
+                        $"{inviterName} invited you to collaborate in the {notification.WorkspaceName} workspace on RootFlow.",
+                        "Accept invite",
+                        inviteLink,
+                        [
+                            $"Role: {notification.Role}",
+                            $"This invitation expires on {FormatTimestamp(notification.ExpiresAtUtc)}."
+                        ],
+                        "Accept the invite using the same email address that received it. If you need a new link, ask your workspace admin to resend the invite.",
+                        "RootFlow workspace invites are single-use and switch your session into the invited workspace after acceptance.")),
+                cancellationToken);
+
+            return;
+        }
+
         if (_hostEnvironment.IsDevelopment() || _hostEnvironment.IsEnvironment("IntegrationTesting"))
         {
             _logger.LogInformation(
@@ -37,44 +76,21 @@ public sealed class LoggingWorkspaceInvitationNotifier : IWorkspaceInvitationNot
                 notification.Role,
                 notification.ExpiresAtUtc);
 
-            return Task.CompletedTask;
+            return;
         }
 
         _logger.LogWarning(
-            "Workspace invite requested for {Email}, but no outbound email provider is configured. Replace {NotifierType} with a real email sender before enabling invites in production.",
-            notification.Email,
-            nameof(LoggingWorkspaceInvitationNotifier));
-
-        return Task.CompletedTask;
+            "Workspace invite requested for {Email}, but outbound email is not configured. Set the ROOTFLOW_EMAIL_* variables to enable real delivery.",
+            notification.Email);
     }
 
-    private string BuildInviteLink(string token)
+    private string BuildInviteLink(string token, bool requireAbsoluteUrl)
     {
-        var baseUrl = ResolveFrontendBaseUrl();
-        if (string.IsNullOrWhiteSpace(baseUrl))
-        {
-            return $"/auth/invite?token={Uri.EscapeDataString(token)}";
-        }
-
-        var normalizedBaseUrl = baseUrl.EndsWith("/", StringComparison.Ordinal)
-            ? baseUrl
-            : $"{baseUrl}/";
-
-        return $"{normalizedBaseUrl}auth/invite?token={Uri.EscapeDataString(token)}";
+        return _appLinkBuilder.BuildWorkspaceInviteLink(token, requireAbsoluteUrl);
     }
 
-    private string ResolveFrontendBaseUrl()
+    private static string FormatTimestamp(DateTime value)
     {
-        if (!string.IsNullOrWhiteSpace(_options.FrontendBaseUrl))
-        {
-            return _options.FrontendBaseUrl.Trim();
-        }
-
-        if (_hostEnvironment.IsDevelopment() || _hostEnvironment.IsEnvironment("IntegrationTesting"))
-        {
-            return "http://localhost:5173";
-        }
-
-        return string.Empty;
+        return value.ToUniversalTime().ToString("MMMM d, yyyy 'at' h:mm tt 'UTC'", CultureInfo.InvariantCulture);
     }
 }

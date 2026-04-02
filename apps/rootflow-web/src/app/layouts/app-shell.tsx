@@ -56,7 +56,7 @@ export function AppShell() {
           <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-full max-w-[320px] flex-col border-r border-border/80 bg-background/96 p-5 shadow-[0_24px_60px_-28px_rgba(15,37,79,0.28)] backdrop-blur-2xl focus:outline-none lg:hidden">
             <Dialog.Title className="sr-only">Navigation</Dialog.Title>
             <div className="flex items-center justify-between">
-              <RootFlowBrand variant="logo" size="sm" />
+              <RootFlowBrand variant="logo" size="sm" className="h-9" />
               <Dialog.Close asChild>
                 <Button variant="outline" size="icon" aria-label="Close navigation">
                   <X />

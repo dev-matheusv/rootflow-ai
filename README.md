@@ -204,6 +204,14 @@ Important runtime settings:
 - `DATABASE_URL`
 - `ConnectionStrings__Postgres`
 - `ROOTFLOW_ALLOWED_ORIGINS`
+- `ROOTFLOW_FRONTEND_BASE_URL`
+- `ROOTFLOW_EMAIL_FROM_ADDRESS`
+- `ROOTFLOW_EMAIL_FROM_NAME`
+- `ROOTFLOW_EMAIL_SMTP_HOST`
+- `ROOTFLOW_EMAIL_SMTP_PORT`
+- `ROOTFLOW_EMAIL_SMTP_USERNAME`
+- `ROOTFLOW_EMAIL_SMTP_PASSWORD`
+- `ROOTFLOW_EMAIL_SMTP_ENABLE_SSL`
 - `OPENAI_API_KEY`
 - `AI__Mode`
 - `OpenAI__BaseUrl`
@@ -215,6 +223,7 @@ Precedence notes:
 
 - `ROOTFLOW_DATABASE_URL` and `DATABASE_URL` override `ConnectionStrings:Postgres`
 - `ROOTFLOW_JWT_KEY` overrides `Jwt:Key`
+- `ROOTFLOW_FRONTEND_BASE_URL` overrides both `PasswordReset:FrontendBaseUrl` and `WorkspaceInvitations:FrontendBaseUrl`
 - `OPENAI_API_KEY` overrides `OpenAI:ApiKey`
 
 See [deployment.md](C:/RootFlow/docs/deployment.md) for deploy-specific steps.

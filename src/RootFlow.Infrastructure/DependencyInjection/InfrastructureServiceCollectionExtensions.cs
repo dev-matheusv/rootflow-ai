@@ -20,6 +20,7 @@ using RootFlow.Infrastructure.AI;
 using RootFlow.Infrastructure.Auth;
 using RootFlow.Infrastructure.Configuration;
 using RootFlow.Infrastructure.Documents;
+using RootFlow.Infrastructure.Email;
 using RootFlow.Infrastructure.Persistence;
 using RootFlow.Infrastructure.Search;
 using RootFlow.Infrastructure.Storage;
@@ -42,6 +43,7 @@ public static class InfrastructureServiceCollectionExtensions
         }
 
         services.Configure<AiOptions>(configuration.GetSection("AI"));
+        services.Configure<EmailDeliveryOptions>(configuration.GetSection("EmailDelivery"));
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
         services.Configure<PasswordResetOptions>(configuration.GetSection("PasswordReset"));
         services.Configure<StorageOptions>(configuration.GetSection("Storage"));
@@ -65,6 +67,37 @@ public static class InfrastructureServiceCollectionExtensions
                 configuration["WorkspaceInvitations:FrontendBaseUrl"],
                 options.FrontendBaseUrl) ?? string.Empty;
         });
+        services.PostConfigure<EmailDeliveryOptions>(options =>
+        {
+            options.FromAddress = FirstNonEmpty(
+                configuration["ROOTFLOW_EMAIL_FROM_ADDRESS"],
+                configuration["EmailDelivery:FromAddress"],
+                options.FromAddress) ?? string.Empty;
+            options.FromName = FirstNonEmpty(
+                configuration["ROOTFLOW_EMAIL_FROM_NAME"],
+                configuration["EmailDelivery:FromName"],
+                options.FromName) ?? options.FromName;
+            options.SmtpHost = FirstNonEmpty(
+                configuration["ROOTFLOW_EMAIL_SMTP_HOST"],
+                configuration["EmailDelivery:SmtpHost"],
+                options.SmtpHost) ?? string.Empty;
+            options.SmtpPort = FirstParsedInt(
+                    configuration["ROOTFLOW_EMAIL_SMTP_PORT"],
+                    configuration["EmailDelivery:SmtpPort"])
+                ?? options.SmtpPort;
+            options.SmtpUsername = FirstNonEmpty(
+                configuration["ROOTFLOW_EMAIL_SMTP_USERNAME"],
+                configuration["EmailDelivery:SmtpUsername"],
+                options.SmtpUsername) ?? string.Empty;
+            options.SmtpPassword = FirstNonEmpty(
+                configuration["ROOTFLOW_EMAIL_SMTP_PASSWORD"],
+                configuration["EmailDelivery:SmtpPassword"],
+                options.SmtpPassword) ?? string.Empty;
+            options.SmtpEnableSsl = FirstParsedBool(
+                    configuration["ROOTFLOW_EMAIL_SMTP_ENABLE_SSL"],
+                    configuration["EmailDelivery:SmtpEnableSsl"])
+                ?? options.SmtpEnableSsl;
+        });
 
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton(_ =>
@@ -75,6 +108,8 @@ public static class InfrastructureServiceCollectionExtensions
         });
 
         services.AddSingleton<PostgresDatabaseInitializer>();
+        services.AddSingleton<RootFlowAppLinkBuilder>();
+        services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
         services.AddScoped<IFileStorage, LocalFileStorage>();
         services.AddScoped<IDocumentTextExtractor, SimpleDocumentTextExtractor>();
@@ -247,5 +282,31 @@ public static class InfrastructureServiceCollectionExtensions
     private static string? FirstNonEmpty(params string?[] values)
     {
         return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+    }
+
+    private static int? FirstParsedInt(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (int.TryParse(value, out var parsedValue))
+            {
+                return parsedValue;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool? FirstParsedBool(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (bool.TryParse(value, out var parsedValue))
+            {
+                return parsedValue;
+            }
+        }
+
+        return null;
     }
 }

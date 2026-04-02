@@ -27,8 +27,6 @@ ConfigurePlatformUrlsFromPort();
 
 var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "RootFlowFrontend";
-var jwtOptions = ResolveJwtOptions(builder.Configuration);
-var allowedCorsOrigins = ResolveAllowedCorsOrigins(builder.Configuration, builder.Environment);
 
 builder.Logging.ClearProviders();
 if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("IntegrationTesting"))
@@ -51,6 +49,7 @@ builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 builder.Services.Configure<JwtOptions>(options =>
 {
+    var jwtOptions = ResolveJwtOptions(builder.Configuration);
     options.Issuer = jwtOptions.Issuer;
     options.Audience = jwtOptions.Audience;
     options.Key = jwtOptions.Key;
@@ -65,6 +64,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var jwtOptions = ResolveJwtOptions(builder.Configuration);
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -83,6 +83,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy(FrontendCorsPolicy, policy =>
     {
+        var allowedCorsOrigins = ResolveAllowedCorsOrigins(builder.Configuration, builder.Environment);
         policy.WithOrigins(allowedCorsOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
@@ -91,6 +92,7 @@ builder.Services.AddCors(options =>
 builder.Services.AddRootFlowInfrastructure(builder.Configuration);
 
 var app = builder.Build();
+var allowedCorsOrigins = ResolveAllowedCorsOrigins(app.Configuration, app.Environment);
 
 if (app.Environment.IsDevelopment())
 {
