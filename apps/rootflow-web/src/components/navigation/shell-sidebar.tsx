@@ -1,5 +1,3 @@
-import { Building2 } from "lucide-react";
-
 import { RootFlowBrand } from "@/components/branding/rootflow-brand";
 import { SidebarNav } from "@/components/navigation/sidebar-nav";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -30,49 +28,24 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
       {showBrand ? (
         <div
           className={cn(
-            "flex items-center border-b border-sidebar-border/70 pb-4",
-            collapsed ? "justify-center px-1" : "justify-start px-2",
+            "border-b border-sidebar-border/70 pb-4",
+            collapsed ? "px-1" : "px-2",
           )}
         >
           {collapsed ? (
-            <div className="flex h-11 w-11 items-center justify-center">
-              <RootFlowBrand variant="icon" size="sm" className="h-8 w-8" />
+            <div className="flex items-center justify-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-background/66">
+                <RootFlowBrand variant="icon" size="sm" className="h-8 w-8" />
+              </div>
             </div>
           ) : (
-            <div className="flex h-11 items-center">
-              <RootFlowBrand variant="logo" size="sm" className="h-8" />
-            </div>
-          )}
-        </div>
-      ) : null}
-
-      <div className={cn("flex-1", showBrand ? "mt-6" : "mt-2")}>
-        <SidebarNav collapsed={collapsed} onNavigate={onNavigate} />
-      </div>
-
-      <div
-        className={cn(
-          "mt-6 rounded-[22px] border border-sidebar-border/75 bg-background/70",
-          collapsed ? "p-2.5" : "p-3.5",
-        )}
-      >
-        {collapsed ? (
-          <div className="flex justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-background/88">
-              <Avatar className="size-10">
-                <AvatarFallback>{initials || "RF"}</AvatarFallback>
-              </Avatar>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-[16px] bg-primary/10 text-primary">
-                <Building2 className="size-5" />
+            <div className="space-y-3">
+              <div className="flex h-10 items-center">
+                <RootFlowBrand variant="logo" size="sm" className="h-7.5" />
               </div>
-              <div className="min-w-0">
+              <div className="space-y-1 px-1">
                 <div className="flex items-center gap-2">
-                  <div className="truncate text-sm font-semibold text-foreground">{workspaceName}</div>
+                  <div className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground">{workspaceName}</div>
                   <Badge variant="secondary" className="shrink-0 px-2 py-0.5 text-[10px] font-semibold">
                     {role}
                   </Badge>
@@ -80,17 +53,38 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
                 <div className="truncate text-xs text-muted-foreground">@{workspaceSlug}</div>
               </div>
             </div>
+          )}
+        </div>
+      ) : null}
 
-            <div className="mt-3 flex items-center gap-3 border-t border-border/65 pt-3">
-              <Avatar className="size-11">
+      <div className={cn("flex-1", showBrand ? "mt-5" : "mt-2")}>
+        <SidebarNav collapsed={collapsed} onNavigate={onNavigate} />
+      </div>
+
+      <div
+        className={cn(
+          "mt-5 rounded-[20px] border border-sidebar-border/70 bg-background/62",
+          collapsed ? "p-2.5" : "p-3",
+        )}
+      >
+        {collapsed ? (
+          <div className="flex justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-background/84">
+              <Avatar className="size-9">
                 <AvatarFallback>{initials || "RF"}</AvatarFallback>
               </Avatar>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-foreground">{session?.user.fullName ?? "RootFlow User"}</div>
-                <div className="truncate text-xs text-muted-foreground">{session?.user.email ?? "workspace@rootflow.local"}</div>
-              </div>
             </div>
-          </>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Avatar className="size-10">
+              <AvatarFallback>{initials || "RF"}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-foreground">{session?.user.fullName ?? "RootFlow User"}</div>
+              <div className="truncate text-xs text-muted-foreground">{session?.user.email ?? "workspace@rootflow.local"}</div>
+            </div>
+          </div>
         )}
       </div>
     </div>

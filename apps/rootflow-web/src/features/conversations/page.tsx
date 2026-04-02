@@ -45,12 +45,12 @@ export function ConversationsPage() {
   }, [conversations, requestedConversationId, setSearchParams]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Conversations"
       />
 
-      <section className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
+      <section className="grid gap-3 xl:grid-cols-[0.82fr_1.18fr]">
         <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
             <CardTitle>Sessions</CardTitle>

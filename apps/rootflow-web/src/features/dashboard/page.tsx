@@ -37,7 +37,7 @@ export function DashboardPage() {
   ] as const;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Overview"
         actions={
@@ -52,7 +52,7 @@ export function DashboardPage() {
         }
       />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {documentsQuery.isLoading || healthQuery.isLoading || conversationsQuery.isLoading ? (
           <div className="md:col-span-2 xl:col-span-4">
             <LoadingState
@@ -78,7 +78,7 @@ export function DashboardPage() {
 
             return (
               <Card key={metric.label} className="border-border/70 bg-background/72 shadow-none">
-                <CardContent className="space-y-3 p-5">
+                <CardContent className="space-y-2.5 p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <Icon className="size-5" />
@@ -87,7 +87,7 @@ export function DashboardPage() {
                   </div>
                   <div className="space-y-1.5">
                     <div className="text-sm text-muted-foreground">{metric.label}</div>
-                    <div className="font-display text-[1.9rem] tracking-[-0.05em] text-foreground">{metric.value}</div>
+                    <div className="font-display text-[1.75rem] tracking-[-0.045em] text-foreground">{metric.value}</div>
                   </div>
                 </CardContent>
               </Card>
@@ -96,7 +96,7 @@ export function DashboardPage() {
         )}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+      <section className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
         <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
             <CardTitle>Workspace</CardTitle>

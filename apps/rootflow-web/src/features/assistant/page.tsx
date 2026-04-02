@@ -94,7 +94,7 @@ export function AssistantPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Assistant"
         actions={
@@ -115,8 +115,8 @@ export function AssistantPage() {
         }
       />
 
-      <section className="grid gap-4 xl:grid-cols-[1.22fr_0.78fr]">
-        <div className="space-y-4">
+      <section className="grid gap-3 xl:grid-cols-[1.22fr_0.78fr]">
+        <div className="space-y-3">
           <Card className="border-border/70 bg-background/72 shadow-none">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
@@ -152,7 +152,7 @@ export function AssistantPage() {
                         }
                       />
                     ) : (
-                      <div className="rounded-[28px] border border-border/80 bg-background/70 p-4 sm:p-5">
+                      <div className="rounded-[24px] border border-border/75 bg-background/66 p-4 sm:p-5">
                         <div className="space-y-6">
                           {messages.map((message) => {
                             const isUser = message.role === 2;
@@ -187,7 +187,7 @@ export function AssistantPage() {
                     )}
 
                     {askQuestionMutation.isPending ? (
-                      <div className="rounded-[26px] border border-border/80 bg-white px-5 py-4 dark:bg-[#1a2230]">
+                      <div className="rounded-[22px] border border-border/75 bg-white/92 px-5 py-4 dark:bg-[#1a2230]">
                         <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/90">
                           <LoaderCircle className="size-3.5 animate-spin" />
                           RootFlow
@@ -219,7 +219,7 @@ export function AssistantPage() {
             </CardHeader>
             <CardContent>
               <form
-                className="rounded-[28px] border border-border/80 bg-background/78 p-4"
+                className="rounded-[24px] border border-border/75 bg-background/74 p-4"
                 onSubmit={submitQuestion}
               >
                 <div className="rounded-[24px] border border-border/75 bg-background/88 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/28 focus-within:bg-background focus-within:shadow-[0_16px_32px_-26px_rgba(37,99,235,0.18)]">

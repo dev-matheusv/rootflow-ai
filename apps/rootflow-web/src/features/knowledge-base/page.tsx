@@ -42,7 +42,7 @@ export function KnowledgeBasePage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Knowledge Base"
         actions={
@@ -66,7 +66,7 @@ export function KnowledgeBasePage() {
         }
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ["Documents", documents.length],
           ["Ready", processedCount],
@@ -74,15 +74,15 @@ export function KnowledgeBasePage() {
           ["Failed", failedCount],
         ].map(([label, value]) => (
           <Card key={label} className="border-border/70 bg-background/72 shadow-none">
-            <CardContent className="space-y-1 p-5">
+            <CardContent className="space-y-1 p-4">
               <div className="text-sm text-muted-foreground">{label}</div>
-              <div className="font-display text-[1.9rem] tracking-[-0.05em] text-foreground">{value}</div>
+              <div className="font-display text-[1.75rem] tracking-[-0.045em] text-foreground">{value}</div>
             </CardContent>
           </Card>
         ))}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+      <section className="grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">

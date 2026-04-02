@@ -1,7 +1,5 @@
 import { LoaderCircle } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
 interface LoadingStateProps {
   title: string;
   description: string;
@@ -9,19 +7,17 @@ interface LoadingStateProps {
 
 export function LoadingState({ title, description }: LoadingStateProps) {
   return (
-    <Card className="border-border/80 bg-card/94">
-      <CardHeader className="gap-3">
+    <div className="rounded-[22px] border border-border/75 bg-background/56 p-5">
+      <div className="flex flex-col gap-3">
         <div className="flex size-12 items-center justify-center rounded-2xl border border-primary/12 bg-primary/8 text-primary">
           <LoaderCircle className="size-5 animate-spin" />
         </div>
         <div className="space-y-1">
           <div className="text-xs font-semibold uppercase tracking-[0.2em] text-primary/75">Loading</div>
-          <CardTitle>{title}</CardTitle>
+          <h3 className="font-display text-[1rem] font-medium tracking-[-0.03em] text-foreground">{title}</h3>
+          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm leading-7 text-muted-foreground">{description}</p>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

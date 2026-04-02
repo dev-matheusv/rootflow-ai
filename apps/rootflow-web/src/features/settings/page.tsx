@@ -39,7 +39,7 @@ export function SettingsPage() {
   const SelectedIcon = selectedSection.icon;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Settings"
         actions={
@@ -54,7 +54,7 @@ export function SettingsPage() {
         }
       />
 
-      <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <section className="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
             <CardTitle>Sections</CardTitle>
