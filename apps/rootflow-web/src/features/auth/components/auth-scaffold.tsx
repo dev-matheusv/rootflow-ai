@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { RootFlowLogo } from "@/components/branding/rootflow-logo";
+import { RootFlowBrand } from "@/components/branding/rootflow-brand";
 import { Badge } from "@/components/ui/badge";
 
 interface AuthScaffoldProps {
@@ -26,11 +26,15 @@ export function AuthScaffold({ badge, title, description, highlights, children }
       <div className="relative mx-auto flex min-h-screen max-w-[1320px] items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-6 lg:grid-cols-[1.04fr_0.96fr]">
           <section className="rounded-[34px] border border-border/70 bg-card/82 p-6 shadow-[0_28px_70px_-48px_rgba(16,36,71,0.16)] backdrop-blur-2xl sm:p-8 lg:p-10">
-            <RootFlowLogo
-              variant="banner"
-              className="mb-6"
-              tagline="Premium grounded knowledge for modern teams"
-            />
+            <div className="relative mb-6 overflow-hidden rounded-[28px] border border-white/20 bg-[linear-gradient(135deg,#092f7a_0%,#0b4ec5_46%,#1493e8_100%)] px-6 py-6 text-white shadow-[0_28px_80px_-52px_rgba(7,65,169,0.7)]">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(255,255,255,0.24),transparent_34%),radial-gradient(circle_at_100%_100%,rgba(255,255,255,0.14),transparent_30%)]" />
+              <div className="relative space-y-6">
+                <RootFlowBrand variant="dark-mark" size="lg" className="max-w-[18rem] sm:max-w-[20rem]" />
+                <p className="max-w-lg text-sm leading-7 text-white/82 sm:text-base">
+                  Premium grounded knowledge for modern teams, with a calmer product surface and consistent brand treatment.
+                </p>
+              </div>
+            </div>
             <Badge className="w-fit">{badge}</Badge>
             <div className="mt-6 max-w-2xl space-y-4">
               <h1 className="font-display text-4xl tracking-[-0.07em] text-foreground sm:text-[3.25rem]">{title}</h1>
@@ -48,6 +52,9 @@ export function AuthScaffold({ badge, title, description, highlights, children }
           </section>
 
           <section className="rounded-[34px] border border-border/70 bg-card/88 p-5 shadow-[0_28px_70px_-48px_rgba(16,36,71,0.16)] backdrop-blur-2xl sm:p-6 lg:p-8">
+            <div className="mb-8">
+              <RootFlowBrand variant="logo" size="lg" className="h-14 sm:h-16" />
+            </div>
             {children}
           </section>
         </div>

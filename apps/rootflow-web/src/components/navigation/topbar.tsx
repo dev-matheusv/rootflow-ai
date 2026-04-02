@@ -1,7 +1,7 @@
 import { BellDot, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { RootFlowLogo } from "@/components/branding/rootflow-logo";
+import { RootFlowBrand } from "@/components/branding/rootflow-brand";
 import { ApiBaseUrlIndicator } from "@/components/diagnostics/api-base-url-indicator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +41,7 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
                 {isDesktop ? isSidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose /> : <PanelLeftOpen />}
               </Button>
 
-              <RootFlowLogo variant={isDesktop ? "lockup" : "icon"} tagline="Knowledge assistant SaaS" />
+              <RootFlowBrand variant={isDesktop ? "logo" : "icon"} size={isDesktop ? "sm" : "sm"} />
 
               <div className="hidden min-w-0 items-center gap-3 lg:flex">
                 <Badge variant="success">

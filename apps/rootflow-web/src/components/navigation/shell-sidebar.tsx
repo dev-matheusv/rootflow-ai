@@ -1,6 +1,6 @@
 import { Building2, LogOut, Orbit } from "lucide-react";
 
-import { RootFlowLogo } from "@/components/branding/rootflow-logo";
+import { RootFlowBrand } from "@/components/branding/rootflow-brand";
 import { SidebarNav } from "@/components/navigation/sidebar-nav";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -11,9 +11,10 @@ import { cn } from "@/lib/utils";
 interface ShellSidebarProps {
   collapsed?: boolean;
   onNavigate?: () => void;
+  showBrand?: boolean;
 }
 
-export function ShellSidebar({ collapsed = false, onNavigate }: ShellSidebarProps) {
+export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }: ShellSidebarProps) {
   const { logout, session } = useAuth();
   const workspaceName = session?.workspace.name ?? "Workspace";
   const workspaceSlug = session?.workspace.slug ?? "workspace";
@@ -27,18 +28,20 @@ export function ShellSidebar({ collapsed = false, onNavigate }: ShellSidebarProp
 
   return (
     <div className="flex h-full flex-col">
-      <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between gap-3")}>
-        {collapsed ? (
-          <RootFlowLogo variant="icon" />
-        ) : (
-          <>
-            <RootFlowLogo tagline="Knowledge assistant SaaS" />
-            <Badge variant="secondary">Beta</Badge>
-          </>
-        )}
-      </div>
+      {showBrand ? (
+        <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between gap-3")}>
+          {collapsed ? (
+            <RootFlowBrand variant="icon" size="md" />
+          ) : (
+            <>
+              <RootFlowBrand variant="logo" size="sm" />
+              <Badge variant="secondary">Beta</Badge>
+            </>
+          )}
+        </div>
+      ) : null}
 
-      <div className={cn("flex-1", collapsed ? "mt-8" : "mt-10")}>
+      <div className={cn("flex-1", showBrand ? (collapsed ? "mt-8" : "mt-10") : "mt-2")}>
         <SidebarNav collapsed={collapsed} onNavigate={onNavigate} />
       </div>
 
