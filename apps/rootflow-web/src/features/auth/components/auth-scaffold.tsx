@@ -17,31 +17,31 @@ interface AuthScaffoldProps {
 export function AuthScaffold({ badge, title, description, highlights, children }: AuthScaffoldProps) {
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 opacity-[0.88]">
-        <div className="absolute left-[-16%] top-[-18%] h-[34rem] w-[34rem] rounded-full bg-[radial-gradient(circle,_rgba(73,119,219,0.16),transparent_62%)] blur-3xl" />
-        <div className="absolute right-[-12%] top-[16%] h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(circle,_rgba(164,208,255,0.18),transparent_58%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(54,74,110,0.28),transparent_58%)]" />
-        <div className="absolute bottom-[-18%] left-[24%] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,_rgba(103,138,216,0.14),transparent_65%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(36,49,80,0.26),transparent_65%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.82]">
+        <div className="absolute left-[-16%] top-[-18%] h-[34rem] w-[34rem] rounded-full bg-[radial-gradient(circle,_rgba(73,119,219,0.14),transparent_62%)] blur-3xl" />
+        <div className="absolute right-[-12%] top-[16%] h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(circle,_rgba(164,208,255,0.14),transparent_58%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(54,74,110,0.24),transparent_58%)]" />
+        <div className="absolute bottom-[-18%] left-[24%] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,_rgba(103,138,216,0.1),transparent_65%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(36,49,80,0.22),transparent_65%)]" />
       </div>
 
       <div className="relative mx-auto flex min-h-screen max-w-[1320px] items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-6 lg:grid-cols-[1.04fr_0.96fr]">
-          <section className="rounded-[34px] border border-border/70 bg-card/82 p-6 shadow-[0_28px_70px_-48px_rgba(16,36,71,0.16)] backdrop-blur-2xl sm:p-8 lg:p-10">
-            <div className="relative mb-7 overflow-hidden rounded-[30px] bg-[linear-gradient(140deg,#072255_0%,#0b3e97_46%,#0f63ec_100%)] px-6 py-6 text-white shadow-[0_26px_68px_-54px_rgba(7,65,169,0.52)] sm:px-7 sm:py-7 lg:px-8 lg:py-8">
+          <section className="rounded-[32px] border border-border/65 bg-card/84 p-6 shadow-[0_24px_60px_-46px_rgba(16,36,71,0.14)] backdrop-blur-2xl sm:p-8 lg:p-10">
+            <div className="relative mb-7 overflow-hidden rounded-[28px] bg-[linear-gradient(140deg,#08275f_0%,#0b438f_48%,#0e62d9_100%)] px-6 py-6 text-white shadow-[0_24px_56px_-48px_rgba(7,65,169,0.44)] sm:px-7 sm:py-7 lg:px-8 lg:py-8">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(255,255,255,0.14),transparent_34%),radial-gradient(circle_at_100%_100%,rgba(255,255,255,0.06),transparent_26%)]" />
-              <div className="relative grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-center">
-                <div className="space-y-3">
+              <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.86fr)] lg:items-center">
+                <div className="space-y-3 lg:max-w-sm">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/62">
                     RootFlow
                   </div>
                   <p className="max-w-sm text-sm leading-7 text-white/82 sm:text-base">
-                    Premium grounded knowledge for modern teams, with a calmer product surface and consistent brand treatment.
+                    Grounded knowledge for modern teams, presented with a calmer and more consistent product surface.
                   </p>
                 </div>
-                <div className="flex w-full justify-center pt-1 lg:justify-end lg:pt-0">
+                <div className="flex w-full justify-center pt-1 lg:justify-center lg:pt-0">
                   <RootFlowBrand
                     variant="mark"
                     size="lg"
-                    className="h-32 max-w-none object-contain sm:h-36 lg:h-[12.5rem]"
+                    className="h-32 max-w-none object-contain sm:h-36 lg:h-[12rem]"
                   />
                 </div>
               </div>
@@ -54,7 +54,7 @@ export function AuthScaffold({ badge, title, description, highlights, children }
 
             <div className="mt-10 grid gap-4 sm:grid-cols-2">
               {highlights.map((highlight) => (
-                <div key={highlight.title} className="rounded-[26px] border border-border/70 bg-background/72 p-5">
+                <div key={highlight.title} className="rounded-[24px] border border-border/65 bg-background/62 p-5">
                   <div className="text-sm font-semibold tracking-[-0.01em] text-foreground">{highlight.title}</div>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">{highlight.description}</p>
                 </div>
@@ -62,8 +62,8 @@ export function AuthScaffold({ badge, title, description, highlights, children }
             </div>
           </section>
 
-          <section className="rounded-[34px] border border-border/70 bg-card/88 p-5 shadow-[0_28px_70px_-48px_rgba(16,36,71,0.16)] backdrop-blur-2xl sm:p-6 lg:p-8">
-            <div className="mb-8 flex items-center">
+          <section className="rounded-[32px] border border-border/65 bg-card/88 p-5 shadow-[0_24px_60px_-46px_rgba(16,36,71,0.14)] backdrop-blur-2xl sm:p-6 lg:p-8">
+            <div className="mb-7 flex items-center">
               <RootFlowBrand variant="logo" size="lg" className="h-[4.35rem] max-w-none sm:h-[4.75rem]" />
             </div>
             {children}

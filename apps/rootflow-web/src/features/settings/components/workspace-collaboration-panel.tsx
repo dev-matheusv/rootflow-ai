@@ -46,14 +46,14 @@ export function WorkspaceCollaborationPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="border-border/75 bg-background/72">
+      <div className="grid gap-4 xl:grid-cols-[0.88fr_1.12fr]">
+        <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
-            <CardTitle>Workspace access</CardTitle>
-            <CardDescription>Members inherit the current workspace boundary for documents, chat, and conversation history.</CardDescription>
+            <CardTitle>Workspace context</CardTitle>
+            <CardDescription>Access stays scoped to the active workspace and membership role.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-[22px] border border-border/75 bg-card/88 p-4">
+            <div className="rounded-[22px] border border-border/70 bg-card/72 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <ShieldCheck className="size-4 text-primary" />
                 Current workspace
@@ -67,24 +67,24 @@ export function WorkspaceCollaborationPanel() {
               </div>
             </div>
 
-            <div className="rounded-[22px] border border-border/75 bg-card/88 p-4">
+            <div className="rounded-[22px] border border-border/70 bg-card/72 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <Clock3 className="size-4 text-primary" />
                 Invite behavior
               </div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Invite links are time-bound and single-use. RootFlow emails them when outbound delivery is configured and keeps a safe log fallback in local development.
+                Invite links are time-bound and single-use. When outbound email is configured, RootFlow sends them directly and preserves a safe local fallback in development.
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-border/75 bg-background/72">
+        <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
             <CardTitle>Invite collaborators</CardTitle>
             <CardDescription>
               {canInvite
-                ? "Send a real email invitation into this workspace without changing the existing auth or session flow."
+                ? "Send a collaborator invite into this workspace without changing the existing auth or session flow."
                 : "Only owners and admins can invite new members into this workspace."}
             </CardDescription>
           </CardHeader>
@@ -144,28 +144,28 @@ export function WorkspaceCollaborationPanel() {
                   className="w-full justify-between"
                   disabled={inviteMutation.isPending || email.trim().length === 0}
                 >
-                  {inviteMutation.isPending ? "Preparing invite..." : "Send workspace invite"}
+                  {inviteMutation.isPending ? "Preparing invite..." : "Send invite"}
                   <MailPlus />
                 </Button>
               </form>
             ) : (
-              <div className="rounded-[22px] border border-border/75 bg-card/88 px-4 py-4 text-sm leading-6 text-muted-foreground">
-                Your current role is <span className="font-semibold text-foreground">{currentRole}</span>. You can still review who is in
-                the workspace below.
+              <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm leading-6 text-muted-foreground">
+                Your current role is <span className="font-semibold text-foreground">{currentRole}</span>. You can still review the current
+                workspace members below.
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <Card className="border-border/75 bg-background/72">
+      <Card className="border-border/70 bg-background/72 shadow-none">
         <CardHeader>
           <CardTitle>Workspace members</CardTitle>
           <CardDescription>Everyone listed here can collaborate inside the current workspace boundary.</CardDescription>
         </CardHeader>
         <CardContent>
           {membersQuery.isLoading ? (
-            <div className="rounded-[22px] border border-border/75 bg-card/88 px-4 py-4 text-sm text-muted-foreground">
+            <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm text-muted-foreground">
               Loading workspace members...
             </div>
           ) : membersQuery.error ? (
@@ -179,7 +179,7 @@ export function WorkspaceCollaborationPanel() {
               {membersQuery.data.map((member) => (
                 <div
                   key={member.userId}
-                  className="flex flex-col gap-3 rounded-[24px] border border-border/75 bg-card/88 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-[22px] border border-border/70 bg-card/72 p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -193,15 +193,13 @@ export function WorkspaceCollaborationPanel() {
                     <Badge variant={member.role === "Owner" ? "default" : member.role === "Admin" ? "success" : "secondary"}>
                       {member.role}
                     </Badge>
-                    <div className="text-xs text-muted-foreground">
-                      Joined {new Date(member.createdAtUtc).toLocaleDateString()}
-                    </div>
+                    <div className="text-xs text-muted-foreground">Joined {new Date(member.createdAtUtc).toLocaleDateString()}</div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="rounded-[22px] border border-border/75 bg-card/88 px-4 py-4 text-sm text-muted-foreground">
+            <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm text-muted-foreground">
               No members are attached to this workspace yet.
             </div>
           )}

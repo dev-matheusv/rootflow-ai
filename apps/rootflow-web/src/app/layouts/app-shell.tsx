@@ -17,17 +17,17 @@ export function AppShell() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
-      <div className="pointer-events-none absolute inset-0 opacity-[0.85]">
-        <div className="absolute left-[-10%] top-[-14%] h-[32rem] w-[32rem] rounded-full bg-[radial-gradient(circle,_rgba(66,132,255,0.16),transparent_64%)] blur-3xl" />
-        <div className="absolute right-[-8%] top-[12%] h-[26rem] w-[26rem] rounded-full bg-[radial-gradient(circle,_rgba(168,217,255,0.22),transparent_60%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(54,74,110,0.24),transparent_60%)]" />
-        <div className="absolute bottom-[-18%] left-[28%] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,_rgba(65,104,186,0.12),transparent_66%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(43,62,94,0.18),transparent_66%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.68]">
+        <div className="absolute left-[-10%] top-[-14%] h-[30rem] w-[30rem] rounded-full bg-[radial-gradient(circle,_rgba(66,132,255,0.12),transparent_64%)] blur-3xl" />
+        <div className="absolute right-[-8%] top-[12%] h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(circle,_rgba(168,217,255,0.16),transparent_60%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(54,74,110,0.2),transparent_60%)]" />
+        <div className="absolute bottom-[-18%] left-[28%] h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(circle,_rgba(65,104,186,0.08),transparent_66%)] blur-3xl dark:bg-[radial-gradient(circle,_rgba(43,62,94,0.14),transparent_66%)]" />
       </div>
 
       <div className="relative mx-auto flex min-h-screen max-w-[1680px]">
         {isDesktop ? (
           <aside
             className={cn(
-              "hidden min-h-screen shrink-0 border-r border-sidebar-border/80 bg-sidebar/88 px-4 py-6 shadow-[16px_0_48px_-44px_rgba(15,37,79,0.18)] backdrop-blur-2xl lg:flex lg:flex-col",
+              "hidden min-h-screen shrink-0 border-r border-sidebar-border/70 bg-sidebar/82 px-4 py-6 shadow-[14px_0_40px_-42px_rgba(15,37,79,0.16)] backdrop-blur-2xl lg:flex lg:flex-col",
               isDesktopSidebarCollapsed ? "w-[112px]" : "w-[292px]",
             )}
           >
@@ -43,7 +43,7 @@ export function AppShell() {
             onToggleSidebar={() => setIsDesktopSidebarCollapsed((value) => !value)}
           />
           <main className="flex-1 px-4 pb-8 pt-5 sm:px-6 sm:pb-10 sm:pt-6 lg:px-8 lg:pb-12 lg:pt-7">
-            <div className="mx-auto max-w-[1320px] space-y-8">
+            <div className="mx-auto max-w-[1320px] space-y-6">
               <Outlet />
             </div>
           </main>
@@ -53,7 +53,7 @@ export function AppShell() {
       <Dialog.Root open={!isDesktop && isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-40 bg-slate-950/32 backdrop-blur-sm lg:hidden" />
-          <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-full max-w-[320px] flex-col border-r border-border/80 bg-background/96 p-5 shadow-[0_24px_60px_-28px_rgba(15,37,79,0.28)] backdrop-blur-2xl focus:outline-none lg:hidden">
+          <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-full max-w-[320px] flex-col border-r border-border/75 bg-background/94 p-5 shadow-[0_24px_52px_-30px_rgba(15,37,79,0.24)] backdrop-blur-2xl focus:outline-none lg:hidden">
             <Dialog.Title className="sr-only">Navigation</Dialog.Title>
             <div className="flex items-center justify-between">
               <RootFlowBrand variant="logo" size="sm" className="h-9" />

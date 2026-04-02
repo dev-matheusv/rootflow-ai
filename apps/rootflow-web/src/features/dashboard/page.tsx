@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader } from "@/components/ui/page-header";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/features/auth/auth-provider";
-import { useConversationsQuery, useHealthQuery, useDocumentsQuery } from "@/hooks/use-rootflow-data";
+import { useConversationsQuery, useDocumentsQuery, useHealthQuery } from "@/hooks/use-rootflow-data";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 
 export function DashboardPage() {
@@ -26,13 +26,13 @@ export function DashboardPage() {
   const latestConversation = conversations[0];
 
   const metrics = [
-    { label: "Knowledge sources", value: String(documents.length), note: "Live count from /api/documents", icon: BookOpenText },
+    { label: "Knowledge sources", value: String(documents.length), note: "Current workspace documents", icon: BookOpenText },
     { label: "Processed documents", value: String(processedCount), note: "Ready for grounded retrieval", icon: Bot },
-    { label: "Stored sessions", value: String(conversations.length), note: "Live count from /api/conversations", icon: MessagesSquare },
+    { label: "Stored sessions", value: String(conversations.length), note: "Saved assistant conversations", icon: MessagesSquare },
     {
       label: "API health",
       value: healthQuery.data?.status === "healthy" ? "Healthy" : "Checking",
-      note: "Derived from the RootFlow health endpoint",
+      note: "Live backend status",
       icon: DatabaseZap,
     },
   ] as const;
@@ -40,9 +40,9 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Command Center"
-        title="Run the RootFlow workspace from one clear command center."
-        description="This dashboard stays focused on the signals that matter most: knowledge readiness, assistant activity, and the health of the live product surface."
+        eyebrow="Overview"
+        title="A calmer view of the active workspace."
+        description="Track knowledge readiness, assistant activity, and workspace health without unnecessary visual competition."
         actions={
           <>
             <Button asChild>
@@ -55,59 +55,69 @@ export function DashboardPage() {
         }
       />
 
-      <section className="grid gap-4 xl:grid-cols-[1.4fr_0.9fr]">
-        <Card className="overflow-hidden">
-          <CardContent className="relative p-0">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(36,103,255,0.14),transparent_45%,rgba(129,207,255,0.18))]" />
-            <div className="relative flex flex-col gap-8 p-6 md:p-8">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge>Premium SaaS shell</Badge>
-                <Badge variant="secondary">JWT auth live</Badge>
-                <Badge variant="secondary">{session?.workspace.name ?? "Workspace"} active</Badge>
-              </div>
-              <div className="max-w-2xl space-y-3">
-                <h2 className="font-display text-3xl leading-tight tracking-[-0.05em] text-foreground md:text-[2.6rem]">
-                  A calmer workspace with the core signals kept close at hand.
-                </h2>
-                <p className="text-base leading-8 text-muted-foreground">
-                  Documents, grounded answers, and conversations are all scoped to the authenticated workspace, with less visual noise competing for attention.
+      <section className="grid gap-4 xl:grid-cols-[1.18fr_0.82fr]">
+        <Card className="border-border/70 bg-background/72 shadow-none">
+          <CardContent className="flex h-full flex-col gap-6 p-6 md:p-8">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{session?.workspace.name ?? "Workspace"}</Badge>
+              <Badge variant="secondary">{session?.role ?? "Member"}</Badge>
+            </div>
+            <div className="max-w-2xl space-y-3">
+              <h2 className="font-display text-3xl leading-tight tracking-[-0.05em] text-foreground md:text-[2.5rem]">
+                The essentials for this workspace, kept close at hand.
+              </h2>
+              <p className="text-base leading-7 text-muted-foreground">
+                Documents, grounded answers, and conversations stay scoped to the active workspace so the product surface can stay focused.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[22px] border border-border/65 bg-card/72 p-4">
+                <div className="text-sm font-semibold text-foreground">Workspace context</div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {session
+                    ? `${session.workspace.name} is active as ${session.role}.`
+                    : "The authenticated workspace is being restored."}
                 </p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {[
-                  ["Fast onboarding", "Signup provisions a user, a workspace, and an owner membership in one flow."],
-                  ["Trustworthy answers", "The assistant now keeps grounded answers inside the authenticated tenant boundary."],
-                  ["Scalable foundation", "JWT auth, memberships, and protected routes now back the premium shell."],
-                ].map(([title, detail]) => (
-                  <div key={title} className="rounded-[24px] border border-border/70 bg-background/72 p-4 backdrop-blur-sm">
-                    <div className="text-sm font-semibold text-foreground">{title}</div>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{detail}</p>
-                  </div>
-                ))}
+              <div className="rounded-[22px] border border-border/65 bg-card/72 p-4">
+                <div className="text-sm font-semibold text-foreground">Latest activity</div>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {latestConversation
+                    ? `${latestConversation.title} updated ${formatRelativeDate(latestConversation.updatedAtUtc)}.`
+                    : "No assistant conversations have been stored yet."}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
-            <CardTitle>Operational signal</CardTitle>
-            <CardDescription>A focused summary for product demos and internal review.</CardDescription>
+            <CardTitle>Workspace snapshot</CardTitle>
+            <CardDescription>The few signals worth checking first.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-4">
             {[
-              ["Frontend shell", "Complete", "The design system and protected app shell are live and consistent."],
-              ["Tenant isolation", "Live", "Documents, chat, and conversations resolve from the JWT workspace context."],
-              ["API integration", "Live", "Session restoration, auth endpoints, and workspace-scoped APIs now work together."],
-            ].map(([title, status, detail]) => (
-              <div key={title} className="space-y-2 rounded-[22px] border border-border/70 bg-secondary/35 p-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-foreground">{title}</div>
-                  <Badge variant={status === "Complete" || status === "Live" ? "success" : "warning"}>
-                    {status}
-                  </Badge>
+              ["API status", healthQuery.data?.status === "healthy" ? "Healthy" : "Checking", "Live backend health."],
+              [
+                "Documents processing",
+                `${processingCount}`,
+                processingCount === 1 ? "One document is still processing." : `${processingCount} documents are still processing.`,
+              ],
+              [
+                "Stored conversations",
+                `${conversations.length}`,
+                conversations.length === 1 ? "One conversation is stored." : `${conversations.length} conversations are stored.`,
+              ],
+            ].map(([title, value, detail]) => (
+              <div key={title} className="rounded-[22px] border border-border/65 bg-card/72 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">{title}</div>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{detail}</p>
+                  </div>
+                  <div className="text-sm font-semibold text-foreground">{value}</div>
                 </div>
-                <p className="text-sm leading-6 text-muted-foreground">{detail}</p>
               </div>
             ))}
           </CardContent>
@@ -139,10 +149,10 @@ export function DashboardPage() {
             const Icon = metric.icon;
 
             return (
-              <Card key={metric.label}>
-                <CardContent className="space-y-4 p-6">
+              <Card key={metric.label} className="border-border/70 bg-background/72 shadow-none">
+                <CardContent className="space-y-3 p-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <div className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <Icon className="size-5" />
                     </div>
                     <Activity className="size-4 text-muted-foreground" />
@@ -159,19 +169,19 @@ export function DashboardPage() {
         )}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card>
+      <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
-            <CardTitle>Product flow</CardTitle>
-            <CardDescription>How the RootFlow experience is organized for business users.</CardDescription>
+            <CardTitle>Core workflow</CardTitle>
+            <CardDescription>The product path remains intentionally simple.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {[
-              ["1. Enter a workspace", "Login or sign up to land inside a JWT-backed tenant with an assigned membership role."],
-              ["2. Capture knowledge", "Upload real documents into the current workspace from the Knowledge Base page."],
-              ["3. Ground the assistant", "Ask live questions and inspect the source-backed answer flow without leaking data across tenants."],
+              ["Enter a workspace", "Sign in to a JWT-backed workspace with the correct membership role."],
+              ["Capture knowledge", "Upload documents into the active workspace from the Knowledge Base."],
+              ["Ground the assistant", "Ask questions against workspace-scoped documents and stored conversation history."],
             ].map(([title, description], index) => (
-              <div key={title} className="flex gap-4 rounded-[24px] border border-border/70 bg-background/60 p-4">
+              <div key={title} className="flex gap-4 rounded-[22px] border border-border/65 bg-card/72 p-4">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">{index + 1}</div>
                 <div className="space-y-1">
                   <div className="text-sm font-semibold text-foreground">{title}</div>
@@ -182,13 +192,13 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
             <CardTitle>Live operating summary</CardTitle>
-            <CardDescription>Real signals derived from the current RootFlow API without local-only session shortcuts.</CardDescription>
+            <CardDescription>Current state from the active RootFlow API and workspace session.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">
+            <div className="rounded-[22px] border border-border/65 bg-card/72 p-4">
               <div className="text-sm font-semibold text-foreground">API status</div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {healthQuery.data?.status === "healthy"
@@ -196,7 +206,7 @@ export function DashboardPage() {
                   : "Waiting for the health endpoint response."}
               </p>
             </div>
-            <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">
+            <div className="rounded-[22px] border border-border/65 bg-card/72 p-4">
               <div className="text-sm font-semibold text-foreground">Current workspace</div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {session
@@ -204,13 +214,13 @@ export function DashboardPage() {
                   : "The authenticated workspace is being restored."}
               </p>
             </div>
-            <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">
+            <div className="rounded-[22px] border border-border/65 bg-card/72 p-4">
               <div className="text-sm font-semibold text-foreground">Documents still processing</div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {processingCount} document{processingCount === 1 ? "" : "s"} currently reported as processing.
               </p>
             </div>
-            <div className="rounded-[24px] border border-border/70 bg-background/60 p-4">
+            <div className="rounded-[22px] border border-border/65 bg-card/72 p-4">
               <div className="text-sm font-semibold text-foreground">Latest stored conversation</div>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {latestConversation
@@ -225,7 +235,7 @@ export function DashboardPage() {
               <EmptyState
                 icon={BookOpenText}
                 title="No live documents yet"
-                description="Upload documents first so the rest of the product can demonstrate grounded AI behavior with real data."
+                description="Upload documents first so the assistant can answer against real workspace knowledge."
               />
             ) : null}
             <Separator />

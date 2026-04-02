@@ -27,6 +27,7 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const SESSION_REVALIDATION_THROTTLE_MS = 5_000;
 
 function getSessionIdentity(session: StoredAuthSession | null) {
   if (!session) {
@@ -41,6 +42,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [storedSession, setStoredSession] = useState<StoredAuthSession | null>(() => getStoredAuthSession());
   const [status, setStatus] = useState<AuthStatus>(() => (getStoredAuthSession() ? "loading" : "unauthenticated"));
   const sessionIdentityRef = useRef<string | null>(getSessionIdentity(getStoredAuthSession()));
+  const lastRevalidationAtRef = useRef(0);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     return subscribeToAuthSession((nextSession) => {
@@ -57,6 +60,51 @@ export function AuthProvider({ children }: PropsWithChildren) {
     });
   }, [queryClient]);
 
+  async function synchronizeSession(options?: { expectedToken?: string; clearOnFailure?: boolean }) {
+    const currentSession = getStoredAuthSession();
+    const expectedToken = options?.expectedToken;
+
+    if (!currentSession) {
+      if (options?.clearOnFailure) {
+        clearStoredAuthSession();
+        setStoredSession(null);
+        setStatus("unauthenticated");
+        queryClient.clear();
+      }
+      return;
+    }
+
+    if (expectedToken && currentSession.token !== expectedToken) {
+      return;
+    }
+
+    try {
+      const session = await rootflowApi.getCurrentSession();
+      const latestSession = getStoredAuthSession();
+      if (!latestSession || (expectedToken && latestSession.token !== expectedToken)) {
+        return;
+      }
+
+      const refreshedSession: AuthResponse = {
+        ...latestSession,
+        session,
+      };
+
+      persistAuthSession(refreshedSession);
+      setStoredSession(refreshedSession);
+      setStatus("authenticated");
+    } catch {
+      if (!options?.clearOnFailure) {
+        return;
+      }
+
+      clearStoredAuthSession();
+      setStoredSession(null);
+      setStatus("unauthenticated");
+      queryClient.clear();
+    }
+  }
+
   useEffect(() => {
     const token = storedSession?.token;
 
@@ -67,41 +115,63 @@ export function AuthProvider({ children }: PropsWithChildren) {
     let isCancelled = false;
 
     void (async () => {
-      try {
-        const session = await rootflowApi.getCurrentSession();
-        if (isCancelled) {
-          return;
-        }
-
-        const currentSession = getStoredAuthSession();
-        if (!currentSession || currentSession.token !== token) {
-          return;
-        }
-
-        const refreshedSession: AuthResponse = {
-          ...currentSession,
-          session,
-        };
-
-        persistAuthSession(refreshedSession);
-        setStoredSession(refreshedSession);
-        setStatus("authenticated");
-      } catch {
-        if (isCancelled) {
-          return;
-        }
-
-        clearStoredAuthSession();
-        setStoredSession(null);
-        setStatus("unauthenticated");
-        queryClient.clear();
+      await synchronizeSession({ expectedToken: token, clearOnFailure: true });
+      if (isCancelled) {
+        return;
       }
     })();
 
     return () => {
       isCancelled = true;
     };
-  }, [queryClient, status, storedSession?.token]);
+  }, [status, storedSession?.token]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const revalidateOnForeground = () => {
+      if (status === "loading" || document.visibilityState === "hidden") {
+        return;
+      }
+
+      const currentSession = getStoredAuthSession();
+      if (!currentSession) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastRevalidationAtRef.current < SESSION_REVALIDATION_THROTTLE_MS || refreshInFlightRef.current) {
+        return;
+      }
+
+      lastRevalidationAtRef.current = now;
+      const refreshPromise = synchronizeSession({ expectedToken: currentSession.token, clearOnFailure: true }).finally(() => {
+        if (refreshInFlightRef.current === refreshPromise) {
+          refreshInFlightRef.current = null;
+        }
+      });
+
+      refreshInFlightRef.current = refreshPromise;
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        revalidateOnForeground();
+      }
+    };
+
+    window.addEventListener("focus", revalidateOnForeground);
+    window.addEventListener("pageshow", revalidateOnForeground);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", revalidateOnForeground);
+      window.removeEventListener("pageshow", revalidateOnForeground);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [queryClient, status]);
 
   async function login(payload: LoginPayload) {
     applyAuthResponse(await rootflowApi.login(payload));
@@ -126,25 +196,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   async function refresh() {
-    const existingSession = getStoredAuthSession();
-    if (!existingSession) {
-      logout();
-      return;
-    }
-
-    try {
-      const session = await rootflowApi.getCurrentSession();
-      const refreshedSession: AuthResponse = {
-        ...existingSession,
-        session,
-      };
-
-      persistAuthSession(refreshedSession);
-      setStoredSession(refreshedSession);
-      setStatus("authenticated");
-    } catch {
-      logout();
-    }
+    await synchronizeSession({ clearOnFailure: true });
   }
 
   const contextValue: AuthContextValue = {

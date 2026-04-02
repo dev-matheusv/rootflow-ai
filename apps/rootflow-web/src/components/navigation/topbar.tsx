@@ -1,4 +1,4 @@
-import { BellDot, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck } from "lucide-react";
+import { BellDot, LogOut, PanelLeftClose, PanelLeftOpen, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { RootFlowBrand } from "@/components/branding/rootflow-brand";
@@ -29,14 +29,14 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
   return (
     <header className="sticky top-0 z-30 px-4 pt-4 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1320px]">
-        <div className="rounded-[28px] border border-border/75 bg-card/82 px-4 py-3 shadow-[0_24px_60px_-42px_rgba(16,36,71,0.16)] backdrop-blur-2xl sm:px-5">
+        <div className="rounded-[26px] border border-border/65 bg-background/82 px-4 py-3 shadow-[0_20px_48px_-40px_rgba(16,36,71,0.14)] backdrop-blur-2xl sm:px-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 rounded-[22px] border border-border/72 bg-background/76 p-1.5 shadow-[0_18px_40px_-34px_rgba(16,36,71,0.16)] backdrop-blur-xl">
+              <div className="flex items-center gap-2 rounded-[20px] border border-border/65 bg-card/72 p-1.5 backdrop-blur-xl">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="rounded-[16px] bg-card/82 text-foreground shadow-[0_12px_26px_-20px_rgba(16,36,71,0.26)] hover:bg-card"
+                  className="rounded-[15px] bg-background/88 text-foreground hover:bg-background"
                   aria-label={isDesktop ? (isSidebarCollapsed ? "Expand navigation" : "Collapse navigation") : "Open navigation"}
                   onClick={isDesktop ? onToggleSidebar : onOpenNavigation}
                 >
@@ -46,23 +46,19 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
                 {isDesktop ? (
                   <RootFlowBrand variant="logo" size="sm" className="h-9 pr-1" />
                 ) : (
-                  <div className="relative flex h-11 w-11 items-center justify-center">
-                    <div className="absolute inset-0 rounded-[18px] bg-[radial-gradient(circle,_rgba(15,99,236,0.16),rgba(255,255,255,0)_74%)]" />
-                    <RootFlowBrand variant="icon" size="md" className="relative h-[2.35rem] w-[2.35rem]" />
+                  <div className="flex h-11 w-11 items-center justify-center">
+                    <RootFlowBrand variant="icon" size="md" className="h-[2.25rem] w-[2.25rem]" />
                   </div>
                 )}
               </div>
 
-              <div className="hidden min-w-0 items-center gap-3 lg:flex">
-                <Badge variant="success">
-                  <ShieldCheck className="size-3.5" />
-                  {session?.role ?? "Member"}
-                </Badge>
+              <div className="hidden min-w-0 items-center gap-2 lg:flex">
                 <div className="text-sm text-muted-foreground">
                   <span className="font-semibold text-foreground">{session?.workspace.name}</span>
                   <span className="mx-1.5 text-border">/</span>
                   <span>@{session?.workspace.slug}</span>
                 </div>
+                <Badge variant="secondary">{session?.role ?? "Member"}</Badge>
               </div>
             </div>
 
@@ -86,6 +82,10 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
                   </Link>
                 </Button>
                 <ThemeToggle />
+                <Button variant="ghost" className="gap-2 px-3 text-muted-foreground hover:text-foreground" onClick={logout}>
+                  <LogOut className="size-4" />
+                  <span className="hidden sm:inline">Sign out</span>
+                </Button>
                 <div className="flex items-center gap-3 rounded-[20px] border border-border/75 bg-background/76 px-3 py-2">
                   <Avatar className="size-9">
                     <AvatarFallback>{initials || "RF"}</AvatarFallback>
@@ -98,13 +98,9 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
               </div>
             </div>
           </div>
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-3">
-            <ApiBaseUrlIndicator />
-            <Button variant="ghost" className="px-3 text-sm text-muted-foreground hover:text-foreground" onClick={logout}>
-              Sign out
-            </Button>
-          </div>
+        </div>
+        <div className="mt-2 flex justify-end px-1">
+          <ApiBaseUrlIndicator />
         </div>
       </div>
     </header>
