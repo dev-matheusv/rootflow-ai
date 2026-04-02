@@ -15,7 +15,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\RootFlow.Application\RootFlow.Application.csproj" />
     <ProjectReference Include="..\..\src\RootFlow.Domain\RootFlow.Domain.csproj" />
+    <ProjectReference Include="..\..\src\RootFlow.Infrastructure\RootFlow.Infrastructure.csproj" />
   </ItemGroup>
 
   <ItemGroup>

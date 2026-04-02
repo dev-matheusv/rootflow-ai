@@ -41,7 +41,11 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
                 {isDesktop ? isSidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose /> : <PanelLeftOpen />}
               </Button>
 
-              <RootFlowBrand variant={isDesktop ? "logo" : "icon"} size={isDesktop ? "sm" : "sm"} />
+              <RootFlowBrand
+                variant={isDesktop ? "logo" : "icon"}
+                size={isDesktop ? "sm" : "md"}
+                className={isDesktop ? undefined : "ml-0.5"}
+              />
 
               <div className="hidden min-w-0 items-center gap-3 lg:flex">
                 <Badge variant="success">

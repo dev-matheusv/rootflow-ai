@@ -128,7 +128,105 @@ public sealed class AuthApiTests : IClassFixture<RootFlowApiFactory>
         Assert.Equal(HttpStatusCode.NotFound, crossTenantHistory.StatusCode);
     }
 
+    [Fact]
+    public async Task ForgotPassword_ReturnsNeutralResponse_ForKnownAndUnknownEmails()
+    {
+        await _factory.ResetStateAsync();
+        using var client = _factory.CreateApiClient();
+
+        var signupResponse = await client.PostAsJsonAsync("/api/auth/signup", new
+        {
+            fullName = "Jordan Rivera",
+            email = "jordan@rootflow.test",
+            password = "Password123!",
+            workspaceName = "Acme Operations"
+        });
+        signupResponse.EnsureSuccessStatusCode();
+
+        var knownResponse = await client.PostAsJsonAsync("/api/auth/forgot-password", new
+        {
+            email = "jordan@rootflow.test"
+        });
+        knownResponse.EnsureSuccessStatusCode();
+
+        var unknownResponse = await client.PostAsJsonAsync("/api/auth/forgot-password", new
+        {
+            email = "missing@rootflow.test"
+        });
+        unknownResponse.EnsureSuccessStatusCode();
+
+        var knownPayload = await knownResponse.Content.ReadFromJsonAsync<MessageResponse>();
+        var unknownPayload = await unknownResponse.Content.ReadFromJsonAsync<MessageResponse>();
+
+        Assert.NotNull(knownPayload);
+        Assert.NotNull(unknownPayload);
+        Assert.Equal(knownPayload!.Message, unknownPayload!.Message);
+        Assert.NotNull(_factory.GetLatestPasswordResetNotification("jordan@rootflow.test"));
+        Assert.Null(_factory.GetLatestPasswordResetNotification("missing@rootflow.test"));
+    }
+
+    [Fact]
+    public async Task ResetPassword_UpdatesCredential_AndRejectsTokenReuse()
+    {
+        await _factory.ResetStateAsync();
+        using var client = _factory.CreateApiClient();
+
+        var signupResponse = await client.PostAsJsonAsync("/api/auth/signup", new
+        {
+            fullName = "Jordan Rivera",
+            email = "jordan@rootflow.test",
+            password = "Password123!",
+            workspaceName = "Acme Operations"
+        });
+        signupResponse.EnsureSuccessStatusCode();
+
+        var forgotPasswordResponse = await client.PostAsJsonAsync("/api/auth/forgot-password", new
+        {
+            email = "jordan@rootflow.test"
+        });
+        forgotPasswordResponse.EnsureSuccessStatusCode();
+
+        var notification = _factory.GetLatestPasswordResetNotification("jordan@rootflow.test");
+        Assert.NotNull(notification);
+
+        var resetResponse = await client.PostAsJsonAsync("/api/auth/reset-password", new
+        {
+            token = notification!.Token,
+            newPassword = "NewPassword123!"
+        });
+        resetResponse.EnsureSuccessStatusCode();
+
+        using var oldPasswordClient = _factory.CreateApiClient();
+        var oldPasswordLogin = await oldPasswordClient.PostAsJsonAsync("/api/auth/login", new
+        {
+            email = "jordan@rootflow.test",
+            password = "Password123!"
+        });
+        Assert.Equal(HttpStatusCode.Unauthorized, oldPasswordLogin.StatusCode);
+
+        using var newPasswordClient = _factory.CreateApiClient();
+        var newPasswordLogin = await newPasswordClient.PostAsJsonAsync("/api/auth/login", new
+        {
+            email = "jordan@rootflow.test",
+            password = "NewPassword123!"
+        });
+        newPasswordLogin.EnsureSuccessStatusCode();
+
+        var reuseResponse = await client.PostAsJsonAsync("/api/auth/reset-password", new
+        {
+            token = notification.Token,
+            newPassword = "AnotherPassword123!"
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, reuseResponse.StatusCode);
+
+        var reusePayload = await reuseResponse.Content.ReadFromJsonAsync<ErrorResponse>();
+        Assert.NotNull(reusePayload);
+        Assert.Equal("This reset link is invalid or has expired. Request a new one.", reusePayload!.Error);
+    }
+
     private sealed record AuthResponse(string Token, DateTime ExpiresAtUtc, SessionResponse Session);
+
+    private sealed record MessageResponse(string Message);
 
     private sealed record SessionResponse(AuthUserResponse User, AuthWorkspaceResponse Workspace, string Role);
 
@@ -139,6 +237,8 @@ public sealed class AuthApiTests : IClassFixture<RootFlowApiFactory>
     private sealed record ChatResponse(Guid ConversationId, string Answer, string? ModelName, List<ChatSourceResponse> Sources);
 
     private sealed record ChatSourceResponse(Guid DocumentId, Guid ChunkId, string DocumentName, string Content, double Score);
+
+    private sealed record ErrorResponse(string Error);
 
     private sealed record DocumentResponse(Guid Id, Guid WorkspaceId, string OriginalFileName);
 

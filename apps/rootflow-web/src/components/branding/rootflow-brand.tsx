@@ -22,7 +22,7 @@ const brandAssets: Record<
     src: "/rootflow-icon.png",
     alt: "RootFlow",
     sizes: {
-      sm: "h-7 w-7",
+      sm: "h-8 w-8",
       md: "h-9 w-9",
       lg: "h-11 w-11",
     },
@@ -72,7 +72,7 @@ export function RootFlowBrand({
       alt={alt ?? asset.alt}
       decoding="async"
       draggable={false}
-      className={cn("block w-auto max-w-full select-none object-contain", asset.sizes[size], className)}
+      className={cn("block w-auto max-w-full shrink-0 select-none object-contain", asset.sizes[size], className)}
     />
   );
 }

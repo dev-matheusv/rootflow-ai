@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Pgvector;
 using RootFlow.Application.Abstractions.AI;
+using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Api.Contracts.Auth;
 using RootFlow.Infrastructure.Configuration;
 using RootFlow.Infrastructure.AI;
@@ -39,6 +40,7 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
         {
             services.RemoveAll<IEmbeddingService>();
             services.RemoveAll<IChatCompletionService>();
+            services.RemoveAll<IPasswordResetNotifier>();
             services.RemoveAll<NpgsqlDataSource>();
 
             services.PostConfigure<StorageOptions>(options =>
@@ -55,6 +57,9 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
 
             services.AddSingleton<IEmbeddingService, FakeEmbeddingService>();
             services.AddSingleton<IChatCompletionService, PremiumFakeChatCompletionService>();
+            services.AddSingleton<TestPasswordResetNotifier>();
+            services.AddSingleton<IPasswordResetNotifier>(serviceProvider =>
+                serviceProvider.GetRequiredService<TestPasswordResetNotifier>());
         });
         builder.ConfigureAppConfiguration((_, configBuilder) =>
         {
@@ -129,7 +134,13 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
         await InitializeDatabaseAsync();
         await TruncateTablesAsync();
         ClearStorage();
+        Services.GetRequiredService<TestPasswordResetNotifier>().Clear();
         await InitializeDatabaseAsync();
+    }
+
+    public PasswordResetNotification? GetLatestPasswordResetNotification(string email)
+    {
+        return Services.GetRequiredService<TestPasswordResetNotifier>().GetLatestForEmail(email);
     }
 
     private static async Task EnsureDatabaseExistsAsync()
@@ -163,6 +174,7 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
                                        conversations,
                                        document_chunks,
                                        knowledge_documents,
+                                       password_reset_tokens,
                                        workspace_invitations,
                                        workspace_memberships,
                                        app_users,

@@ -31,7 +31,7 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
       {showBrand ? (
         <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between gap-3")}>
           {collapsed ? (
-            <RootFlowBrand variant="icon" size="md" />
+            <RootFlowBrand variant="icon" size="sm" />
           ) : (
             <>
               <RootFlowBrand variant="logo" size="sm" />

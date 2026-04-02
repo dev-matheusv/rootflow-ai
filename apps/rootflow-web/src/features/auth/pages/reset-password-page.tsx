@@ -28,8 +28,18 @@ type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token")?.trim() ?? "";
+
+  return <ResetPasswordContent key={token || "missing"} token={token} />;
+}
+
+interface ResetPasswordContentProps {
+  token: string;
+}
+
+function ResetPasswordContent({ token }: ResetPasswordContentProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [hasInvalidTokenError, setHasInvalidTokenError] = useState(false);
   const form = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
@@ -40,6 +50,7 @@ export function ResetPasswordPage() {
 
   async function handleSubmit(values: ResetPasswordFormValues) {
     setErrorMessage(null);
+    setHasInvalidTokenError(false);
 
     try {
       const response = await rootflowApi.resetPassword({
@@ -50,11 +61,18 @@ export function ResetPasswordPage() {
       setSuccessMessage(response.message);
       form.reset();
     } catch (error) {
-      setErrorMessage(error instanceof ApiError ? error.message : "We could not reset the password right now.");
+      if (error instanceof ApiError) {
+        setErrorMessage(error.message);
+        setHasInvalidTokenError(error.status === 400 && /invalid or has expired/i.test(error.message));
+        return;
+      }
+
+      setErrorMessage("We could not reset the password right now.");
     }
   }
 
   const isMissingToken = token.length === 0;
+  const showInvalidTokenState = hasInvalidTokenError;
 
   return (
     <AuthScaffold
@@ -106,10 +124,12 @@ export function ResetPasswordPage() {
                 </Link>
               </Button>
             </div>
-          ) : isMissingToken ? (
+          ) : isMissingToken || showInvalidTokenState ? (
             <div className="space-y-5">
               <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-                This reset link is invalid or incomplete. Request a new password reset email to continue.
+                {showInvalidTokenState
+                  ? "This reset link is invalid or has expired. Request a new password reset email to continue."
+                  : "This reset link is invalid or incomplete. Request a new password reset email to continue."}
               </div>
               <div className="flex flex-col gap-3">
                 <Button className="w-full justify-between" asChild>

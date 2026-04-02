@@ -456,6 +456,14 @@ static Dictionary<string, string[]> ValidateResetPasswordRequest(ResetPasswordRe
     {
         errors["newPassword"] = ["New password is required."];
     }
+    else if (request.NewPassword.Length < 8)
+    {
+        errors["newPassword"] = ["Password must be at least 8 characters."];
+    }
+    else if (request.NewPassword.Length > 128)
+    {
+        errors["newPassword"] = ["Password must be 128 characters or less."];
+    }
 
     return errors;
 }
