@@ -26,9 +26,9 @@ export function AuthScaffold({ badge, title, description, highlights, children }
       <div className="relative mx-auto flex min-h-screen max-w-[1320px] items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-6 lg:grid-cols-[1.04fr_0.96fr]">
           <section className="rounded-[34px] border border-border/70 bg-card/82 p-6 shadow-[0_28px_70px_-48px_rgba(16,36,71,0.16)] backdrop-blur-2xl sm:p-8 lg:p-10">
-            <div className="relative mb-7 overflow-hidden rounded-[30px] bg-[linear-gradient(140deg,#061b45_0%,#0a347f_44%,#0f63ec_100%)] px-6 py-6 text-white shadow-[0_28px_72px_-54px_rgba(7,65,169,0.6)] sm:px-7 sm:py-7 lg:px-8 lg:py-8">
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(255,255,255,0.16),transparent_32%),radial-gradient(circle_at_100%_100%,rgba(255,255,255,0.08),transparent_24%)]" />
-              <div className="relative grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
+            <div className="relative mb-7 overflow-hidden rounded-[30px] bg-[linear-gradient(140deg,#072255_0%,#0b3e97_46%,#0f63ec_100%)] px-6 py-6 text-white shadow-[0_26px_68px_-54px_rgba(7,65,169,0.52)] sm:px-7 sm:py-7 lg:px-8 lg:py-8">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(255,255,255,0.14),transparent_34%),radial-gradient(circle_at_100%_100%,rgba(255,255,255,0.06),transparent_26%)]" />
+              <div className="relative grid gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-center">
                 <div className="space-y-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/62">
                     RootFlow
@@ -37,11 +37,11 @@ export function AuthScaffold({ badge, title, description, highlights, children }
                     Premium grounded knowledge for modern teams, with a calmer product surface and consistent brand treatment.
                   </p>
                 </div>
-                <div className="flex w-full justify-center lg:justify-center">
+                <div className="flex w-full justify-center pt-1 lg:justify-end lg:pt-0">
                   <RootFlowBrand
-                    variant="dark-mark"
+                    variant="mark"
                     size="lg"
-                    className="h-[5.3rem] max-w-none sm:h-[5.95rem] lg:h-[6.25rem]"
+                    className="h-32 max-w-none object-contain sm:h-36 lg:h-[12.5rem]"
                   />
                 </div>
               </div>
