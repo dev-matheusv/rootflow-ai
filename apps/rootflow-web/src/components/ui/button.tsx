@@ -10,13 +10,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "border-primary/75 bg-primary text-primary-foreground shadow-[0_16px_34px_-24px_color-mix(in_srgb,var(--primary)_40%,transparent)] hover:border-primary/82 hover:bg-primary/94 hover:shadow-[0_18px_40px_-24px_color-mix(in_srgb,var(--primary)_42%,transparent)] active:bg-primary/88",
+          "border-primary/80 bg-primary text-primary-foreground shadow-[0_18px_38px_-22px_color-mix(in_srgb,var(--primary)_42%,transparent)] hover:border-primary/88 hover:bg-primary/94 hover:shadow-[0_20px_42px_-22px_color-mix(in_srgb,var(--primary)_46%,transparent)] active:bg-primary/88",
         secondary:
-          "border-border/70 bg-secondary/86 text-secondary-foreground shadow-[0_14px_28px_-28px_rgba(18,50,104,0.14)] hover:border-primary/18 hover:bg-secondary hover:text-foreground active:bg-secondary/88",
+          "border-border/80 bg-secondary/88 text-secondary-foreground shadow-[0_14px_30px_-26px_rgba(18,50,104,0.16)] hover:border-primary/20 hover:bg-secondary hover:text-foreground active:bg-secondary/88",
         ghost:
-          "border-transparent bg-transparent text-foreground hover:border-border/60 hover:bg-secondary/76 hover:text-foreground active:bg-secondary/92",
+          "border-transparent bg-transparent text-foreground hover:border-border/70 hover:bg-secondary/76 hover:text-foreground active:bg-secondary/92",
         outline:
-          "border-border/75 bg-background/84 text-foreground shadow-[0_10px_24px_-22px_rgba(18,38,74,0.14)] hover:border-primary/22 hover:bg-secondary/66 hover:shadow-[0_14px_30px_-22px_rgba(18,72,166,0.16)] active:bg-secondary/82",
+          "border-border/80 bg-background/88 text-foreground shadow-[0_12px_26px_-22px_rgba(18,38,74,0.16)] hover:border-primary/28 hover:bg-secondary/70 hover:shadow-[0_16px_34px_-22px_rgba(18,72,166,0.18)] active:bg-secondary/82",
       },
       size: {
         default: "h-11 px-4 py-2.5",

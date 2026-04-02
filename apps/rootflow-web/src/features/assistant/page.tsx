@@ -59,6 +59,9 @@ export function AssistantPage() {
         )[0],
     [documents],
   );
+  const latestReadyUpdatedLabel = latestReadyDocument
+    ? formatRelativeDate(latestReadyDocument.processedAtUtc ?? latestReadyDocument.createdAtUtc)
+    : null;
   const suggestedPrompts = latestReadyDocument
     ? [
         { label: "Summarize my documents", prompt: "Summarize my documents" },
@@ -145,7 +148,7 @@ export function AssistantPage() {
 
       <section className="grid gap-3 xl:grid-cols-[1.22fr_0.78fr]">
         <div className="space-y-3">
-          <Card className="border-border/70 bg-background/72 shadow-none">
+          <Card className="border-border/80 bg-card/86">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle>{conversationId ? "Current session" : "New session"}</CardTitle>
@@ -180,26 +183,32 @@ export function AssistantPage() {
                     />
                   ) : messages.length === 0 ? (
                     <div className="space-y-4 pb-1">
-                      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                        <span>{conversationId ? "Session restored." : "Ready to answer."}</span>
-                        <span>{readyDocumentCount} processed document{readyDocumentCount === 1 ? "" : "s"} available.</span>
-                      </div>
-                      <div className="grid gap-4 sm:grid-cols-[0.9fr_1.1fr]">
-                        <div className="space-y-2 text-sm text-muted-foreground">
-                          <div className="text-sm font-semibold text-foreground">Available now</div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span>Ready documents</span>
-                            <span className="text-foreground">{readyDocumentCount}</span>
+                      <div className="rounded-[22px] border border-border/80 bg-card/70 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-semibold text-foreground">Session context</div>
+                            <div className="mt-1 text-sm text-muted-foreground">
+                              {conversationId ? "Session restored." : "Ready to answer."}
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between gap-3">
-                            <span>Latest ready</span>
-                            <span className="truncate text-right text-foreground" title={latestReadyDocument?.originalFileName}>
-                              {latestReadyDocument?.originalFileName ?? "None"}
-                            </span>
-                          </div>
+                          {latestReadyUpdatedLabel ? (
+                            <div className="text-sm font-medium text-foreground/88">Last updated {latestReadyUpdatedLabel}</div>
+                          ) : null}
                         </div>
-                        <div className="space-y-2">
-                          <div className="text-sm font-semibold text-foreground">Try one</div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Badge variant="secondary" className="gap-1.5 px-3 py-1.5 text-[11px]">
+                            {readyDocumentCount} ready
+                          </Badge>
+                          <Badge
+                            variant="secondary"
+                            className="max-w-full truncate gap-1.5 px-3 py-1.5 text-[11px]"
+                            title={latestReadyDocument?.originalFileName}
+                          >
+                            Last: {latestReadyDocument?.originalFileName ?? "None"}
+                          </Badge>
+                        </div>
+                        <div className="mt-4 border-t border-border/75 pt-4">
+                          <div className="mb-3 text-sm font-semibold text-foreground">Quick actions</div>
                           <div className="flex flex-wrap gap-2">
                             {suggestedPrompts.map((prompt) => (
                               <Button
@@ -207,7 +216,7 @@ export function AssistantPage() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="h-auto rounded-full px-3 py-1.5 text-left"
+                                className="h-auto rounded-full border-border/80 bg-background/88 px-3.5 py-1.5 text-left"
                                 onClick={() => handlePromptSelect(prompt.prompt)}
                                 title={prompt.prompt}
                               >
@@ -228,8 +237,8 @@ export function AssistantPage() {
                             <article
                               className={`max-w-[76ch] ${
                                 isUser
-                                  ? "rounded-[24px] rounded-br-lg border border-[#cadeff] bg-[#eaf2ff] px-5 py-4 text-[#14315c] dark:border-[#314662] dark:bg-[#22314a] dark:text-[#edf4ff]"
-                                  : "border-l-2 border-border/70 pl-4 text-foreground"
+                                  ? "rounded-[24px] rounded-br-lg border border-[#bad4ff] bg-[#eaf2ff] px-5 py-4 text-[#14315c] shadow-[0_14px_32px_-28px_rgba(66,116,194,0.32)] dark:border-[#395476] dark:bg-[#22314a] dark:text-[#edf4ff]"
+                                  : "rounded-[20px] border border-border/75 bg-background/76 px-5 py-4 text-foreground"
                               }`}
                             >
                               <div
@@ -262,76 +271,77 @@ export function AssistantPage() {
                   ) : null}
                 </>
               ) : (
-                <div className="rounded-[18px] border border-dashed border-border/65 bg-background/42 px-4 py-3 text-sm text-muted-foreground">
+                <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
                   {documentsQuery.data?.length ? "Documents are still processing." : "Upload a document to start asking questions."}
                 </div>
               )}
 
-              <div className="border-t border-border/60 pt-4">
-              <form
-                className="space-y-4 rounded-[24px] border border-border/75 bg-background/62 p-4"
-                onSubmit={submitQuestion}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">{readyDocumentCount} ready</Badge>
-                  {latestReadyDocument ? (
-                    <Badge variant="secondary" className="max-w-full truncate" title={latestReadyDocument.originalFileName}>
-                      Latest: {latestReadyDocument.originalFileName}
-                    </Badge>
+              <div className="border-t border-border/75 pt-4">
+                <form
+                  className="space-y-4 rounded-[24px] border border-border/80 bg-card/70 p-4"
+                  onSubmit={submitQuestion}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{readyDocumentCount} ready</Badge>
+                      {latestReadyUpdatedLabel ? <div className="text-sm font-medium text-foreground/86">Updated {latestReadyUpdatedLabel}</div> : null}
+                    </div>
+                    {activeLatestAnswer?.sources.length ? (
+                      <Badge variant="secondary">{activeLatestAnswer.sources.length} sources</Badge>
+                    ) : null}
+                  </div>
+                  <div className="rounded-[22px] border border-border/80 bg-background/92 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/34 focus-within:bg-background focus-within:shadow-[0_18px_34px_-24px_rgba(37,99,235,0.2)]">
+                    <Textarea
+                      className="min-h-[120px] resize-none border-none bg-transparent px-2 py-2 text-[0.96rem] leading-7 shadow-none focus-visible:ring-0"
+                      placeholder="Ask about a document, process, policy, or record..."
+                      disabled={isSendingQuestion}
+                      onKeyDown={handleQuestionKeyDown}
+                      {...form.register("question")}
+                    />
+                  </div>
+                  {form.formState.errors.question ? (
+                    <p className="text-sm text-destructive">{form.formState.errors.question.message}</p>
                   ) : null}
-                </div>
-                <div className="rounded-[22px] border border-border/70 bg-background/88 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/28 focus-within:bg-background focus-within:shadow-[0_14px_28px_-24px_rgba(37,99,235,0.18)]">
-                  <Textarea
-                    className="min-h-[120px] resize-none border-none bg-transparent px-2 py-2 text-[0.96rem] leading-7 shadow-none focus-visible:ring-0"
-                    placeholder="Ask about a document, process, policy, or record..."
-                    disabled={isSendingQuestion}
-                    onKeyDown={handleQuestionKeyDown}
-                    {...form.register("question")}
-                  />
-                </div>
-                {form.formState.errors.question ? (
-                  <p className="mt-2 text-sm text-destructive">{form.formState.errors.question.message}</p>
-                ) : null}
-                {askQuestionMutation.isError ? (
-                  <p className="mt-2 text-sm text-destructive">
-                    We couldn't generate an answer right now. Please try again in a moment.
-                  </p>
-                ) : null}
-                {readyDocumentCount === 0 && !documentsQuery.isLoading ? (
-                  <p className="mt-2 text-sm text-muted-foreground">Upload a processed document first.</p>
-                ) : null}
-                {readyDocumentCount > 0 && question.trim().length === 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {suggestedPrompts.slice(0, 3).map((prompt) => (
-                      <button
-                        key={prompt.label}
-                        type="button"
-                        className="rounded-full border border-border/70 bg-background/84 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/20 hover:text-foreground"
-                        onClick={() => handlePromptSelect(prompt.prompt)}
-                        title={prompt.prompt}
-                      >
-                        {prompt.label}
-                      </button>
-                    ))}
+                  {askQuestionMutation.isError ? (
+                    <p className="text-sm text-destructive">
+                      We couldn't generate an answer right now. Please try again in a moment.
+                    </p>
+                  ) : null}
+                  {readyDocumentCount === 0 && !documentsQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground">Upload a processed document first.</p>
+                  ) : null}
+                  {readyDocumentCount > 0 && question.trim().length === 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {suggestedPrompts.slice(0, 3).map((prompt) => (
+                        <button
+                          key={prompt.label}
+                          type="button"
+                          className="rounded-full border border-border/80 bg-background/88 px-3.5 py-1.5 text-sm font-medium text-foreground/80 transition-colors hover:border-primary/28 hover:bg-secondary/62 hover:text-foreground"
+                          onClick={() => handlePromptSelect(prompt.prompt)}
+                          title={prompt.prompt}
+                        >
+                          {prompt.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <CornerDownLeft className="size-4" />
+                      {isSendingQuestion ? "Searching" : "Enter sends. Shift+Enter adds a line."}
+                    </div>
+                    <Button type="submit" disabled={!canAsk} aria-busy={isSendingQuestion} className="min-w-[152px]">
+                      {isSendingQuestion ? <LoaderCircle className="animate-spin" /> : <SendHorizonal />}
+                      {isSendingQuestion ? "Sending..." : "Send"}
+                    </Button>
                   </div>
-                ) : null}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CornerDownLeft className="size-4" />
-                    {isSendingQuestion ? "Searching" : "Enter sends. Shift+Enter adds a line."}
-                  </div>
-                  <Button type="submit" disabled={!canAsk} aria-busy={isSendingQuestion} className="min-w-[152px]">
-                    {isSendingQuestion ? <LoaderCircle className="animate-spin" /> : <SendHorizonal />}
-                    {isSendingQuestion ? "Sending..." : "Send"}
-                  </Button>
-                </div>
-              </form>
+                </form>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <Card className="border-border/70 bg-background/72 shadow-none">
+        <Card className="border-border/80 bg-card/86">
           <CardHeader className="pb-3">
             <CardTitle>Sources</CardTitle>
           </CardHeader>
@@ -365,21 +375,21 @@ export function AssistantPage() {
                 </article>
               ))
             ) : activeLatestAnswer ? (
-              <div className="rounded-[18px] border border-dashed border-border/65 bg-background/42 px-4 py-3 text-sm text-muted-foreground">
+              <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
                 No sources returned. Ask again after checking that documents are processed.
               </div>
             ) : (
-              <div className="rounded-[18px] border border-dashed border-border/65 bg-background/42 px-4 py-3 text-sm text-muted-foreground">
+              <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
                 {conversationId ? "Ask the next question to review sources." : "Sources appear after the first answer."}
               </div>
             )}
 
             {isDebugVisible && activeLatestAnswer?.debug?.retrievedChunks.length ? (
-              <div className="rounded-[22px] border border-dashed border-border/70 bg-background/50 p-4">
+              <div className="rounded-[22px] border border-dashed border-border/80 bg-card/62 p-4">
                 <div className="space-y-3">
                   <div className="text-sm font-semibold text-foreground">Retrieval</div>
                   {activeLatestAnswer.debug.retrievedChunks.map((chunk) => (
-                    <div key={chunk.chunkId} className="border-b border-border/60 pb-3 last:border-b-0 last:pb-0">
+                    <div key={chunk.chunkId} className="border-b border-border/70 pb-3 last:border-b-0 last:pb-0">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-semibold text-foreground">
                           #{chunk.rank} {chunk.documentName}
@@ -395,7 +405,7 @@ export function AssistantPage() {
             ) : null}
 
             {conversationId ? (
-              <div className="rounded-[22px] border border-dashed border-border/70 bg-background/50 p-4">
+              <div className="rounded-[22px] border border-dashed border-border/80 bg-card/62 p-4">
                 <div className="space-y-2">
                   <div className="text-sm font-semibold text-foreground">Conversation history</div>
                   <p className="text-sm text-muted-foreground">

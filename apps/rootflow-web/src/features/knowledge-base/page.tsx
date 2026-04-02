@@ -79,17 +79,17 @@ export function KnowledgeBasePage() {
           ["Processing", processingCount],
           ["Failed", failedCount],
         ].map(([label, value]) => (
-          <Card key={label} className="border-border/70 bg-background/72 shadow-none">
+          <Card key={label} className="border-border/80 bg-card/86">
             <CardContent className="space-y-1 p-4">
-              <div className="text-sm text-muted-foreground">{label}</div>
-              <div className="font-display text-[1.75rem] tracking-[-0.045em] text-foreground">{value}</div>
+              <div className="text-sm font-medium text-foreground/82">{label}</div>
+              <div className="font-display text-[1.9rem] font-semibold tracking-[-0.05em] text-foreground">{value}</div>
             </CardContent>
           </Card>
         ))}
       </section>
 
       <section className="grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card className="border-border/70 bg-background/72 shadow-none">
+        <Card className="border-border/80 bg-card/86">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <div className="space-y-1">
@@ -127,29 +127,29 @@ export function KnowledgeBasePage() {
                 onRetry={() => documentsQuery.refetch()}
               />
             ) : visibleDocuments.length === 0 ? (
-              <div className="rounded-[18px] border border-dashed border-border/65 bg-background/42 px-4 py-3 text-sm text-muted-foreground">
+              <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
                 {filterProcessedOnly
                   ? "No processed documents yet. Uploads still in progress will appear here."
                   : "No documents yet. Upload a file to start retrieval."}
               </div>
             ) : (
-              <div className="overflow-hidden rounded-[22px] border border-border/60 bg-background/54">
+              <div className="overflow-hidden rounded-[22px] border border-border/75 bg-card/72">
                 {visibleDocuments.map((document) => (
                   <div
                     key={document.id}
-                    className="grid gap-3 px-4 py-3.5 md:grid-cols-[minmax(0,1.35fr)_160px_120px_88px] md:items-center [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/60"
+                    className="grid gap-3 px-4 py-3.5 md:grid-cols-[minmax(0,1.35fr)_160px_120px_88px] md:items-center [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/70"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-primary/14 bg-primary/[0.11] text-primary">
                         <FileText className="size-4.5" />
                       </div>
                       <div className="min-w-0 space-y-1">
                         <div className="truncate text-sm font-semibold text-foreground">{document.originalFileName}</div>
-                        <div className="text-xs text-muted-foreground">{formatFileSize(document.sizeBytes)}</div>
+                        <div className="text-xs font-medium text-muted-foreground">{formatFileSize(document.sizeBytes)}</div>
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      <div className="font-medium text-foreground">Status</div>
+                      <div className="font-medium text-foreground/88">Status</div>
                       <div className="mt-1">
                         <StatusBadge status={document.status} />
                         {document.status === 4 && document.failureReason ? (
@@ -160,11 +160,11 @@ export function KnowledgeBasePage() {
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      <div className="font-medium text-foreground">Updated</div>
-                      <div>{formatRelativeDate(document.processedAtUtc ?? document.createdAtUtc)}</div>
+                      <div className="font-medium text-foreground/88">Updated</div>
+                      <div className="font-medium text-foreground">{formatRelativeDate(document.processedAtUtc ?? document.createdAtUtc)}</div>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      <div className="font-medium text-foreground">Type</div>
+                      <div className="font-medium text-foreground/88">Type</div>
                       <div className="truncate font-medium text-foreground" title={document.contentType}>
                         {getDocumentTypeLabel(document.originalFileName, document.contentType)}
                       </div>
@@ -176,7 +176,7 @@ export function KnowledgeBasePage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 bg-background/72 shadow-none">
+        <Card className="border-border/80 bg-card/86">
           <CardHeader>
             <div className="space-y-1">
               <CardTitle>Upload</CardTitle>
@@ -207,7 +207,7 @@ export function KnowledgeBasePage() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3 rounded-[20px] border border-border/60 bg-background/54 p-4">
+                <div className="space-y-3 rounded-[20px] border border-border/75 bg-card/72 p-4">
                   <div className="text-sm font-semibold text-foreground">Recent activity</div>
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center justify-between gap-3">
@@ -225,7 +225,7 @@ export function KnowledgeBasePage() {
               )}
             </div>
 
-            <div className="border-t border-border/60 pt-4">
+            <div className="border-t border-border/75 pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-foreground">Processing</div>
@@ -243,11 +243,11 @@ export function KnowledgeBasePage() {
                 ) : null}
               </div>
               {processingDocuments.length > 0 ? (
-                <div className="mt-3 overflow-hidden rounded-[20px] border border-border/60 bg-background/54">
+                <div className="mt-3 overflow-hidden rounded-[20px] border border-border/75 bg-card/72">
                   {processingDocuments.map((document) => (
                     <div
                       key={document.id}
-                      className="flex items-center justify-between gap-3 px-3.5 py-3 text-sm [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/60"
+                      className="flex items-center justify-between gap-3 px-3.5 py-3 text-sm [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/70"
                     >
                       <span className="truncate text-foreground" title={document.originalFileName}>
                         {document.originalFileName}

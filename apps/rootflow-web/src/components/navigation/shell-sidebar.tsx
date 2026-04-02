@@ -28,13 +28,13 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
       {showBrand ? (
         <div
           className={cn(
-            "border-b border-sidebar-border/70 pb-4",
+            "border-b border-sidebar-border/80 pb-4",
             collapsed ? "px-1" : "px-2",
           )}
         >
           {collapsed ? (
             <div className="flex items-center justify-center">
-              <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-sidebar-border/60 bg-background/58">
+              <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-sidebar-border/75 bg-background/72 shadow-[0_14px_28px_-24px_rgba(18,38,74,0.18)]">
                 <RootFlowBrand variant="icon" size="sm" className="h-8 w-8" />
               </div>
             </div>
@@ -61,10 +61,10 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
         <SidebarNav collapsed={collapsed} onNavigate={onNavigate} />
       </div>
 
-      <div className={cn("mt-5 border-t border-sidebar-border/70 pt-4", collapsed ? "px-1" : "px-0.5")}>
+      <div className={cn("mt-5 border-t border-sidebar-border/80 pt-4", collapsed ? "px-1" : "px-0.5")}>
         {collapsed ? (
           <div className="flex justify-center">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-sidebar-border/60 bg-background/58">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-sidebar-border/75 bg-background/72 shadow-[0_14px_28px_-24px_rgba(18,38,74,0.18)]">
               <Avatar className="size-9">
                 <AvatarFallback>{initials || "RF"}</AvatarFallback>
               </Avatar>

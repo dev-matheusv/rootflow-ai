@@ -82,7 +82,7 @@ export function DashboardPage() {
             const Icon = metric.icon;
 
             return (
-              <Card key={metric.label} className="border-border/70 bg-background/72 shadow-none">
+              <Card key={metric.label} className="border-border/80 bg-card/86">
                 <CardContent className="space-y-2.5 p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -91,8 +91,25 @@ export function DashboardPage() {
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{metric.note}</div>
                   </div>
                   <div className="space-y-1.5">
-                    <div className="text-sm text-muted-foreground">{metric.label}</div>
-                    <div className="font-display text-[1.75rem] tracking-[-0.045em] text-foreground">{metric.value}</div>
+                    <div className="text-sm font-medium text-foreground/82">{metric.label}</div>
+                    <div className="font-display text-[1.9rem] font-semibold tracking-[-0.05em] text-foreground">{metric.value}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {metric.label === "Documents"
+                        ? latestDocument
+                          ? `Latest ${formatRelativeDate(latestDocument.processedAtUtc ?? latestDocument.createdAtUtc)}`
+                          : "No uploads yet"
+                        : metric.label === "Ready"
+                          ? processingCount > 0
+                            ? `${processingCount} processing`
+                            : "Up to date"
+                          : metric.label === "Conversations"
+                            ? latestConversation
+                              ? `Updated ${formatRelativeDate(latestConversation.updatedAtUtc)}`
+                              : "No sessions yet"
+                            : healthQuery.data?.status === "healthy"
+                              ? "Connected"
+                              : "Waiting on check"}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -102,7 +119,7 @@ export function DashboardPage() {
       </section>
 
       <section className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
-        <Card className="border-border/70 bg-background/72 shadow-none">
+        <Card className="border-border/80 bg-card/86">
           <CardHeader>
             <CardTitle>Workspace</CardTitle>
           </CardHeader>
@@ -113,14 +130,14 @@ export function DashboardPage() {
               <Badge variant="secondary">{session?.role ?? "Member"}</Badge>
             </div>
 
-            <div className="rounded-[22px] border border-border/60 bg-background/54">
+            <div className="rounded-[22px] border border-border/75 bg-card/72">
               <div className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="text-sm font-semibold text-foreground">Status</div>
                 <Badge variant={failedCount > 0 ? "warning" : healthQuery.data?.status === "healthy" ? "success" : "secondary"}>
                   {failedCount > 0 ? `${failedCount} failed` : healthQuery.data?.status === "healthy" ? "Healthy" : "Checking"}
                 </Badge>
               </div>
-              <div className="divide-y divide-border/60">
+              <div className="divide-y divide-border/70">
                 <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                   <span className="text-muted-foreground">Latest document</span>
                   <span className="truncate text-right text-foreground" title={latestDocument?.originalFileName}>
@@ -149,19 +166,19 @@ export function DashboardPage() {
             </div>
 
             {documents.length === 0 ? (
-              <div className="rounded-[18px] border border-dashed border-border/65 bg-background/42 px-4 py-3 text-sm text-muted-foreground">
+              <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
                 No documents yet. Upload one to start retrieval.
               </div>
             ) : null}
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 bg-background/72 shadow-none">
+        <Card className="border-border/80 bg-card/86">
           <CardHeader>
             <CardTitle>Next</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-[22px] border border-border/60 bg-background/54 p-3.5">
+            <div className="rounded-[22px] border border-border/75 bg-card/72 p-3.5">
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary">{documents.length} docs</Badge>
                 <Badge variant="secondary">{conversations.length} sessions</Badge>

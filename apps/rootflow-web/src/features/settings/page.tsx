@@ -83,7 +83,7 @@ export function SettingsPage() {
       />
 
       <section className="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <Card className="border-border/70 bg-background/72 shadow-none">
+        <Card className="border-border/80 bg-card/86">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
               <CardTitle>Sections</CardTitle>
@@ -102,8 +102,8 @@ export function SettingsPage() {
                   className={cn(
                     "flex items-start gap-3 rounded-[20px] border p-3.5 transition-[border-color,background-color] duration-200",
                     isActive
-                      ? "border-primary/18 bg-primary/[0.06]"
-                      : "border-border/70 bg-card/70 hover:border-primary/14 hover:bg-card/88",
+                      ? "border-primary/24 bg-primary/[0.08]"
+                      : "border-border/75 bg-card/74 hover:border-primary/18 hover:bg-card/92",
                   )}
                 >
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -122,7 +122,7 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/70 bg-background/72 shadow-none">
+        <Card className="border-border/80 bg-card/86">
           <CardContent className="flex flex-col gap-6 p-6 md:p-8">
             <div className="flex items-start gap-4">
               <div className="flex size-12 shrink-0 items-center justify-center rounded-[22px] bg-primary/10 text-primary">
@@ -139,21 +139,21 @@ export function SettingsPage() {
               <WorkspaceCollaborationPanel />
             ) : (
               <div className="space-y-4">
-                <div className="rounded-[22px] border border-border/60 bg-background/54 p-4">
+                <div className="rounded-[22px] border border-border/75 bg-card/72 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-foreground">Current view</div>
                     <Badge variant="secondary">Staged</Badge>
                   </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     {sectionSignals.map((item) => (
-                      <div key={item.label} className="rounded-[18px] border border-border/60 bg-background/70 px-3 py-2.5">
+                      <div key={item.label} className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
                         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{item.label}</div>
                         <div className="mt-1 truncate text-sm font-medium text-foreground">{item.value}</div>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="rounded-[22px] border border-border/60 bg-background/54 p-4">
+                <div className="rounded-[22px] border border-border/75 bg-card/72 p-4">
                   <div className="text-sm font-semibold text-foreground">Next</div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {selectedSection.upcoming.map((item) => (
