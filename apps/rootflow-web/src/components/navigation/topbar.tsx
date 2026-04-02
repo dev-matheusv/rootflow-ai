@@ -32,20 +32,26 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
         <div className="rounded-[28px] border border-border/75 bg-card/82 px-4 py-3 shadow-[0_24px_60px_-42px_rgba(16,36,71,0.16)] backdrop-blur-2xl sm:px-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label={isDesktop ? (isSidebarCollapsed ? "Expand navigation" : "Collapse navigation") : "Open navigation"}
-                onClick={isDesktop ? onToggleSidebar : onOpenNavigation}
-              >
-                {isDesktop ? isSidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose /> : <PanelLeftOpen />}
-              </Button>
+              <div className="flex items-center gap-2 rounded-[22px] border border-border/72 bg-background/76 p-1.5 shadow-[0_18px_40px_-34px_rgba(16,36,71,0.16)] backdrop-blur-xl">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-[16px] bg-card/82 text-foreground shadow-[0_12px_26px_-20px_rgba(16,36,71,0.26)] hover:bg-card"
+                  aria-label={isDesktop ? (isSidebarCollapsed ? "Expand navigation" : "Collapse navigation") : "Open navigation"}
+                  onClick={isDesktop ? onToggleSidebar : onOpenNavigation}
+                >
+                  {isDesktop ? isSidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose /> : <PanelLeftOpen />}
+                </Button>
 
-              <RootFlowBrand
-                variant={isDesktop ? "logo" : "icon"}
-                size={isDesktop ? "sm" : "md"}
-                className={isDesktop ? undefined : "ml-0.5"}
-              />
+                {isDesktop ? (
+                  <RootFlowBrand variant="logo" size="sm" className="pr-1" />
+                ) : (
+                  <div className="relative flex h-11 w-11 items-center justify-center">
+                    <div className="absolute inset-0 rounded-[18px] bg-[radial-gradient(circle,_rgba(15,99,236,0.16),rgba(255,255,255,0)_74%)]" />
+                    <RootFlowBrand variant="icon" size="md" className="relative h-[2.15rem] w-[2.15rem]" />
+                  </div>
+                )}
+              </div>
 
               <div className="hidden min-w-0 items-center gap-3 lg:flex">
                 <Badge variant="success">

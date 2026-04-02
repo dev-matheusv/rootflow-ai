@@ -31,7 +31,11 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
       {showBrand ? (
         <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between gap-3")}>
           {collapsed ? (
-            <RootFlowBrand variant="icon" size="sm" />
+            <div className="relative flex h-16 w-16 items-center justify-center">
+              <div className="absolute inset-0 rounded-[24px] bg-[radial-gradient(circle,_rgba(15,99,236,0.18),rgba(255,255,255,0)_72%)]" />
+              <div className="absolute inset-x-3 bottom-1 h-px bg-[linear-gradient(90deg,transparent,rgba(15,99,236,0.22),transparent)]" />
+              <RootFlowBrand variant="icon" size="sm" className="relative h-8 w-8" />
+            </div>
           ) : (
             <>
               <RootFlowBrand variant="logo" size="sm" />
@@ -41,24 +45,32 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
         </div>
       ) : null}
 
-      <div className={cn("flex-1", showBrand ? (collapsed ? "mt-8" : "mt-10") : "mt-2")}>
+      <div className={cn("flex-1", showBrand ? (collapsed ? "mt-7" : "mt-10") : "mt-2")}>
         <SidebarNav collapsed={collapsed} onNavigate={onNavigate} />
       </div>
 
       <div
         className={cn(
           "mt-6 rounded-[26px] border border-sidebar-border/85 bg-background/78 backdrop-blur-xl",
-          collapsed ? "space-y-3 p-3" : "space-y-4 p-4",
+          collapsed ? "space-y-3 p-2.5" : "space-y-4 p-4",
         )}
       >
         {collapsed ? (
           <>
             <div className="flex justify-center">
-              <Avatar className="size-11">
-                <AvatarFallback>{initials || "RF"}</AvatarFallback>
-              </Avatar>
+              <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-background/88 shadow-[0_16px_30px_-26px_rgba(16,36,71,0.24)]">
+                <Avatar className="size-10">
+                  <AvatarFallback>{initials || "RF"}</AvatarFallback>
+                </Avatar>
+              </div>
             </div>
-            <Button variant="ghost" size="icon" className="w-full justify-center" aria-label="Log out" onClick={logout}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="mx-auto flex size-10 items-center justify-center rounded-[16px] text-muted-foreground hover:bg-background/86 hover:text-foreground"
+              aria-label="Log out"
+              onClick={logout}
+            >
               <LogOut />
             </Button>
           </>

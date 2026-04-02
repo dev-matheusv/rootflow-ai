@@ -26,17 +26,25 @@ export function AuthScaffold({ badge, title, description, highlights, children }
       <div className="relative mx-auto flex min-h-screen max-w-[1320px] items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-6 lg:grid-cols-[1.04fr_0.96fr]">
           <section className="rounded-[34px] border border-border/70 bg-card/82 p-6 shadow-[0_28px_70px_-48px_rgba(16,36,71,0.16)] backdrop-blur-2xl sm:p-8 lg:p-10">
-            <div className="relative mb-6 overflow-hidden rounded-[28px] border border-white/18 bg-[linear-gradient(135deg,#08265f_0%,#0c47af_42%,#0f7ad4_100%)] px-6 py-6 text-white shadow-[0_28px_80px_-52px_rgba(7,65,169,0.7)] sm:px-7 sm:py-7">
+            <div className="relative mb-7 overflow-hidden rounded-[30px] border border-white/16 bg-[linear-gradient(135deg,#08265f_0%,#0c47af_38%,#0f7ad4_100%)] px-6 py-6 text-white shadow-[0_32px_90px_-56px_rgba(7,65,169,0.72)] sm:px-7 sm:py-7 lg:px-8 lg:py-8">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(255,255,255,0.22),transparent_34%),radial-gradient(circle_at_100%_100%,rgba(255,255,255,0.12),transparent_30%)]" />
-              <div className="relative space-y-6">
-                <RootFlowBrand
-                  variant="dark-mark"
-                  size="lg"
-                  className="h-14 max-w-none sm:h-[4.5rem] lg:h-[5.25rem]"
-                />
-                <p className="max-w-lg text-sm leading-7 text-white/82 sm:text-base">
-                  Premium grounded knowledge for modern teams, with a calmer product surface and consistent brand treatment.
-                </p>
+              <div className="pointer-events-none absolute right-[-8%] top-[12%] h-40 w-40 rounded-full bg-[radial-gradient(circle,_rgba(255,255,255,0.14),transparent_70%)] blur-3xl" />
+              <div className="relative grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-end">
+                <div className="space-y-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/62">
+                    RootFlow
+                  </div>
+                  <p className="max-w-sm text-sm leading-7 text-white/82 sm:text-base">
+                    Premium grounded knowledge for modern teams, with a calmer product surface and consistent brand treatment.
+                  </p>
+                </div>
+                <div className="justify-self-start rounded-[24px] border border-white/14 bg-white/7 px-5 py-4 shadow-[0_18px_42px_-30px_rgba(4,18,52,0.72)] backdrop-blur-xl sm:px-6 sm:py-4">
+                  <RootFlowBrand
+                    variant="dark-mark"
+                    size="lg"
+                    className="h-16 max-w-none sm:h-[4.85rem] lg:h-[5.2rem]"
+                  />
+                </div>
               </div>
             </div>
             <Badge className="w-fit">{badge}</Badge>
@@ -57,7 +65,9 @@ export function AuthScaffold({ badge, title, description, highlights, children }
 
           <section className="rounded-[34px] border border-border/70 bg-card/88 p-5 shadow-[0_28px_70px_-48px_rgba(16,36,71,0.16)] backdrop-blur-2xl sm:p-6 lg:p-8">
             <div className="mb-8 flex items-center">
-              <RootFlowBrand variant="mark" size="md" className="h-11 sm:h-12" />
+              <div className="inline-flex items-center justify-center rounded-[24px] border border-border/65 bg-background/86 px-4 py-3 shadow-[0_18px_40px_-34px_rgba(16,36,71,0.2)] backdrop-blur-xl">
+                <RootFlowBrand variant="mark" size="md" className="h-12 sm:h-[3.25rem]" />
+              </div>
             </div>
             {children}
           </section>
