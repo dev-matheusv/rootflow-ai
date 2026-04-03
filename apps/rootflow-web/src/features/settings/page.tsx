@@ -163,7 +163,7 @@ export function SettingsPage() {
                     ))}
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    Controls for {selectedSection.title.toLowerCase()} will land here next.
+                    RootFlow will surface the next {selectedSection.title.toLowerCase()} controls here as the workspace grows.
                   </p>
                 </div>
               </div>

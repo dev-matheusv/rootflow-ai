@@ -129,15 +129,15 @@ export function KnowledgeBasePage() {
             ) : visibleDocuments.length === 0 ? (
               <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
                 {filterProcessedOnly
-                  ? "No processed documents yet. Uploads still in progress will appear here."
-                  : "No documents yet. Upload a file to start retrieval."}
+                  ? "No processed documents yet. As soon as processing finishes, they will appear here."
+                  : "Upload your first document to start asking grounded questions instantly."}
               </div>
             ) : (
               <div className="overflow-hidden rounded-[22px] border border-border/75 bg-card/72">
                 {visibleDocuments.map((document) => (
                   <div
                     key={document.id}
-                    className="grid gap-3 px-4 py-3.5 md:grid-cols-[minmax(0,1.35fr)_160px_120px_88px] md:items-center [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/70"
+                    className="grid gap-3 px-4 py-3.5 transition-colors duration-200 hover:bg-background/74 md:grid-cols-[minmax(0,1.35fr)_160px_120px_88px] md:items-center [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/70"
                   >
                     <div className="flex items-start gap-3">
                       <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-primary/14 bg-primary/[0.11] text-primary">

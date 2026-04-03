@@ -69,7 +69,7 @@ export function ConversationsPage() {
               />
             ) : conversations.length === 0 ? (
               <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
-                No conversations yet. Ask a question in Assistant to create one.
+                Ask your first question in Assistant and every answer will stay here for the team to revisit.
               </div>
             ) : (
               <div className="overflow-hidden rounded-[22px] border border-border/75 bg-card/72">
@@ -81,8 +81,8 @@ export function ConversationsPage() {
                       key={conversation.conversationId}
                       type="button"
                       onClick={() => setSearchParams({ conversationId: conversation.conversationId })}
-                      className={`w-full px-4 py-3.5 text-left transition-colors [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/70 ${
-                        isActive ? "bg-primary/[0.08]" : "hover:bg-secondary/24"
+                      className={`w-full px-4 py-3.5 text-left transition-[background-color,border-color] duration-200 [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/70 ${
+                        isActive ? "bg-primary/[0.08]" : "hover:bg-secondary/28"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -121,7 +121,7 @@ export function ConversationsPage() {
           <CardContent className="space-y-4">
             {!selectedConversationId ? (
               <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
-                Select a conversation to review stored messages.
+                Select a conversation to review the full exchange and continue from the same context.
               </div>
             ) : conversationQuery.isLoading ? (
               <LoadingState title="Loading conversation" description="Fetching messages." />

@@ -80,12 +80,16 @@ export function DashboardPage() {
         ) : (
           metrics.map((metric) => {
             const Icon = metric.icon;
+            const isPrimaryMetric = metric.label === "Ready";
 
             return (
-              <Card key={metric.label} className="border-border/80 bg-card/86">
+              <Card
+                key={metric.label}
+                className={isPrimaryMetric ? "border-primary/18 bg-primary/[0.06]" : "border-border/80 bg-card/86"}
+              >
                 <CardContent className="space-y-2.5 p-4">
                   <div className="flex items-center justify-between gap-4">
-                    <div className="flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <div className={`flex size-9 items-center justify-center rounded-2xl ${isPrimaryMetric ? "bg-primary/14 text-primary" : "bg-primary/10 text-primary"}`}>
                       <Icon className="size-5" />
                     </div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{metric.note}</div>
@@ -167,7 +171,7 @@ export function DashboardPage() {
 
             {documents.length === 0 ? (
               <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
-                No documents yet. Upload one to start retrieval.
+                Upload your first document to turn this workspace into a searchable source of truth.
               </div>
             ) : null}
           </CardContent>

@@ -247,7 +247,7 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
 
           case "list":
             return (
-              <section key={blockKey} className="space-y-2.5">
+              <section key={blockKey} className="space-y-2.5 rounded-[18px] border border-border/60 bg-background/60 p-4">
                 {block.title ? (
                   <div className="text-sm font-semibold tracking-[-0.01em] text-foreground">{block.title}</div>
                 ) : null}

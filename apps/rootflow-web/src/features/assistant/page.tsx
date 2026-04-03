@@ -62,6 +62,10 @@ export function AssistantPage() {
   const latestReadyUpdatedLabel = latestReadyDocument
     ? formatRelativeDate(latestReadyDocument.processedAtUtc ?? latestReadyDocument.createdAtUtc)
     : null;
+  const latestAssistantMessageId = useMemo(
+    () => [...messages].reverse().find((message) => message.role !== 2)?.id ?? null,
+    [messages],
+  );
   const suggestedPrompts = latestReadyDocument
     ? [
         { label: "Summarize my documents", prompt: "Summarize my documents" },
@@ -148,7 +152,7 @@ export function AssistantPage() {
 
       <section className="grid gap-3 xl:grid-cols-[1.22fr_0.78fr]">
         <div className="space-y-3">
-          <Card className="border-border/80 bg-card/86">
+          <Card className="border-border/85 bg-card/90">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between gap-3">
                 <CardTitle>{conversationId ? "Current session" : "New session"}</CardTitle>
@@ -183,7 +187,7 @@ export function AssistantPage() {
                     />
                   ) : messages.length === 0 ? (
                     <div className="space-y-4 pb-1">
-                      <div className="rounded-[22px] border border-border/80 bg-card/70 p-4">
+                      <div className="rounded-[22px] border border-border/85 bg-card/76 p-4 shadow-[0_18px_40px_-34px_rgba(18,72,166,0.18)]">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <div className="text-sm font-semibold text-foreground">Session context</div>
@@ -235,10 +239,12 @@ export function AssistantPage() {
                         return (
                           <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                             <article
-                              className={`max-w-[76ch] ${
+                              className={`max-w-[76ch] transition-[transform,box-shadow,border-color,background-color] duration-200 ${
                                 isUser
                                   ? "rounded-[24px] rounded-br-lg border border-[#bad4ff] bg-[#eaf2ff] px-5 py-4 text-[#14315c] shadow-[0_14px_32px_-28px_rgba(66,116,194,0.32)] dark:border-[#395476] dark:bg-[#22314a] dark:text-[#edf4ff]"
-                                  : "rounded-[20px] border border-border/75 bg-background/76 px-5 py-4 text-foreground"
+                                  : message.id === latestAssistantMessageId
+                                    ? "rounded-[20px] border border-primary/22 bg-primary/[0.06] px-5 py-4 text-foreground shadow-[0_18px_40px_-32px_rgba(37,99,235,0.18)]"
+                                    : "rounded-[20px] border border-border/75 bg-background/76 px-5 py-4 text-foreground"
                               }`}
                             >
                               <div
@@ -261,7 +267,7 @@ export function AssistantPage() {
                   )}
 
                   {askQuestionMutation.isPending ? (
-                    <div className="border-l-2 border-primary/18 pl-4">
+                    <div className="rounded-[20px] border border-primary/18 bg-primary/[0.05] p-4">
                       <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/90">
                         <LoaderCircle className="size-3.5 animate-spin" />
                         RootFlow
@@ -272,13 +278,15 @@ export function AssistantPage() {
                 </>
               ) : (
                 <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
-                  {documentsQuery.data?.length ? "Documents are still processing." : "Upload a document to start asking questions."}
+                  {documentsQuery.data?.length
+                    ? "Your uploads are still processing. Answers will unlock as soon as they are ready."
+                    : "Upload your first document to start asking questions instantly."}
                 </div>
               )}
 
               <div className="border-t border-border/75 pt-4">
                 <form
-                  className="space-y-4 rounded-[24px] border border-border/80 bg-card/70 p-4"
+                  className="space-y-4 rounded-[24px] border border-primary/18 bg-card/76 p-4 shadow-[0_22px_44px_-34px_rgba(37,99,235,0.18)]"
                   onSubmit={submitQuestion}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -290,7 +298,7 @@ export function AssistantPage() {
                       <Badge variant="secondary">{activeLatestAnswer.sources.length} sources</Badge>
                     ) : null}
                   </div>
-                  <div className="rounded-[22px] border border-border/80 bg-background/92 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/34 focus-within:bg-background focus-within:shadow-[0_18px_34px_-24px_rgba(37,99,235,0.2)]">
+                  <div className="rounded-[22px] border border-border/85 bg-background/94 p-3 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/38 focus-within:bg-background focus-within:shadow-[0_20px_38px_-24px_rgba(37,99,235,0.24)]">
                     <Textarea
                       className="min-h-[120px] resize-none border-none bg-transparent px-2 py-2 text-[0.96rem] leading-7 shadow-none focus-visible:ring-0"
                       placeholder="Ask about a document, process, policy, or record..."
@@ -341,7 +349,7 @@ export function AssistantPage() {
           </Card>
         </div>
 
-        <Card className="border-border/80 bg-card/86">
+        <Card className="border-border/78 bg-card/82">
           <CardHeader className="pb-3">
             <CardTitle>Sources</CardTitle>
           </CardHeader>
@@ -350,7 +358,7 @@ export function AssistantPage() {
               activeLatestAnswer.sources.map((source, index) => (
                 <article
                   key={source.chunkId}
-                  className="space-y-3 border-b border-border/60 pb-4 last:border-b-0 last:pb-0"
+                  className="space-y-3 rounded-[20px] border border-border/72 bg-background/72 p-4 transition-[border-color,box-shadow,background-color] duration-200 hover:border-primary/18 hover:shadow-[0_16px_34px_-30px_rgba(18,72,166,0.16)]"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge>Source {index + 1}</Badge>
@@ -359,7 +367,7 @@ export function AssistantPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex items-start gap-3">
+                  <div className="flex items-start gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/8 text-primary">
                       <Quote className="size-4" />
                     </div>
@@ -376,11 +384,11 @@ export function AssistantPage() {
               ))
             ) : activeLatestAnswer ? (
               <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
-                No sources returned. Ask again after checking that documents are processed.
+                Try a more specific question and RootFlow will show the supporting sources here.
               </div>
             ) : (
               <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
-                {conversationId ? "Ask the next question to review sources." : "Sources appear after the first answer."}
+                {conversationId ? "Ask the next question to review supporting sources." : "Sources will appear with your first grounded answer."}
               </div>
             )}
 
