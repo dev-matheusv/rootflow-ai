@@ -7,7 +7,7 @@ public interface IWorkspaceBillingRepository
     Task EnsureProvisionedAsync(
         WorkspaceSubscription subscription,
         WorkspaceCreditBalance balance,
-        WorkspaceCreditLedgerEntry initialGrantEntry,
+        WorkspaceCreditLedgerEntry? initialGrantEntry,
         CancellationToken cancellationToken = default);
 
     Task<WorkspaceSubscription?> GetCurrentSubscriptionAsync(

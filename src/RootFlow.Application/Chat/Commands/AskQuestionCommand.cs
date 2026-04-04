@@ -4,4 +4,5 @@ public sealed record AskQuestionCommand(
     Guid WorkspaceId,
     string Question,
     Guid? ConversationId = null,
-    int MaxContextChunks = 8);
+    int MaxContextChunks = 8,
+    Guid? UserId = null);

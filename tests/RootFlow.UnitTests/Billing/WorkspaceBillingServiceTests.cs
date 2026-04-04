@@ -210,7 +210,7 @@ public sealed class WorkspaceBillingServiceTests
         public Task EnsureProvisionedAsync(
             WorkspaceSubscription subscription,
             WorkspaceCreditBalance balance,
-            WorkspaceCreditLedgerEntry initialGrantEntry,
+            WorkspaceCreditLedgerEntry? initialGrantEntry,
             CancellationToken cancellationToken = default)
         {
             if (!_subscriptions.ContainsKey(subscription.WorkspaceId))
@@ -221,6 +221,11 @@ public sealed class WorkspaceBillingServiceTests
             if (!_balances.ContainsKey(balance.WorkspaceId))
             {
                 _balances[balance.WorkspaceId] = balance;
+            }
+
+            if (initialGrantEntry is null)
+            {
+                return Task.CompletedTask;
             }
 
             if (LedgerEntries.Any(entry =>

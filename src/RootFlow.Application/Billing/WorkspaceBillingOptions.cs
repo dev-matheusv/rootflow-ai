@@ -6,6 +6,8 @@ public sealed class WorkspaceBillingOptions
 
     public int DefaultSubscriptionPeriodDays { get; set; } = 30;
 
+    public long MinimumAssistantCreditsRequired { get; set; } = 1;
+
     public long CreditsPerDollar { get; set; } = 100;
 
     public decimal DefaultPromptCostPerMillionTokens { get; set; } = 0.40m;

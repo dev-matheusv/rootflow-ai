@@ -17,7 +17,7 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
     public async Task EnsureProvisionedAsync(
         WorkspaceSubscription subscription,
         WorkspaceCreditBalance balance,
-        WorkspaceCreditLedgerEntry initialGrantEntry,
+        WorkspaceCreditLedgerEntry? initialGrantEntry,
         CancellationToken cancellationToken = default)
     {
         const string subscriptionExistsSql = """
@@ -107,7 +107,7 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
             await insertBalanceCommand.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        if (!subscriptionExists && initialGrantEntry.Amount > 0)
+        if (!subscriptionExists && initialGrantEntry is not null)
         {
             var currentBalance = await GetBalanceForUpdateAsync(
                 connection,

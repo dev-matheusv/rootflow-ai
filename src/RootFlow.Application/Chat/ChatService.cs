@@ -2,6 +2,8 @@ using RootFlow.Application.Abstractions.AI;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Abstractions.Search;
 using RootFlow.Application.Abstractions.Time;
+using RootFlow.Application.Billing;
+using RootFlow.Application.Billing.Commands;
 using RootFlow.Application.Chat.Commands;
 using RootFlow.Application.Chat.Dtos;
 using RootFlow.Domain.Conversations;
@@ -17,28 +19,28 @@ public sealed class ChatService
     private static readonly Regex ExcessWhitespaceRegex = new(@"\n{3,}", RegexOptions.Compiled);
     private static readonly Regex CitationRegex = new(@"\[(\d+)\]", RegexOptions.Compiled);
 
-    private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IConversationRepository _conversationRepository;
     private readonly IEmbeddingService _embeddingService;
     private readonly IKnowledgeSearchService _knowledgeSearchService;
     private readonly IChatCompletionService _chatCompletionService;
+    private readonly WorkspaceBillingService _workspaceBillingService;
     private readonly IClock _clock;
     private readonly ILogger<ChatService> _logger;
 
     public ChatService(
-        IWorkspaceRepository workspaceRepository,
         IConversationRepository conversationRepository,
         IEmbeddingService embeddingService,
         IKnowledgeSearchService knowledgeSearchService,
         IChatCompletionService chatCompletionService,
+        WorkspaceBillingService workspaceBillingService,
         IClock clock,
         ILogger<ChatService> logger)
     {
-        _workspaceRepository = workspaceRepository;
         _conversationRepository = conversationRepository;
         _embeddingService = embeddingService;
         _knowledgeSearchService = knowledgeSearchService;
         _chatCompletionService = chatCompletionService;
+        _workspaceBillingService = workspaceBillingService;
         _clock = clock;
         _logger = logger;
     }
@@ -52,11 +54,7 @@ public sealed class ChatService
             throw new ArgumentException("Question is required.", nameof(command));
         }
 
-        var workspaceExists = await _workspaceRepository.ExistsAsync(command.WorkspaceId, cancellationToken);
-        if (!workspaceExists)
-        {
-            throw new InvalidOperationException("Workspace was not found.");
-        }
+        await _workspaceBillingService.EnsureAssistantUsageAllowedAsync(command.WorkspaceId, cancellationToken);
 
         var conversation = await GetOrCreateConversationAsync(command, cancellationToken);
 
@@ -115,6 +113,54 @@ public sealed class ChatService
             var completion = await _chatCompletionService.CompleteAsync(prompt, cancellationToken);
             answer = CleanAnswer(completion.Content);
             modelName = completion.ModelName;
+
+            try
+            {
+                var usage = completion.Usage;
+                var usageEvent = await _workspaceBillingService.RegisterUsageAsync(
+                    new RegisterWorkspaceUsageCommand(
+                        command.WorkspaceId,
+                        command.UserId,
+                        conversation.Id,
+                        completion.Provider,
+                        completion.ModelName ?? "unknown",
+                        usage?.PromptTokens ?? 0,
+                        usage?.CompletionTokens ?? 0,
+                        usage?.TotalTokens ?? 0),
+                    cancellationToken);
+
+                _logger.LogInformation(
+                    "Recorded assistant usage for workspace {WorkspaceId}, conversation {ConversationId}, usage event {UsageEventId}, model {Model}, provider {Provider}, total tokens {TotalTokens}, credits charged {CreditsCharged}.",
+                    command.WorkspaceId,
+                    conversation.Id,
+                    usageEvent.Id,
+                    usageEvent.Model,
+                    usageEvent.Provider,
+                    usageEvent.TotalTokens,
+                    usageEvent.CreditsCharged);
+            }
+            catch (InsufficientWorkspaceCreditsException exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Assistant usage for workspace {WorkspaceId} and conversation {ConversationId} could not be finalized because the remaining credit balance was insufficient after the provider response.",
+                    command.WorkspaceId,
+                    conversation.Id);
+
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Failed to register assistant usage for workspace {WorkspaceId}, conversation {ConversationId}, provider {Provider}, and model {Model}.",
+                    command.WorkspaceId,
+                    conversation.Id,
+                    completion.Provider,
+                    completion.ModelName ?? "unknown");
+
+                throw;
+            }
         }
 
         var usedChunkRanks = ExtractCitedChunkRanks(answer, searchResults.Count);

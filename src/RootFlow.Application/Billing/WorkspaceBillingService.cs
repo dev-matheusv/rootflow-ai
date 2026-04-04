@@ -89,6 +89,41 @@ public sealed class WorkspaceBillingService
         return balance.HasAvailableCredits(requiredCredits);
     }
 
+    public async Task EnsureAssistantUsageAllowedAsync(
+        Guid workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureProvisionedAsync(workspaceId, cancellationToken);
+
+        var subscription = await _workspaceBillingRepository.GetCurrentSubscriptionAsync(
+            workspaceId,
+            _clock.UtcNow,
+            cancellationToken);
+
+        if (subscription is null)
+        {
+            _logger.LogWarning(
+                "Blocked assistant usage for workspace {WorkspaceId} because no active subscription was found.",
+                workspaceId);
+
+            throw new WorkspaceSubscriptionInactiveException("Your workspace doesn't have an active subscription.");
+        }
+
+        var balance = await RequireBalanceAsync(workspaceId, cancellationToken);
+        var minimumCreditsRequired = Math.Max(1, _options.MinimumAssistantCreditsRequired);
+
+        if (!balance.HasAvailableCredits(minimumCreditsRequired))
+        {
+            _logger.LogWarning(
+                "Blocked assistant usage for workspace {WorkspaceId} because available credits {AvailableCredits} are below the assistant preflight requirement {RequiredCredits}.",
+                workspaceId,
+                balance.AvailableCredits,
+                minimumCreditsRequired);
+
+            throw new InsufficientWorkspaceCreditsException("Your workspace has no credits available.");
+        }
+    }
+
     public async Task<WorkspaceCreditSummaryDto> GrantCreditsAsync(
         GrantWorkspaceCreditsCommand command,
         CancellationToken cancellationToken = default)
@@ -261,15 +296,17 @@ public sealed class WorkspaceBillingService
             utcNow);
 
         var balance = new WorkspaceCreditBalance(workspaceId, 0, 0, utcNow);
-        var initialGrantEntry = new WorkspaceCreditLedgerEntry(
-            Guid.NewGuid(),
-            workspaceId,
-            WorkspaceCreditLedgerType.SubscriptionGrant,
-            defaultPlan.IncludedCredits,
-            $"Included credits for the {defaultPlan.Name} plan",
-            utcNow,
-            "workspace_subscription",
-            subscription.Id.ToString());
+        WorkspaceCreditLedgerEntry? initialGrantEntry = defaultPlan.IncludedCredits > 0
+            ? new WorkspaceCreditLedgerEntry(
+                Guid.NewGuid(),
+                workspaceId,
+                WorkspaceCreditLedgerType.SubscriptionGrant,
+                defaultPlan.IncludedCredits,
+                $"Included credits for the {defaultPlan.Name} plan",
+                utcNow,
+                "workspace_subscription",
+                subscription.Id.ToString())
+            : null;
 
         await _workspaceBillingRepository.EnsureProvisionedAsync(
             subscription,

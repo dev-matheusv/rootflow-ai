@@ -510,15 +510,31 @@ app.MapPost("/api/chat", async (
         return Results.BadRequest(new { error = "Question is required." });
     }
 
-    var answer = await chatService.AskAsync(
-        new AskQuestionCommand(
-            user.GetRequiredWorkspaceId(),
-            request.Question,
-            request.ConversationId,
-            request.MaxContextChunks),
-        cancellationToken);
+    try
+    {
+        var answer = await chatService.AskAsync(
+            new AskQuestionCommand(
+                user.GetRequiredWorkspaceId(),
+                request.Question,
+                request.ConversationId,
+                request.MaxContextChunks,
+                user.GetRequiredUserId()),
+            cancellationToken);
 
-    return Results.Ok(answer);
+        return Results.Ok(answer);
+    }
+    catch (WorkspaceSubscriptionInactiveException exception)
+    {
+        return Results.Json(
+            new { error = exception.Message, code = "inactive_subscription" },
+            statusCode: StatusCodes.Status402PaymentRequired);
+    }
+    catch (InsufficientWorkspaceCreditsException exception)
+    {
+        return Results.Json(
+            new { error = exception.Message, code = "insufficient_credits" },
+            statusCode: StatusCodes.Status402PaymentRequired);
+    }
 })
 .RequireAuthorization();
 
