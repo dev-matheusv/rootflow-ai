@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { RootFlowBrand } from "@/components/branding/rootflow-brand";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/features/auth/auth-provider";
@@ -8,6 +9,7 @@ import { useAuth } from "@/features/auth/auth-provider";
 export function RequireAuth({ children }: PropsWithChildren) {
   const location = useLocation();
   const { isAuthenticated, status } = useAuth();
+  const { t } = useI18n();
 
   if (status === "loading") {
     return (
@@ -15,11 +17,11 @@ export function RequireAuth({ children }: PropsWithChildren) {
         <Card className="w-full max-w-md">
           <CardHeader>
             <RootFlowBrand variant="logo" size="md" className="mb-3 h-14" />
-            <CardTitle>Restoring your workspace session</CardTitle>
+            <CardTitle>{t("requireAuth.title")}</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm leading-6 text-muted-foreground">
-              RootFlow is validating your token and reloading the current workspace context.
+              {t("requireAuth.description")}
             </p>
           </CardContent>
         </Card>

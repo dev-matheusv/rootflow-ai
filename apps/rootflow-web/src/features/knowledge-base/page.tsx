@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { useI18n } from "@/app/providers/i18n-provider";
 import { useDocumentsQuery, useUploadDocumentMutation } from "@/hooks/use-rootflow-data";
 import { formatFileSize, formatRelativeDate, getDocumentTypeLabel } from "@/lib/formatting/formatters";
 import { useRef, useState, type ChangeEvent } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, FileText, Filter, FolderKanban, UploadCloud } from "lucide-react";
 
 export function KnowledgeBasePage() {
+  const { locale, t } = useI18n();
   const [filterProcessedOnly, setFilterProcessedOnly] = useState(false);
   const [lastUploadedDocumentName, setLastUploadedDocumentName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -50,8 +52,8 @@ export function KnowledgeBasePage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Knowledge Base"
-        description="Upload, monitor, and keep the workspace context fresh for grounded answers."
+        title={t("knowledgeBase.title")}
+        description={t("knowledgeBase.description")}
         actions={
           <>
             <input
@@ -63,11 +65,11 @@ export function KnowledgeBasePage() {
             />
             <Button onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
               <UploadCloud />
-              {uploadMutation.isPending ? "Uploading..." : "Upload documents"}
+              {uploadMutation.isPending ? t("assistant.sending") : t("common.actions.uploadDocuments")}
             </Button>
             <Button variant="outline" onClick={() => setFilterProcessedOnly((value) => !value)}>
               <Filter />
-              {filterProcessedOnly ? "Show all documents" : "Show processed only"}
+              {filterProcessedOnly ? t("common.actions.showAllDocuments") : t("common.actions.showProcessedOnly")}
             </Button>
           </>
         }
@@ -75,10 +77,10 @@ export function KnowledgeBasePage() {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Documents", value: documents.length, hint: "Library size", icon: FolderKanban },
-          { label: "Ready", value: processedCount, hint: "Searchable now", icon: CheckCircle2 },
-          { label: "Processing", value: processingCount, hint: "Parsing live", icon: Clock3 },
-          { label: "Failed", value: failedCount, hint: "Needs review", icon: AlertTriangle },
+          { label: t("common.labels.documents"), value: documents.length, hint: t("common.helper.librarySize"), icon: FolderKanban },
+          { label: t("common.labels.ready"), value: processedCount, hint: t("common.helper.searchableNow"), icon: CheckCircle2 },
+          { label: t("common.labels.processing"), value: processingCount, hint: t("common.helper.parsingLive"), icon: Clock3 },
+          { label: t("knowledgeBase.failedMetric"), value: failedCount, hint: t("common.helper.needsReview"), icon: AlertTriangle },
         ].map((metric) => {
           const Icon = metric.icon;
 
@@ -105,19 +107,19 @@ export function KnowledgeBasePage() {
         <Card className="border-border/80 bg-card/86">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
-              <div className="space-y-1">
-                <CardTitle>Documents</CardTitle>
+              <div className="min-w-0 space-y-1">
+                <CardTitle>{t("knowledgeBase.documentsTitle")}</CardTitle>
                 <div className="text-sm text-muted-foreground">
                   {latestDocument
-                    ? `Latest update ${formatRelativeDate(latestDocument.processedAtUtc ?? latestDocument.createdAtUtc)}`
-                    : "No document activity yet"}
+                    ? t("knowledgeBase.latestUpdate", { time: formatRelativeDate(latestDocument.processedAtUtc ?? latestDocument.createdAtUtc, locale) })
+                    : t("knowledgeBase.noDocumentActivity")}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 {processingCount > 0 ? (
                   <Badge variant="secondary">
                     <Clock3 className="size-3.5" />
-                    Refreshing
+                    {t("knowledgeBase.refreshing")}
                   </Badge>
                 ) : null}
                 <Badge variant="secondary">
@@ -130,20 +132,20 @@ export function KnowledgeBasePage() {
           <CardContent className="space-y-3">
             {documentsQuery.isLoading ? (
               <LoadingState
-                title="Loading documents"
-                description="Fetching the current library."
+                title={t("knowledgeBase.loadingDocumentsTitle")}
+                description={t("knowledgeBase.loadingDocumentsDescription")}
               />
             ) : documentsQuery.isError ? (
               <ErrorState
-                title="Could not load documents"
-                description="Try again."
+                title={t("knowledgeBase.documentsErrorTitle")}
+                description={t("knowledgeBase.documentsErrorDescription")}
                 onRetry={() => documentsQuery.refetch()}
               />
             ) : visibleDocuments.length === 0 ? (
               <div className="rounded-[20px] border border-dashed border-border/82 bg-card/60 px-4 py-3 text-sm text-muted-foreground">
                 {filterProcessedOnly
-                  ? "No processed documents yet. As soon as processing finishes, they will appear here."
-                  : "Upload your first document to start asking grounded questions instantly."}
+                  ? t("knowledgeBase.noProcessedDocumentsYet")
+                  : t("knowledgeBase.uploadFirstDocumentHint")}
               </div>
             ) : (
               <div className="overflow-hidden rounded-[22px] border border-border/80 bg-card/76">
@@ -162,22 +164,22 @@ export function KnowledgeBasePage() {
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      <div className="font-medium text-foreground/88">Status</div>
+                      <div className="font-medium text-foreground/88">{t("common.labels.status")}</div>
                       <div className="mt-1">
                         <StatusBadge status={document.status} />
                         {document.status === 4 && document.failureReason ? (
                           <p className="mt-2 text-xs leading-5 text-destructive">{document.failureReason}</p>
                         ) : document.status === 2 ? (
-                          <p className="mt-2 text-xs leading-5 text-muted-foreground">Processing</p>
+                          <p className="mt-2 text-xs leading-5 text-muted-foreground">{t("common.labels.processing")}</p>
                         ) : null}
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      <div className="font-medium text-foreground/88">Updated</div>
-                      <div className="font-medium text-foreground">{formatRelativeDate(document.processedAtUtc ?? document.createdAtUtc)}</div>
+                      <div className="font-medium text-foreground/88">{t("common.labels.updatedLabel")}</div>
+                      <div className="font-medium text-foreground">{formatRelativeDate(document.processedAtUtc ?? document.createdAtUtc, locale)}</div>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      <div className="font-medium text-foreground/88">Type</div>
+                      <div className="font-medium text-foreground/88">{t("common.labels.type")}</div>
                       <div className="truncate font-medium text-foreground" title={document.contentType}>
                         {getDocumentTypeLabel(document.originalFileName, document.contentType)}
                       </div>
@@ -192,14 +194,14 @@ export function KnowledgeBasePage() {
         <Card className="border-border/80 bg-card/86">
           <CardHeader>
             <div className="space-y-1">
-              <CardTitle>Upload</CardTitle>
-              <div className="text-sm text-muted-foreground">Drop in fresh source material for the assistant.</div>
+              <CardTitle>{t("knowledgeBase.uploadTitle")}</CardTitle>
+              <div className="text-sm text-muted-foreground">{t("knowledgeBase.uploadDescription")}</div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-4">
               <Button className="w-full justify-between" onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
-                {uploadMutation.isPending ? "Uploading..." : "Choose file"}
+                {uploadMutation.isPending ? t("assistant.sending") : t("common.actions.chooseFile")}
                 <UploadCloud />
               </Button>
               <div className="flex flex-wrap gap-2">
@@ -221,26 +223,26 @@ export function KnowledgeBasePage() {
                       <CheckCircle2 className="size-5" />
                     </div>
                     <div className="space-y-1">
-                      <div className="text-sm font-semibold text-foreground">Uploaded</div>
-                      <p className="text-sm text-muted-foreground">{lastUploadedDocumentName}</p>
+                      <div className="text-sm font-semibold text-foreground">{t("knowledgeBase.uploadedTitle")}</div>
+                      <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{lastUploadedDocumentName}</p>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3 rounded-[20px] border border-border/80 bg-card/76 p-4">
                   <div className="space-y-1">
-                    <div className="text-sm font-semibold text-foreground">Recent activity</div>
-                    <div className="text-sm text-muted-foreground/95">The latest upload activity stays visible here.</div>
+                    <div className="text-sm font-semibold text-foreground">{t("knowledgeBase.recentActivity")}</div>
+                    <div className="text-sm text-muted-foreground/95">{t("knowledgeBase.recentActivityHint")}</div>
                   </div>
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    <div className="flex items-center justify-between gap-3">
-                      <span>Latest file</span>
-                      <span className="truncate text-right text-foreground" title={latestDocument?.originalFileName}>
-                        {latestDocument?.originalFileName ?? "None"}
+                    <div className="flex min-w-0 items-center justify-between gap-3">
+                      <span>{t("common.labels.latestFile")}</span>
+                      <span className="min-w-0 max-w-[12rem] truncate text-right text-foreground" title={latestDocument?.originalFileName}>
+                        {latestDocument?.originalFileName ?? t("common.helper.none")}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
-                      <span>Ready now</span>
+                      <span>{t("common.labels.readyNow")}</span>
                       <span className="text-foreground">{processedCount}</span>
                     </div>
                   </div>
@@ -251,17 +253,17 @@ export function KnowledgeBasePage() {
             <div className="border-t border-border/75 pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-foreground">Processing</div>
+                  <div className="text-sm font-semibold text-foreground">{t("knowledgeBase.processingTitle")}</div>
                   <div className="text-sm text-muted-foreground">
                     {processingCount > 0
-                      ? `${processingCount} document${processingCount === 1 ? "" : "s"} in progress`
-                      : "No active processing"}
+                      ? t(processingCount === 1 ? "knowledgeBase.processingCount" : "knowledgeBase.processingCountPlural", { count: processingCount })
+                      : t("knowledgeBase.currentProcessing")}
                   </div>
                 </div>
                 {processingCount > 0 ? (
                   <Badge variant="secondary">
                     <Clock3 className="size-3.5" />
-                    Live
+                    {t("common.labels.live")}
                   </Badge>
                 ) : null}
               </div>
@@ -270,18 +272,18 @@ export function KnowledgeBasePage() {
                   {processingDocuments.map((document) => (
                     <div
                       key={document.id}
-                      className="flex items-center justify-between gap-3 px-3.5 py-3 text-sm transition-colors duration-200 hover:bg-background/80 [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/72"
+                      className="flex min-w-0 items-center justify-between gap-3 px-3.5 py-3 text-sm transition-colors duration-200 hover:bg-background/80 [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/72"
                     >
-                      <span className="truncate text-foreground" title={document.originalFileName}>
+                      <span className="min-w-0 flex-1 truncate text-foreground" title={document.originalFileName}>
                         {document.originalFileName}
                       </span>
-                      <span className="shrink-0 text-muted-foreground">{formatRelativeDate(document.createdAtUtc)}</span>
+                      <span className="shrink-0 text-muted-foreground">{formatRelativeDate(document.createdAtUtc, locale)}</span>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="mt-3 rounded-[18px] border border-dashed border-border/80 bg-card/60 px-4 py-3 text-sm text-muted-foreground">
-                  New uploads will appear here while RootFlow processes them.
+                  {t("knowledgeBase.processingPlaceholder")}
                 </div>
               )}
             </div>

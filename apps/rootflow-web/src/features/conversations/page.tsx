@@ -2,6 +2,7 @@ import { Clock3, Pin, Sparkles } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { FormattedAnswer } from "@/components/chat/formatted-answer";
@@ -23,6 +24,7 @@ const emptyConversations: Array<{
 }> = [];
 
 export function ConversationsPage() {
+  const { locale, t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const conversationsQuery = useConversationsQuery();
   const conversations = conversationsQuery.data ?? emptyConversations;
@@ -47,30 +49,30 @@ export function ConversationsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Conversations"
-        description="Review saved exchanges, reopen context, and continue grounded sessions."
+        title={t("conversations.title")}
+        description={t("conversations.description")}
       />
 
       <section className="grid gap-3 xl:grid-cols-[0.82fr_1.18fr]">
-        <Card className="border-border/80 bg-card/86">
+        <Card className="min-w-0 border-border/80 bg-card/86">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
-              <CardTitle>Sessions</CardTitle>
+              <CardTitle>{t("conversations.sessionsTitle")}</CardTitle>
               <Badge variant="secondary">{conversations.length}</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {conversationsQuery.isLoading ? (
-              <LoadingState title="Loading conversations" description="Fetching sessions." />
+              <LoadingState title={t("conversations.loadingTitle")} description={t("conversations.loadingDescription")} />
             ) : conversationsQuery.isError ? (
               <ErrorState
-                title="Could not load conversations"
-                description="Try again."
+                title={t("conversations.errorTitle")}
+                description={t("conversations.errorDescription")}
                 onRetry={() => conversationsQuery.refetch()}
               />
             ) : conversations.length === 0 ? (
               <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
-                Ask your first question in Assistant and every answer will stay here for the team to revisit.
+                {t("conversations.emptyHint")}
               </div>
             ) : (
               <div className="overflow-hidden rounded-[22px] border border-border/75 bg-card/72">
@@ -89,7 +91,9 @@ export function ConversationsPage() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0 space-y-1">
                           <div className="truncate text-sm font-semibold text-foreground">{conversation.title}</div>
-                          <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">{conversation.lastMessagePreview ?? "No preview"}</p>
+                          <p className="line-clamp-2 text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">
+                            {conversation.lastMessagePreview ?? t("common.helper.noPreview")}
+                          </p>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary">{conversation.messageCount}</Badge>
@@ -98,8 +102,8 @@ export function ConversationsPage() {
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                         <Clock3 className="size-3.5" />
-                        <span>Updated {formatRelativeDate(conversation.updatedAtUtc)}</span>
-                        <span>{conversation.messageCount} messages</span>
+                        <span>{t("common.labels.updated", { time: formatRelativeDate(conversation.updatedAtUtc, locale) })}</span>
+                        <span>{t("conversations.messagesCount", { count: conversation.messageCount })}</span>
                       </div>
                     </button>
                   );
@@ -109,27 +113,27 @@ export function ConversationsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 bg-card/86">
+        <Card className="min-w-0 border-border/80 bg-card/86">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
-              <CardTitle>Detail</CardTitle>
+              <CardTitle>{t("common.labels.detail")}</CardTitle>
               <Badge>
                 <Sparkles className="size-3.5" />
-                Stored
+                {t("conversations.stored")}
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {!selectedConversationId ? (
               <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
-                Select a conversation to review the full exchange and continue from the same context.
+                {t("conversations.selectConversationHint")}
               </div>
             ) : conversationQuery.isLoading ? (
-              <LoadingState title="Loading conversation" description="Fetching messages." />
+              <LoadingState title={t("conversations.loadingConversationTitle")} description={t("conversations.loadingConversationDescription")} />
             ) : conversationQuery.isError ? (
               <ErrorState
-                title="Could not load conversation"
-                description="Try another session or retry."
+                title={t("conversations.conversationErrorTitle")}
+                description={t("conversations.conversationErrorDescription")}
                 onRetry={() => conversationQuery.refetch()}
               />
             ) : (
@@ -139,13 +143,13 @@ export function ConversationsPage() {
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold text-foreground">{selectedConversationSummary.title}</div>
                       <div className="mt-1 text-sm text-muted-foreground">
-                        Updated {formatRelativeDate(selectedConversationSummary.updatedAtUtc)}
+                        {t("common.labels.updated", { time: formatRelativeDate(selectedConversationSummary.updatedAtUtc, locale) })}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">{selectedConversationSummary.messageCount} messages</Badge>
+                      <Badge variant="secondary">{t("conversations.messagesCount", { count: selectedConversationSummary.messageCount })}</Badge>
                       <Button variant="outline" size="sm" asChild>
-                        <Link to={`/assistant?conversationId=${selectedConversationId}`}>Continue</Link>
+                        <Link to={`/assistant?conversationId=${selectedConversationId}`}>{t("common.actions.continueConversation")}</Link>
                       </Button>
                     </div>
                   </div>
@@ -156,7 +160,7 @@ export function ConversationsPage() {
 
                     return (
                       <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                        <div className={`flex max-w-[76ch] gap-4 motion-safe:animate-[rf-fade-up_260ms_cubic-bezier(0.22,1,0.36,1)] ${isUser ? "items-start" : "items-start"}`}>
+                        <div className={`flex min-w-0 max-w-[76ch] gap-4 motion-safe:animate-[rf-fade-up_260ms_cubic-bezier(0.22,1,0.36,1)] ${isUser ? "items-start" : "items-start"}`}>
                           {!isUser ? (
                             <Avatar className="mt-0.5 size-10">
                               <AvatarFallback>AI</AvatarFallback>
@@ -171,14 +175,14 @@ export function ConversationsPage() {
                           >
                             <div className="mb-3 flex flex-wrap items-center gap-2">
                               <div className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isUser ? "text-[#3f669e] dark:text-[#a9c8ff]" : "text-primary/75"}`}>
-                                {isUser ? "You" : "RootFlow"}
+                                {isUser ? t("common.labels.you") : "RootFlow"}
                               </div>
-                              <span className="text-xs text-muted-foreground">{formatRelativeDate(message.createdAtUtc)}</span>
+                              <span className="text-xs text-muted-foreground">{formatRelativeDate(message.createdAtUtc, locale)}</span>
                             </div>
                             {isUser ? (
-                              <p className="whitespace-pre-wrap text-sm leading-7 text-inherit">{message.content}</p>
+                              <p className="whitespace-pre-wrap text-sm leading-7 text-inherit [overflow-wrap:anywhere]">{message.content}</p>
                             ) : (
-                              <FormattedAnswer content={message.content} className="max-w-[72ch]" />
+                              <FormattedAnswer content={message.content} className="max-w-[72ch] [overflow-wrap:anywhere]" />
                             )}
                           </div>
                         </div>

@@ -1,6 +1,7 @@
 import { Clock3, MailPlus, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 const inviteRoles: WorkspaceRole[] = ["Member", "Admin", "Owner"];
 
 export function WorkspaceCollaborationPanel() {
+  const { intlLocale, t } = useI18n();
   const { session } = useAuth();
   const workspaceId = session?.workspace.id;
   const currentRole = session?.role ?? "Member";
@@ -24,6 +26,12 @@ export function WorkspaceCollaborationPanel() {
   const [role, setRole] = useState<WorkspaceRole>("Member");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const currentRoleLabel =
+    currentRole === "Owner"
+      ? t("common.labels.owner")
+      : currentRole === "Admin"
+        ? t("common.labels.admin")
+        : t("common.labels.member");
 
   async function handleInviteSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,33 +48,37 @@ export function WorkspaceCollaborationPanel() {
       setEmail("");
       setRole("Member");
     } catch (error) {
-      setErrorMessage(error instanceof ApiError ? error.message : "We could not send the invite right now.");
+      setErrorMessage(error instanceof ApiError ? error.message : t("settings.inviteErrorFallback"));
     }
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary">{session?.workspace.name}</Badge>
-        <Badge variant="secondary">@{session?.workspace.slug}</Badge>
-        <Badge variant="success">{currentRole}</Badge>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <Badge variant="secondary" className="min-w-0 truncate" title={session?.workspace.name}>
+          {session?.workspace.name}
+        </Badge>
+        <Badge variant="secondary" className="min-w-0 max-w-full truncate" title={session?.workspace.slug}>
+          @{session?.workspace.slug}
+        </Badge>
+        <Badge variant="success">{currentRoleLabel}</Badge>
         <Badge variant="secondary">
           <Clock3 className="size-3.5" />
-          Timed invites
+          {t("common.helper.timedInvites")}
         </Badge>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
         <Card className="border-border/70 bg-background/72 shadow-none">
           <CardHeader>
-            <CardTitle>Invite</CardTitle>
+            <CardTitle>{t("settings.inviteTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
             {canInvite ? (
               <form className="space-y-5" onSubmit={handleInviteSubmit}>
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-foreground" htmlFor="invite-email">
-                    Work email
+                    {t("common.labels.workEmail")}
                   </label>
                   <Input
                     id="invite-email"
@@ -80,7 +92,7 @@ export function WorkspaceCollaborationPanel() {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="text-sm font-semibold text-foreground">Role</div>
+                  <div className="text-sm font-semibold text-foreground">{t("common.labels.role")}</div>
                   <div className="flex flex-wrap gap-2">
                     {inviteRoles.map((inviteRole) => (
                       <button
@@ -94,7 +106,7 @@ export function WorkspaceCollaborationPanel() {
                         )}
                         onClick={() => setRole(inviteRole)}
                       >
-                        {inviteRole}
+                        {inviteRole === "Owner" ? t("common.labels.owner") : inviteRole === "Admin" ? t("common.labels.admin") : t("common.labels.member")}
                       </button>
                     ))}
                   </div>
@@ -117,13 +129,13 @@ export function WorkspaceCollaborationPanel() {
                   className="w-full justify-between"
                   disabled={inviteMutation.isPending || email.trim().length === 0}
                 >
-                  {inviteMutation.isPending ? "Preparing invite..." : "Send invite"}
+                  {inviteMutation.isPending ? t("settings.preparingInvite") : t("common.actions.sendInvite")}
                   <MailPlus />
                 </Button>
               </form>
             ) : (
               <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm text-muted-foreground">
-                Your role is <span className="font-semibold text-foreground">{currentRole}</span>. You can still review members below.
+                {t("settings.yourRoleReviewMembers", { role: currentRoleLabel })}
               </div>
             )}
           </CardContent>
@@ -133,19 +145,19 @@ export function WorkspaceCollaborationPanel() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <ShieldCheck className="size-4 text-primary" />
-              <CardTitle>Members</CardTitle>
+              <CardTitle>{t("settings.membersTitle")}</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
             {membersQuery.isLoading ? (
               <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm text-muted-foreground">
-                Loading members...
+                {t("settings.membersLoading")}
               </div>
             ) : membersQuery.error ? (
               <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-4 text-sm text-destructive">
                 {membersQuery.error instanceof ApiError
                   ? membersQuery.error.message
-                  : "We could not load workspace members right now."}
+                  : t("settings.membersErrorFallback")}
               </div>
             ) : membersQuery.data && membersQuery.data.length > 0 ? (
               <div className="space-y-3">
@@ -157,23 +169,23 @@ export function WorkspaceCollaborationPanel() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="truncate text-sm font-semibold text-foreground">{member.fullName}</span>
-                        {member.isCurrentUser ? <Badge variant="secondary">You</Badge> : null}
+                        {member.isCurrentUser ? <Badge variant="secondary">{t("common.labels.you")}</Badge> : null}
                       </div>
-                      <div className="mt-1 text-sm text-muted-foreground">{member.email}</div>
+                      <div className="mt-1 text-sm text-muted-foreground [overflow-wrap:anywhere]">{member.email}</div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={member.role === "Owner" ? "default" : member.role === "Admin" ? "success" : "secondary"}>
-                        {member.role}
+                        {member.role === "Owner" ? t("common.labels.owner") : member.role === "Admin" ? t("common.labels.admin") : t("common.labels.member")}
                       </Badge>
-                      <div className="text-xs text-muted-foreground">Joined {new Date(member.createdAtUtc).toLocaleDateString()}</div>
+                      <div className="text-xs text-muted-foreground">{t("common.labels.joined", { date: new Date(member.createdAtUtc).toLocaleDateString(intlLocale) })}</div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="rounded-[22px] border border-border/70 bg-card/72 px-4 py-4 text-sm text-muted-foreground">
-                No members yet.
+                {t("settings.noMembersYet")}
               </div>
             )}
           </CardContent>

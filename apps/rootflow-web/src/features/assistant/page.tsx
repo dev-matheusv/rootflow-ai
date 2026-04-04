@@ -5,6 +5,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { FormattedAnswer } from "@/components/chat/formatted-answer";
@@ -17,17 +18,23 @@ import { useAskQuestionMutation, useConversationQuery, useDocumentsQuery } from 
 import type { ChatAnswer } from "@/lib/api/contracts";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 
-const assistantSchema = z.object({
-  question: z.string().trim().min(3, "Ask a fuller question so RootFlow can retrieve the right context."),
-});
-
-type AssistantFormValues = z.infer<typeof assistantSchema>;
+type AssistantFormValues = {
+  question: string;
+};
 
 export function AssistantPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const conversationId = searchParams.get("conversationId");
   const [latestAnswer, setLatestAnswer] = useState<ChatAnswer | null>(null);
   const [showDebug, setShowDebug] = useState(false);
+  const { locale, t } = useI18n();
+  const assistantSchema = useMemo(
+    () =>
+      z.object({
+        question: z.string().trim().min(3, t("assistant.validationQuestionMin")),
+      }),
+    [t],
+  );
 
   const documentsQuery = useDocumentsQuery({ autoRefreshProcessing: true });
   const conversationQuery = useConversationQuery(conversationId);
@@ -46,7 +53,7 @@ export function AssistantPage() {
     name: "question",
   }) ?? "";
   const messages = useMemo(() => conversationQuery.data?.messages ?? [], [conversationQuery.data?.messages]);
-  const documents = documentsQuery.data ?? [];
+  const documents = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
   const readyDocumentCount = documentsQuery.data?.filter((document) => document.status === 3).length ?? 0;
   const latestReadyDocument = useMemo(
     () =>
@@ -60,7 +67,7 @@ export function AssistantPage() {
     [documents],
   );
   const latestReadyUpdatedLabel = latestReadyDocument
-    ? formatRelativeDate(latestReadyDocument.processedAtUtc ?? latestReadyDocument.createdAtUtc)
+    ? formatRelativeDate(latestReadyDocument.processedAtUtc ?? latestReadyDocument.createdAtUtc, locale)
     : null;
   const latestAssistantMessageId = useMemo(
     () => [...messages].reverse().find((message) => message.role !== 2)?.id ?? null,
@@ -68,16 +75,16 @@ export function AssistantPage() {
   );
   const suggestedPrompts = latestReadyDocument
     ? [
-        { label: "Summarize my documents", prompt: "Summarize my documents" },
-        { label: "Key topics", prompt: "What are the key topics?" },
-        { label: "Explain latest file", prompt: `Explain ${latestReadyDocument.originalFileName}` },
-        { label: "What changed?", prompt: `What changed in ${latestReadyDocument.originalFileName}?` },
+        { label: t("assistant.summariseDocuments"), prompt: t("assistant.summariseDocuments") },
+        { label: t("assistant.keyTopics"), prompt: t("assistant.keyTopics") },
+        { label: t("assistant.explainLatestFile"), prompt: t("assistant.latestFilePrompt", { fileName: latestReadyDocument.originalFileName }) },
+        { label: t("assistant.whatChanged"), prompt: t("assistant.changedPrompt", { fileName: latestReadyDocument.originalFileName }) },
       ]
     : [
-        { label: "Summarize my documents", prompt: "Summarize my documents" },
-        { label: "Key topics", prompt: "What are the key topics?" },
-        { label: "Explain this document", prompt: "Explain this document" },
-        { label: "What changed?", prompt: "What changed in this file?" },
+        { label: t("assistant.summariseDocuments"), prompt: t("assistant.summariseDocuments") },
+        { label: t("assistant.keyTopics"), prompt: t("assistant.keyTopics") },
+        { label: t("assistant.explainThisDocument"), prompt: t("assistant.explainThisDocument") },
+        { label: t("assistant.whatChanged"), prompt: t("assistant.whatChanged") },
       ];
   const activeLatestAnswer = latestAnswer?.conversationId === conversationId ? latestAnswer : null;
   const isSendingQuestion = askQuestionMutation.isPending || form.formState.isSubmitting;
@@ -131,13 +138,13 @@ export function AssistantPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Assistant"
-        description="Ask grounded questions across your processed workspace knowledge."
+        title={t("assistant.title")}
+        description={t("assistant.description")}
         actions={
           <>
             <Button onClick={handleNewSession}>
               <Bot />
-              New session
+              {t("common.actions.newSession")}
             </Button>
             <Button
               variant="outline"
@@ -145,27 +152,27 @@ export function AssistantPage() {
               disabled={!canReviewRetrieval}
             >
               <Microscope />
-              {isDebugVisible ? "Hide retrieval" : "Review retrieval"}
+              {isDebugVisible ? t("common.actions.hideRetrieval") : t("common.actions.reviewRetrieval")}
             </Button>
           </>
         }
       />
 
-      <section className="grid gap-3 xl:grid-cols-[1.22fr_0.78fr]">
-        <div className="space-y-3">
+      <section className="grid min-w-0 gap-3 xl:grid-cols-[1.22fr_0.78fr]">
+        <div className="min-w-0 space-y-3">
           <Card className="border-border/90 bg-card/92">
             <CardHeader className="pb-3">
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div className="space-y-1.5">
-                  <CardTitle>{conversationId ? "Current session" : "New session"}</CardTitle>
+                <div className="min-w-0 space-y-1.5">
+                  <CardTitle>{conversationId ? t("assistant.sessionTitle") : t("assistant.newSessionTitle")}</CardTitle>
                   <p className="text-sm text-muted-foreground/95">
-                    {readyDocumentCount > 0 ? "Use focused prompts for tighter, cited answers." : "Upload documents to unlock grounded responses."}
+                    {readyDocumentCount > 0 ? t("assistant.readyHint") : t("assistant.uploadHint")}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">{readyDocumentCount} ready</Badge>
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <Badge variant="secondary">{t("dashboard.readyChip", { count: readyDocumentCount })}</Badge>
                   {latestReadyDocument ? (
-                    <Badge variant="secondary" className="max-w-[220px] truncate" title={latestReadyDocument.originalFileName}>
+                    <Badge variant="secondary" className="min-w-0 max-w-full sm:max-w-[220px] truncate" title={latestReadyDocument.originalFileName}>
                       {latestReadyDocument.originalFileName}
                     </Badge>
                   ) : null}
@@ -174,64 +181,64 @@ export function AssistantPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {documentsQuery.isLoading ? (
-                <LoadingState title="Loading documents" description="Checking what is ready." />
+                <LoadingState title={t("assistant.loadingDocumentsTitle")} description={t("assistant.loadingDocumentsDescription")} />
               ) : documentsQuery.isError ? (
                 <ErrorState
-                  title="Could not load documents"
-                  description="Check the connection and try again."
+                  title={t("assistant.documentsErrorTitle")}
+                  description={t("assistant.documentsErrorDescription")}
                   onRetry={() => documentsQuery.refetch()}
                 />
               ) : readyDocumentCount > 0 ? (
                 <>
                   {conversationId && conversationQuery.isLoading ? (
-                    <LoadingState title="Loading conversation" description="Restoring messages." />
+                    <LoadingState title={t("assistant.loadingConversationTitle")} description={t("assistant.loadingConversationDescription")} />
                   ) : conversationId && conversationQuery.isError ? (
                     <ErrorState
-                      title="Could not restore conversation"
-                      description="Start a new session or try again."
+                      title={t("assistant.conversationErrorTitle")}
+                      description={t("assistant.conversationErrorDescription")}
                       onRetry={() => conversationQuery.refetch()}
                     />
                   ) : messages.length === 0 ? (
                     <div className="space-y-4 pb-1">
                       <div className="rounded-[24px] border border-border/88 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--card)_96%,transparent),color-mix(in_srgb,var(--background)_74%,transparent))] p-4 shadow-[0_20px_42px_-32px_rgba(18,72,166,0.18)]">
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/76">Session context</div>
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/76">{t("assistant.sessionContext")}</div>
                             <div className="mt-1 text-sm font-semibold text-foreground">
-                              {conversationId ? "Session restored." : "Ready to answer."}
+                              {conversationId ? t("common.helper.sessionRestored") : t("assistant.sessionReady")}
                             </div>
-                            <div className="mt-1 text-sm text-muted-foreground/95">Start with a summary, a comparison, or a specific file question.</div>
+                            <div className="mt-1 text-sm text-muted-foreground/95">{t("assistant.sessionReadyHint")}</div>
                           </div>
                           {latestReadyUpdatedLabel ? (
-                            <div className="text-sm font-medium text-foreground/88">Last updated {latestReadyUpdatedLabel}</div>
+                            <div className="text-sm font-medium text-foreground/88">{t("common.labels.lastUpdated", { time: latestReadyUpdatedLabel })}</div>
                           ) : null}
                         </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
+                        <div className="mt-4 flex min-w-0 flex-wrap gap-2">
                           <Badge variant="secondary" className="gap-1.5 px-3 py-1.5 text-[11px]">
-                            {readyDocumentCount} ready
+                            {t("dashboard.readyChip", { count: readyDocumentCount })}
                           </Badge>
                           <Badge
                             variant="secondary"
-                            className="max-w-full truncate gap-1.5 px-3 py-1.5 text-[11px]"
+                            className="min-w-0 max-w-full truncate gap-1.5 px-3 py-1.5 text-[11px]"
                             title={latestReadyDocument?.originalFileName}
                           >
-                            Last: {latestReadyDocument?.originalFileName ?? "None"}
+                            {t("common.labels.last")}: {latestReadyDocument?.originalFileName ?? t("common.helper.none")}
                           </Badge>
                         </div>
                         <div className="mt-4 border-t border-border/75 pt-4">
-                          <div className="mb-3 text-sm font-semibold text-foreground">Quick actions</div>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="mb-3 text-sm font-semibold text-foreground">{t("assistant.quickActions")}</div>
+                          <div className="flex min-w-0 flex-wrap gap-2">
                             {suggestedPrompts.map((prompt) => (
                               <Button
                                 key={prompt.label}
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="h-auto rounded-full border-border/85 bg-background/92 px-3.5 py-1.5 text-left"
+                                className="h-auto min-w-0 max-w-full overflow-hidden rounded-full border-border/85 bg-background/92 px-3.5 py-1.5 text-left"
                                 onClick={() => handlePromptSelect(prompt.prompt)}
                                 title={prompt.prompt}
                               >
-                                {prompt.label}
+                                <span className="truncate">{prompt.label}</span>
                               </Button>
                             ))}
                           </div>
@@ -246,7 +253,7 @@ export function AssistantPage() {
                         return (
                           <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
                             <article
-                              className={`max-w-[76ch] motion-safe:animate-[rf-fade-up_260ms_cubic-bezier(0.22,1,0.36,1)] transition-[transform,box-shadow,border-color,background-color] duration-200 ${
+                              className={`min-w-0 max-w-[76ch] motion-safe:animate-[rf-fade-up_260ms_cubic-bezier(0.22,1,0.36,1)] transition-[transform,box-shadow,border-color,background-color] duration-200 ${
                                 isUser
                                   ? "rounded-[24px] rounded-br-lg border border-[#bad4ff] bg-[linear-gradient(180deg,#eff5ff,#e7f0ff)] px-5 py-4 text-[#14315c] shadow-[0_18px_38px_-28px_rgba(66,116,194,0.34)] dark:border-[#395476] dark:bg-[#22314a] dark:text-[#edf4ff]"
                                   : message.id === latestAssistantMessageId
@@ -259,12 +266,12 @@ export function AssistantPage() {
                                   isUser ? "text-[#3f669e] dark:text-[#a9c8ff]" : "text-primary/75"
                                 }`}
                               >
-                                {isUser ? "You" : "RootFlow"}
+                                {isUser ? t("common.labels.you") : "RootFlow"}
                               </div>
                               {isUser ? (
-                                <p className="whitespace-pre-wrap text-[0.96rem] leading-7 text-inherit">{message.content}</p>
+                                <p className="whitespace-pre-wrap text-[0.96rem] leading-7 text-inherit [overflow-wrap:anywhere]">{message.content}</p>
                               ) : (
-                                <FormattedAnswer content={message.content} className="max-w-[72ch]" />
+                                <FormattedAnswer content={message.content} className="max-w-[72ch] [overflow-wrap:anywhere]" />
                               )}
                             </article>
                           </div>
@@ -277,17 +284,17 @@ export function AssistantPage() {
                     <div className="rounded-[22px] border border-primary/18 bg-primary/[0.05] p-4 motion-safe:animate-[rf-fade-up_220ms_cubic-bezier(0.22,1,0.36,1)]">
                       <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/90">
                         <LoaderCircle className="size-3.5 animate-spin" />
-                        RootFlow
+                        {t("assistant.rootflow")}
                       </div>
-                      <p className="text-sm text-muted-foreground">Searching documents and preparing an answer.</p>
+                      <p className="text-sm text-muted-foreground">{t("assistant.searchInProgress")}</p>
                     </div>
                   ) : null}
                 </>
               ) : (
                 <div className="rounded-[20px] border border-dashed border-border/82 bg-card/60 px-4 py-3 text-sm text-muted-foreground">
                   {documentsQuery.data?.length
-                    ? "Your uploads are still processing. Answers will unlock as soon as they are ready."
-                    : "Upload your first document to start asking questions instantly."}
+                    ? t("assistant.uploadsProcessing")
+                    : t("assistant.uploadFirstDocument")}
                 </div>
               )}
 
@@ -296,35 +303,35 @@ export function AssistantPage() {
                   className="space-y-4 rounded-[28px] border border-primary/20 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--primary)_4%,var(--card)),color-mix(in_srgb,var(--background)_78%,transparent))] p-4 shadow-[0_24px_48px_-32px_rgba(37,99,235,0.18)]"
                   onSubmit={submitQuestion}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2">
                         <div className="flex size-8 items-center justify-center rounded-2xl border border-primary/14 bg-primary/10 text-primary">
                           <Bot className="size-4" />
                         </div>
-                        <div className="text-sm font-semibold text-foreground">Ask RootFlow</div>
+                        <div className="truncate text-sm font-semibold text-foreground">{t("assistant.askRootFlow")}</div>
                       </div>
-                      <div className="text-sm text-muted-foreground/95">Grounded answers, tighter context, cleaner citations.</div>
+                      <div className="text-sm text-muted-foreground/95">{t("assistant.askRootFlowHint")}</div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">{readyDocumentCount} ready</Badge>
-                      {latestReadyUpdatedLabel ? <div className="text-sm font-medium text-foreground/86">Updated {latestReadyUpdatedLabel}</div> : null}
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{t("dashboard.readyChip", { count: readyDocumentCount })}</Badge>
+                      {latestReadyUpdatedLabel ? <div className="text-sm font-medium text-foreground/86">{t("common.labels.updated", { time: latestReadyUpdatedLabel })}</div> : null}
                     </div>
                     {activeLatestAnswer?.sources.length ? (
-                      <Badge variant="secondary">{activeLatestAnswer.sources.length} sources</Badge>
+                      <Badge variant="secondary">{activeLatestAnswer.sources.length} {t("assistant.sourcesTitle").toLowerCase()}</Badge>
                     ) : null}
                   </div>
                   {readyDocumentCount > 0 && question.trim().length === 0 ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex min-w-0 flex-wrap gap-2">
                       {suggestedPrompts.slice(0, 3).map((prompt) => (
                         <button
                           key={prompt.label}
                           type="button"
-                          className="rounded-full border border-border/85 bg-background/90 px-3.5 py-1.5 text-sm font-medium text-foreground/82 transition-[transform,border-color,background-color,color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-secondary/72 hover:text-foreground hover:shadow-[0_14px_28px_-24px_rgba(18,72,166,0.18)]"
+                          className="min-w-0 max-w-full overflow-hidden rounded-full border border-border/85 bg-background/90 px-3.5 py-1.5 text-sm font-medium text-foreground/82 transition-[transform,border-color,background-color,color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-secondary/72 hover:text-foreground hover:shadow-[0_14px_28px_-24px_rgba(18,72,166,0.18)]"
                           onClick={() => handlePromptSelect(prompt.prompt)}
                           title={prompt.prompt}
                         >
-                          {prompt.label}
+                          <span className="block truncate">{prompt.label}</span>
                         </button>
                       ))}
                     </div>
@@ -332,7 +339,7 @@ export function AssistantPage() {
                   <div className="rounded-[24px] border border-border/88 bg-background/96 p-3.5 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-[0_22px_40px_-22px_rgba(37,99,235,0.24)]">
                     <Textarea
                       className="min-h-[120px] resize-none border-none bg-transparent px-2 py-2 text-[0.96rem] leading-7 shadow-none focus-visible:ring-0"
-                      placeholder="Ask about a document, process, policy, or record..."
+                      placeholder={t("assistant.inputPlaceholder")}
                       disabled={isSendingQuestion}
                       onKeyDown={handleQuestionKeyDown}
                       {...form.register("question")}
@@ -343,20 +350,20 @@ export function AssistantPage() {
                   ) : null}
                   {askQuestionMutation.isError ? (
                     <p className="text-sm text-destructive">
-                      We couldn't generate an answer right now. Please try again in a moment.
+                      {t("assistant.answerError")}
                     </p>
                   ) : null}
                   {readyDocumentCount === 0 && !documentsQuery.isLoading ? (
-                    <p className="text-sm text-muted-foreground">Upload a processed document first.</p>
+                    <p className="text-sm text-muted-foreground">{t("assistant.uploadProcessedDocumentFirst")}</p>
                   ) : null}
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <CornerDownLeft className="size-4" />
-                      {isSendingQuestion ? "Searching" : "Enter sends. Shift+Enter adds a line."}
+                      {isSendingQuestion ? t("common.helper.searching") : t("common.helper.enterSends")}
                     </div>
                     <Button type="submit" disabled={!canAsk} aria-busy={isSendingQuestion} className="min-w-[152px]">
                       {isSendingQuestion ? <LoaderCircle className="animate-spin" /> : <SendHorizonal />}
-                      {isSendingQuestion ? "Sending..." : "Send"}
+                      {isSendingQuestion ? t("assistant.sending") : t("common.actions.send")}
                     </Button>
                   </div>
                 </form>
@@ -365,11 +372,11 @@ export function AssistantPage() {
           </Card>
         </div>
 
-        <Card className="border-border/86 bg-card/88">
+        <Card className="min-w-0 border-border/86 bg-card/88">
           <CardHeader className="pb-3">
             <div className="space-y-1">
-              <CardTitle>Sources</CardTitle>
-              <p className="text-sm text-muted-foreground/95">Grounding for the latest assistant answer.</p>
+              <CardTitle>{t("assistant.sourcesTitle")}</CardTitle>
+              <p className="text-sm text-muted-foreground/95">{t("assistant.sourcesDescription")}</p>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -380,51 +387,57 @@ export function AssistantPage() {
                   className="space-y-3 rounded-[22px] border border-border/78 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--card)_88%,transparent),color-mix(in_srgb,var(--background)_76%,transparent))] p-4 transition-[transform,border-color,box-shadow,background-color] duration-200 hover:-translate-y-0.5 hover:border-primary/22 hover:shadow-[0_18px_38px_-30px_rgba(18,72,166,0.18)]"
                 >
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge>Source {index + 1}</Badge>
+                    <Badge>{t("common.labels.source", { index: index + 1 })}</Badge>
                     <div className="rounded-full border border-border/70 bg-background/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      Score {source.score.toFixed(2)}
+                      {t("common.labels.score", { value: source.score.toFixed(2) })}
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/8 text-primary">
                       <Quote className="size-4" />
                     </div>
                     <div className="min-w-0 space-y-1.5">
-                      <div className="text-sm font-semibold tracking-[-0.01em] text-foreground">{source.documentName}</div>
-                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/80">{source.sourceLabel}</div>
+                      <div className="truncate text-sm font-semibold tracking-[-0.01em] text-foreground" title={source.documentName}>
+                        {source.documentName}
+                      </div>
+                      <div className="truncate text-xs font-semibold uppercase tracking-[0.16em] text-primary/80" title={source.sourceLabel}>
+                        {source.sourceLabel}
+                      </div>
                     </div>
                   </div>
 
-                  <p className="overflow-hidden text-sm leading-6 text-foreground/84 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:6]">
+                  <p className="overflow-hidden text-sm leading-6 text-foreground/84 [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:6] [overflow-wrap:anywhere]">
                     {source.excerpt}
                   </p>
                 </article>
               ))
             ) : activeLatestAnswer ? (
               <div className="rounded-[20px] border border-dashed border-border/82 bg-card/60 px-4 py-3 text-sm text-muted-foreground">
-                Ask a narrower question and RootFlow will surface the supporting excerpts here.
+                {t("assistant.narrowerQuestionHint")}
               </div>
             ) : (
               <div className="rounded-[20px] border border-dashed border-border/82 bg-card/60 px-4 py-3 text-sm text-muted-foreground">
-                {conversationId ? "Ask the next question to review supporting sources." : "Sources will appear with your first grounded answer."}
+                {conversationId ? t("assistant.nextQuestionSourcesHint") : t("assistant.firstGroundedAnswerSourcesHint")}
               </div>
             )}
 
             {isDebugVisible && activeLatestAnswer?.debug?.retrievedChunks.length ? (
               <div className="rounded-[22px] border border-dashed border-border/84 bg-card/68 p-4">
                 <div className="space-y-3">
-                  <div className="text-sm font-semibold text-foreground">Retrieval</div>
+                  <div className="text-sm font-semibold text-foreground">{t("common.labels.retrieval")}</div>
                   {activeLatestAnswer.debug.retrievedChunks.map((chunk) => (
                     <div key={chunk.chunkId} className="border-b border-border/70 pb-3 last:border-b-0 last:pb-0">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-foreground">
+                      <div className="flex min-w-0 items-center justify-between gap-3">
+                        <div className="min-w-0 truncate text-sm font-semibold text-foreground" title={chunk.documentName}>
                           #{chunk.rank} {chunk.documentName}
                         </div>
                         <Badge variant="secondary">{chunk.score.toFixed(2)}</Badge>
                       </div>
-                      <div className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary/80">{chunk.sourceLabel}</div>
-                      <p className="mt-3 text-sm leading-6 text-muted-foreground">{chunk.reason}</p>
+                      <div className="mt-1 truncate text-xs font-semibold uppercase tracking-[0.16em] text-primary/80" title={chunk.sourceLabel}>
+                        {chunk.sourceLabel}
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-muted-foreground [overflow-wrap:anywhere]">{chunk.reason}</p>
                     </div>
                   ))}
                 </div>
@@ -434,12 +447,12 @@ export function AssistantPage() {
             {conversationId ? (
               <div className="rounded-[22px] border border-dashed border-border/84 bg-card/68 p-4">
                 <div className="space-y-2">
-                  <div className="text-sm font-semibold text-foreground">Conversation history</div>
+                  <div className="text-sm font-semibold text-foreground">{t("common.labels.conversationHistory")}</div>
                   <p className="text-sm text-muted-foreground">
-                    {activeLatestAnswer ? `Updated ${formatRelativeDate(new Date())}.` : "Session restored."}
+                    {activeLatestAnswer ? `${t("common.labels.updated", { time: formatRelativeDate(new Date(), locale) })}.` : t("common.helper.sessionRestored")}
                   </p>
                   <Button variant="outline" className="w-full justify-between" asChild>
-                    <Link to={`/conversations?conversationId=${conversationId}`}>Open conversation history</Link>
+                    <Link to={`/conversations?conversationId=${conversationId}`}>{t("common.actions.openConversationHistory")}</Link>
                   </Button>
                 </div>
               </div>

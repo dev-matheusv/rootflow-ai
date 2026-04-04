@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/providers/i18n-provider";
 import { RootFlowBrand } from "@/components/branding/rootflow-brand";
 import { SidebarNav } from "@/components/navigation/sidebar-nav";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -13,9 +14,12 @@ interface ShellSidebarProps {
 
 export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }: ShellSidebarProps) {
   const { session } = useAuth();
-  const workspaceName = session?.workspace.name ?? "Workspace";
+  const { t } = useI18n();
+  const workspaceName = session?.workspace.name ?? t("common.labels.workspace");
   const workspaceSlug = session?.workspace.slug ?? "workspace";
   const role = session?.role ?? "Member";
+  const roleLabel =
+    role === "Owner" ? t("common.labels.owner") : role === "Admin" ? t("common.labels.admin") : t("common.labels.member");
   const initials = session?.user.fullName
     ?.split(/\s+/)
     .filter(Boolean)
@@ -47,7 +51,7 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
                 <div className="flex items-center gap-2">
                   <div className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground">{workspaceName}</div>
                   <Badge variant="secondary" className="shrink-0 px-2 py-0.5 text-[10px] font-semibold">
-                    {role}
+                    {roleLabel}
                   </Badge>
                 </div>
                 <div className="truncate text-xs text-muted-foreground">@{workspaceSlug}</div>
@@ -76,7 +80,7 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
               <AvatarFallback>{initials || "RF"}</AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-foreground">{session?.user.fullName ?? "RootFlow User"}</div>
+              <div className="truncate text-sm font-semibold text-foreground">{session?.user.fullName ?? t("common.labels.rootflowUser")}</div>
               <div className="truncate text-xs text-muted-foreground">{session?.user.email ?? "workspace@rootflow.local"}</div>
             </div>
           </div>

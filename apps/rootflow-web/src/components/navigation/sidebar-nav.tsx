@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { navigationItems } from "@/components/navigation/navigation-items";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +10,8 @@ interface SidebarNavProps {
 }
 
 export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
+  const { t } = useI18n();
+
   return (
     <section>
       <nav className="space-y-1.5">
@@ -16,7 +19,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
           <NavLink
             key={item.id}
             to={item.to}
-            title={collapsed ? item.label : undefined}
+            title={collapsed ? t(item.labelKey) : undefined}
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
@@ -53,10 +56,10 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
                     <Icon className="size-[18px]" />
                   </div>
                   {collapsed ? (
-                    <span className="sr-only">{item.label}</span>
+                    <span className="sr-only">{t(item.labelKey)}</span>
                   ) : (
                     <div className="min-w-0">
-                      <div className="font-medium tracking-[-0.02em]">{item.label}</div>
+                      <div className="truncate font-medium tracking-[-0.02em]">{t(item.labelKey)}</div>
                     </div>
                   )}
                 </>

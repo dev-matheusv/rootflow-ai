@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, CheckCircle2, KeyRound, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,17 +14,10 @@ import { AuthScaffold } from "@/features/auth/components/auth-scaffold";
 import { ApiError } from "@/lib/api/client";
 import { rootflowApi } from "@/lib/api/rootflow-api";
 
-const resetPasswordSchema = z
-  .object({
-    newPassword: z.string().min(8, "Password must be at least 8 characters.").max(128, "Password is too long."),
-    confirmPassword: z.string().min(8, "Confirm your new password."),
-  })
-  .refine((values) => values.newPassword === values.confirmPassword, {
-    message: "Passwords do not match.",
-    path: ["confirmPassword"],
-  });
-
-type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
+type ResetPasswordFormValues = {
+  newPassword: string;
+  confirmPassword: string;
+};
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -37,9 +31,23 @@ interface ResetPasswordContentProps {
 }
 
 function ResetPasswordContent({ token }: ResetPasswordContentProps) {
+  const { t } = useI18n();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hasInvalidTokenError, setHasInvalidTokenError] = useState(false);
+  const resetPasswordSchema = useMemo(
+    () =>
+      z
+        .object({
+          newPassword: z.string().min(8, t("auth.resetPassword.newPasswordValidation")).max(128, t("auth.resetPassword.passwordTooLong")),
+          confirmPassword: z.string().min(8, t("auth.resetPassword.confirmPasswordValidation")),
+        })
+        .refine((values) => values.newPassword === values.confirmPassword, {
+          message: t("auth.resetPassword.passwordsMismatch"),
+          path: ["confirmPassword"],
+        }),
+    [t],
+  );
   const form = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
@@ -67,7 +75,7 @@ function ResetPasswordContent({ token }: ResetPasswordContentProps) {
         return;
       }
 
-      setErrorMessage("We could not reset the password right now.");
+      setErrorMessage(t("auth.resetPassword.fallbackError"));
     }
   }
 
@@ -79,19 +87,19 @@ function ResetPasswordContent({ token }: ResetPasswordContentProps) {
       badge={
         <>
           <KeyRound className="size-3.5" />
-          Secure reset
+          {t("auth.resetPassword.badge")}
         </>
       }
-      title="Choose a new RootFlow password."
-      description="Reset links stay short-lived and single-use so the password update remains safe without changing the rest of the RootFlow auth architecture."
+      title={t("auth.resetPassword.title")}
+      description={t("auth.resetPassword.description")}
       highlights={[
         {
-          title: "Time-bound token flow",
-          description: "The reset token is validated server-side before the password changes, and the token is invalidated immediately after a successful reset.",
+          title: t("auth.resetPassword.highlightOneTitle"),
+          description: t("auth.resetPassword.highlightOneDescription"),
         },
         {
-          title: "Same premium auth surface",
-          description: "Recovery keeps the same RootFlow branding, feedback patterns, and password controls as the rest of the auth experience.",
+          title: t("auth.resetPassword.highlightTwoTitle"),
+          description: t("auth.resetPassword.highlightTwoDescription"),
         },
       ]}
     >
@@ -99,10 +107,10 @@ function ResetPasswordContent({ token }: ResetPasswordContentProps) {
         <CardHeader className="px-0 pt-0">
           <Badge className="w-fit">
             <ShieldCheck className="size-3.5" />
-            Password update
+            {t("common.labels.passwordUpdate")}
           </Badge>
-          <CardTitle>Reset password</CardTitle>
-          <CardDescription>Set a new password to regain access to your RootFlow workspace.</CardDescription>
+          <CardTitle>{t("auth.resetPassword.cardTitle")}</CardTitle>
+          <CardDescription>{t("auth.resetPassword.cardDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-0">
           {successMessage ? (
@@ -111,7 +119,7 @@ function ResetPasswordContent({ token }: ResetPasswordContentProps) {
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 size-5 text-primary" />
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold text-foreground">Password updated</p>
+                    <p className="text-sm font-semibold text-foreground">{t("auth.resetPassword.passwordUpdated")}</p>
                     <p className="text-sm leading-6 text-muted-foreground">{successMessage}</p>
                   </div>
                 </div>
@@ -119,7 +127,7 @@ function ResetPasswordContent({ token }: ResetPasswordContentProps) {
 
               <Button className="w-full justify-between" asChild>
                 <Link to="/auth/login">
-                  Return to login
+                  {t("common.actions.returnToLogin")}
                   <ArrowRight />
                 </Link>
               </Button>
@@ -128,18 +136,18 @@ function ResetPasswordContent({ token }: ResetPasswordContentProps) {
             <div className="space-y-5">
               <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
                 {showInvalidTokenState
-                  ? "This reset link is invalid or has expired. Request a new password reset email to continue."
-                  : "This reset link is invalid or incomplete. Request a new password reset email to continue."}
+                  ? t("auth.resetPassword.invalidExpired")
+                  : t("auth.resetPassword.invalidIncomplete")}
               </div>
               <div className="flex flex-col gap-3">
                 <Button className="w-full justify-between" asChild>
                   <Link to="/auth/forgot-password">
-                    Request a new link
+                    {t("auth.resetPassword.requestNewLink")}
                     <ArrowRight />
                   </Link>
                 </Button>
                 <Button variant="outline" className="w-full" asChild>
-                  <Link to="/auth/login">Back to login</Link>
+                  <Link to="/auth/login">{t("common.actions.backToLogin")}</Link>
                 </Button>
               </div>
             </div>
@@ -147,12 +155,12 @@ function ResetPasswordContent({ token }: ResetPasswordContentProps) {
             <form className="space-y-5" onSubmit={form.handleSubmit(handleSubmit)}>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground" htmlFor="newPassword">
-                  New password
+                  {t("auth.resetPassword.newPassword")}
                 </label>
                 <PasswordInput
                   id="newPassword"
                   autoComplete="new-password"
-                  placeholder="Choose a secure password"
+                  placeholder={t("auth.resetPassword.passwordPlaceholder")}
                   disabled={form.formState.isSubmitting}
                   {...form.register("newPassword")}
                 />
@@ -163,12 +171,12 @@ function ResetPasswordContent({ token }: ResetPasswordContentProps) {
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground" htmlFor="confirmPassword">
-                  Confirm new password
+                  {t("auth.resetPassword.confirmNewPassword")}
                 </label>
                 <PasswordInput
                   id="confirmPassword"
                   autoComplete="new-password"
-                  placeholder="Confirm your new password"
+                  placeholder={t("auth.resetPassword.confirmPasswordPlaceholder")}
                   disabled={form.formState.isSubmitting}
                   {...form.register("confirmPassword")}
                 />
@@ -185,11 +193,11 @@ function ResetPasswordContent({ token }: ResetPasswordContentProps) {
 
               <div className="flex flex-col gap-3">
                 <Button type="submit" className="w-full justify-between" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? "Resetting password..." : "Update password"}
+                  {form.formState.isSubmitting ? t("auth.resetPassword.resettingPassword") : t("auth.resetPassword.updatePassword")}
                   <ArrowRight />
                 </Button>
                 <Button variant="outline" className="w-full" asChild>
-                  <Link to="/auth/login">Back to login</Link>
+                  <Link to="/auth/login">{t("common.actions.backToLogin")}</Link>
                 </Button>
               </div>
             </form>

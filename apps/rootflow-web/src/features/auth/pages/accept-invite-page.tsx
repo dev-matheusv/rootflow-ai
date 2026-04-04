@@ -2,6 +2,7 @@ import { ArrowRight, CheckCircle2, LogIn, MailPlus, ShieldCheck, UserRoundPlus }
 import { useMemo, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ interface AcceptInviteContentProps {
 
 function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
   const { applyAuthResponse, isAuthenticated, logout, session, status } = useAuth();
+  const { t } = useI18n();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [acceptedWorkspaceName, setAcceptedWorkspaceName] = useState<string | null>(null);
@@ -42,9 +44,9 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
       const response = await rootflowApi.acceptWorkspaceInvite({ token });
       applyAuthResponse(response);
       setAcceptedWorkspaceName(response.session.workspace.name);
-      setSuccessMessage(`You now have access to ${response.session.workspace.name}.`);
+      setSuccessMessage(t("auth.acceptInvite.successMessage", { workspace: response.session.workspace.name }));
     } catch (error) {
-      setErrorMessage(error instanceof ApiError ? error.message : "We could not accept this invite right now.");
+      setErrorMessage(error instanceof ApiError ? error.message : t("auth.acceptInvite.fallbackError"));
     } finally {
       setIsSubmitting(false);
     }
@@ -55,19 +57,19 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
       badge={
         <>
           <MailPlus className="size-3.5" />
-          Workspace invite
+          {t("auth.acceptInvite.badge")}
         </>
       }
-      title="Join a shared RootFlow workspace."
-      description="Accept the invite through the existing RootFlow auth flow, then switch directly into the invited workspace with a fresh workspace-scoped session."
+      title={t("auth.acceptInvite.title")}
+      description={t("auth.acceptInvite.description")}
       highlights={[
         {
-          title: "Single-use secure invites",
-          description: "Invite links expire and only work once, so workspace access stays explicit instead of being inferred from email alone.",
+          title: t("auth.acceptInvite.highlightOneTitle"),
+          description: t("auth.acceptInvite.highlightOneDescription"),
         },
         {
-          title: "Same auth foundation",
-          description: "Invite acceptance reuses the existing JWT session model instead of bolting on a second collaboration path.",
+          title: t("auth.acceptInvite.highlightTwoTitle"),
+          description: t("auth.acceptInvite.highlightTwoDescription"),
         },
       ]}
     >
@@ -75,15 +77,15 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
         <CardHeader className="px-0 pt-0">
           <Badge className="w-fit">
             <ShieldCheck className="size-3.5" />
-            Workspace access
+            {t("common.labels.workspaceAccess")}
           </Badge>
-          <CardTitle>Accept invite</CardTitle>
-          <CardDescription>Continue with the account that matches the invited email address.</CardDescription>
+          <CardTitle>{t("auth.acceptInvite.cardTitle")}</CardTitle>
+          <CardDescription>{t("auth.acceptInvite.cardDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-0">
           {status === "loading" ? (
             <div className="rounded-[22px] border border-border/75 bg-background/80 px-4 py-3 text-sm text-muted-foreground">
-              Restoring your current session before RootFlow processes the invite.
+              {t("auth.acceptInvite.restoringSession")}
             </div>
           ) : successMessage ? (
             <div className="space-y-5">
@@ -91,7 +93,7 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 size-5 text-primary" />
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold text-foreground">Workspace joined</p>
+                    <p className="text-sm font-semibold text-foreground">{t("auth.acceptInvite.workspaceJoined")}</p>
                     <p className="text-sm leading-6 text-muted-foreground">{successMessage}</p>
                   </div>
                 </div>
@@ -99,7 +101,7 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
 
               <Button className="w-full justify-between" asChild>
                 <Link to="/dashboard">
-                  Open {acceptedWorkspaceName ?? "workspace"}
+                  {t("auth.acceptInvite.openWorkspace", { workspace: acceptedWorkspaceName ?? t("common.labels.workspace").toLowerCase() })}
                   <ArrowRight />
                 </Link>
               </Button>
@@ -107,27 +109,27 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
           ) : isMissingToken ? (
             <div className="space-y-5">
               <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
-                This invite link is incomplete. Ask your workspace admin to send a fresh invitation.
+                {t("auth.acceptInvite.incompleteLink")}
               </div>
               <Button variant="outline" className="w-full" asChild>
-                <Link to="/auth/login">Back to login</Link>
+                <Link to="/auth/login">{t("common.actions.backToLogin")}</Link>
               </Button>
             </div>
           ) : !isAuthenticated ? (
             <div className="space-y-5">
               <div className="rounded-[22px] border border-border/75 bg-background/80 px-4 py-3 text-sm text-muted-foreground">
-                Sign in first so RootFlow can attach this invite to the correct account and switch you into the invited workspace.
+                {t("auth.acceptInvite.signInFirst")}
               </div>
               <div className="flex flex-col gap-3">
                 <Button className="w-full justify-between" asChild>
                   <Link to={`/auth/login?redirect=${authRedirect}`}>
-                    Sign in to continue
+                    {t("common.actions.signInToContinue")}
                     <LogIn />
                   </Link>
                 </Button>
                 <Button variant="outline" className="w-full justify-between" asChild>
                   <Link to={`/auth/signup?redirect=${authRedirect}`}>
-                    Create account first
+                    {t("common.actions.createAccountFirst")}
                     <UserRoundPlus />
                   </Link>
                 </Button>
@@ -138,7 +140,7 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
               <div className="rounded-[22px] border border-border/75 bg-background/80 px-4 py-4">
                 <div className="text-sm font-semibold text-foreground">{session?.user.fullName}</div>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  RootFlow will use <span className="font-medium text-foreground">{session?.user.email}</span> to accept this invite.
+                  {t("auth.acceptInvite.useEmail", { email: session?.user.email ?? "" })}
                 </p>
               </div>
 
@@ -150,17 +152,17 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
 
               <div className="flex flex-col gap-3">
                 <Button className="w-full justify-between" onClick={handleAcceptInvite} disabled={isSubmitting}>
-                  {isSubmitting ? "Joining workspace..." : "Accept invite"}
+                  {isSubmitting ? t("auth.acceptInvite.joiningWorkspace") : t("common.actions.acceptInvite")}
                   <ArrowRight />
                 </Button>
                 {requiresDifferentAccount ? (
                   <Button variant="outline" className="w-full justify-between" onClick={logout}>
-                    Sign out and try another account
+                    {t("auth.acceptInvite.signOutAndTryAnother")}
                     <LogIn />
                   </Button>
                 ) : (
                   <Button variant="outline" className="w-full" asChild>
-                    <Link to="/dashboard">Cancel</Link>
+                    <Link to="/dashboard">{t("common.actions.cancel")}</Link>
                   </Button>
                 )}
               </div>

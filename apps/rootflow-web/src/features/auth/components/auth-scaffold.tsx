@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { RootFlowBrand } from "@/components/branding/rootflow-brand";
 import { Badge } from "@/components/ui/badge";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 
 interface AuthScaffoldProps {
   badge: ReactNode;
@@ -15,6 +17,8 @@ interface AuthScaffoldProps {
 }
 
 export function AuthScaffold({ badge, title, description, highlights, children }: AuthScaffoldProps) {
+  const { t } = useI18n();
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <div className="pointer-events-none absolute inset-0 opacity-[0.82]">
@@ -25,16 +29,16 @@ export function AuthScaffold({ badge, title, description, highlights, children }
 
       <div className="relative mx-auto flex min-h-screen max-w-[1320px] items-center px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid w-full gap-6 lg:grid-cols-[1.04fr_0.96fr]">
-          <section className="rounded-[32px] border border-border/65 bg-card/84 p-6 shadow-[0_24px_60px_-46px_rgba(16,36,71,0.14)] backdrop-blur-2xl sm:p-8 lg:p-10">
+          <section className="min-w-0 rounded-[32px] border border-border/65 bg-card/84 p-6 shadow-[0_24px_60px_-46px_rgba(16,36,71,0.14)] backdrop-blur-2xl sm:p-8 lg:p-10">
             <div className="relative mb-7 overflow-hidden rounded-[28px] bg-[linear-gradient(140deg,#08275f_0%,#0b438f_48%,#0e62d9_100%)] px-6 py-6 text-white shadow-[0_24px_56px_-48px_rgba(7,65,169,0.44)] sm:px-7 sm:py-7 lg:px-8 lg:py-8">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(255,255,255,0.14),transparent_34%),radial-gradient(circle_at_100%_100%,rgba(255,255,255,0.06),transparent_26%)]" />
               <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.86fr)] lg:items-center">
                 <div className="space-y-3 lg:max-w-sm">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/62">
-                    RootFlow
+                    {t("auth.brandEyebrow")}
                   </div>
                   <p className="max-w-sm text-sm leading-7 text-white/82 sm:text-base">
-                    Grounded knowledge for modern teams, presented with a calmer and more consistent product surface.
+                    {t("auth.brandDescription")}
                   </p>
                 </div>
                 <div className="flex w-full justify-center pt-1 lg:justify-center lg:pt-0">
@@ -62,9 +66,10 @@ export function AuthScaffold({ badge, title, description, highlights, children }
             </div>
           </section>
 
-          <section className="rounded-[32px] border border-border/65 bg-card/88 p-5 shadow-[0_24px_60px_-46px_rgba(16,36,71,0.14)] backdrop-blur-2xl sm:p-6 lg:p-8">
-            <div className="mb-7 flex items-center">
+          <section className="min-w-0 rounded-[32px] border border-border/65 bg-card/88 p-5 shadow-[0_24px_60px_-46px_rgba(16,36,71,0.14)] backdrop-blur-2xl sm:p-6 lg:p-8">
+            <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
               <RootFlowBrand variant="logo" size="lg" className="h-[4.35rem] max-w-none sm:h-[4.75rem]" />
+              <LanguageSwitcher />
             </div>
             {children}
           </section>

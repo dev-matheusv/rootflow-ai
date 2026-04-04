@@ -1,6 +1,7 @@
 import { BookOpenText, Bot, DatabaseZap, MessagesSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import { formatRelativeDate } from "@/lib/formatting/formatters";
 
 export function DashboardPage() {
   const { session } = useAuth();
+  const { locale, t } = useI18n();
   const healthQuery = useHealthQuery();
   const documentsQuery = useDocumentsQuery({ autoRefreshProcessing: true });
   const conversationsQuery = useConversationsQuery();
@@ -30,30 +32,36 @@ export function DashboardPage() {
   )[0];
 
   const metrics = [
-    { label: "Documents", value: String(documents.length), note: "Total", hint: "Library size", icon: BookOpenText },
-    { label: "Ready", value: String(processedCount), note: "Processed", hint: "Grounded answers", icon: Bot },
-    { label: "Conversations", value: String(conversations.length), note: "Saved", hint: "Reusable sessions", icon: MessagesSquare },
+    { label: t("dashboard.documentsMetric"), value: String(documents.length), note: t("dashboard.total"), hint: t("common.helper.librarySize"), icon: BookOpenText },
+    { label: t("dashboard.readyMetric"), value: String(processedCount), note: t("dashboard.processed"), hint: t("common.helper.groundedAnswers"), icon: Bot },
+    { label: t("dashboard.conversationsMetric"), value: String(conversations.length), note: t("dashboard.saved"), hint: t("common.helper.reusableSessions"), icon: MessagesSquare },
     {
-      label: "API",
-      value: healthQuery.data?.status === "healthy" ? "Healthy" : "Checking",
-      note: "Status",
-      hint: "Search pipeline",
+      label: t("dashboard.apiMetric"),
+      value: healthQuery.data?.status === "healthy" ? t("dashboard.healthy") : t("dashboard.checking"),
+      note: t("dashboard.status"),
+      hint: t("common.helper.searchPipeline"),
       icon: DatabaseZap,
     },
   ] as const;
+  const roleLabel =
+    session?.role === "Owner"
+      ? t("common.labels.owner")
+      : session?.role === "Admin"
+        ? t("common.labels.admin")
+        : t("common.labels.member");
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Overview"
-        description="A live view of workspace readiness, assistant activity, and system health."
+        title={t("dashboard.title")}
+        description={t("dashboard.description")}
         actions={
           <>
             <Button asChild>
-              <Link to="/assistant">Open assistant</Link>
+              <Link to="/assistant">{t("common.actions.openAssistant")}</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link to="/knowledge-base">Review documents</Link>
+              <Link to="/knowledge-base">{t("common.actions.reviewDocuments")}</Link>
             </Button>
           </>
         }
@@ -63,15 +71,15 @@ export function DashboardPage() {
         {documentsQuery.isLoading || healthQuery.isLoading || conversationsQuery.isLoading ? (
           <div className="md:col-span-2 xl:col-span-4">
             <LoadingState
-              title="Loading overview"
-              description="Fetching workspace activity."
+              title={t("dashboard.loadingTitle")}
+              description={t("dashboard.loadingDescription")}
             />
           </div>
         ) : documentsQuery.isError || healthQuery.isError || conversationsQuery.isError ? (
           <div className="md:col-span-2 xl:col-span-4">
             <ErrorState
-              title="Could not load overview"
-              description="Try again."
+              title={t("dashboard.errorTitle")}
+              description={t("dashboard.errorDescription")}
               onRetry={() => {
                 void documentsQuery.refetch();
                 void healthQuery.refetch();
@@ -82,7 +90,7 @@ export function DashboardPage() {
         ) : (
           metrics.map((metric) => {
             const Icon = metric.icon;
-            const isPrimaryMetric = metric.label === "Ready";
+            const isPrimaryMetric = metric.label === t("dashboard.readyMetric");
 
             return (
               <Card
@@ -100,21 +108,21 @@ export function DashboardPage() {
                     <div className="text-sm font-medium text-foreground/82">{metric.label}</div>
                     <div className="font-display text-[1.9rem] font-semibold tracking-[-0.05em] text-foreground">{metric.value}</div>
                     <div className="text-xs text-muted-foreground">
-                      {metric.label === "Documents"
+                      {metric.label === t("dashboard.documentsMetric")
                         ? latestDocument
-                          ? `Latest ${formatRelativeDate(latestDocument.processedAtUtc ?? latestDocument.createdAtUtc)}`
-                          : "No uploads yet"
-                        : metric.label === "Ready"
+                          ? t("common.labels.latest", { time: formatRelativeDate(latestDocument.processedAtUtc ?? latestDocument.createdAtUtc, locale) })
+                          : t("common.helper.noUploadsYet")
+                        : metric.label === t("dashboard.readyMetric")
                           ? processingCount > 0
-                            ? `${processingCount} processing`
-                            : "Up to date"
-                          : metric.label === "Conversations"
+                            ? t("dashboard.processingCount", { count: processingCount })
+                            : t("common.helper.upToDate")
+                          : metric.label === t("dashboard.conversationsMetric")
                             ? latestConversation
-                              ? `Updated ${formatRelativeDate(latestConversation.updatedAtUtc)}`
-                              : "No sessions yet"
+                              ? t("common.labels.updated", { time: formatRelativeDate(latestConversation.updatedAtUtc, locale) })
+                              : t("common.helper.noSessionsYet")
                             : healthQuery.data?.status === "healthy"
-                              ? "Connected"
-                              : "Waiting on check"}
+                              ? t("common.helper.connected")
+                              : t("common.helper.waitingOnCheck")}
                     </div>
                     <div className="text-[12px] font-medium text-muted-foreground/90">{metric.hint}</div>
                   </div>
@@ -125,58 +133,62 @@ export function DashboardPage() {
         )}
       </section>
 
-      <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-border/78 bg-card/70 px-4 py-3 text-sm text-muted-foreground shadow-[0_18px_34px_-30px_rgba(16,36,71,0.12)]">
-        <span className="font-medium text-foreground">Pipeline</span>
-        <Badge variant="secondary">Upload</Badge>
-        <Badge variant="secondary">Ask</Badge>
-        <Badge variant="secondary">Review sources</Badge>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-[20px] border border-border/78 bg-card/70 px-4 py-3 text-sm text-muted-foreground shadow-[0_18px_34px_-30px_rgba(16,36,71,0.12)]">
+        <span className="font-medium text-foreground">{t("dashboard.pipeline")}</span>
+        <Badge variant="secondary">{t("dashboard.upload")}</Badge>
+        <Badge variant="secondary">{t("common.actions.askAssistant")}</Badge>
+        <Badge variant="secondary">{t("dashboard.reviewSources")}</Badge>
       </div>
 
       <section className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
         <Card className="border-border/80 bg-card/86">
           <CardHeader>
             <div className="space-y-1">
-              <CardTitle>Workspace</CardTitle>
-              <p className="text-sm text-muted-foreground/95">Keep the latest documents and sessions close to the team.</p>
+              <CardTitle>{t("dashboard.workspaceTitle")}</CardTitle>
+              <p className="text-sm text-muted-foreground/95">{t("dashboard.workspaceDescription")}</p>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{session?.workspace.name ?? "Workspace"}</Badge>
-              <Badge variant="secondary">@{session?.workspace.slug ?? "workspace"}</Badge>
-              <Badge variant="secondary">{session?.role ?? "Member"}</Badge>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="min-w-0 truncate" title={session?.workspace.name}>
+                {session?.workspace.name ?? t("common.labels.workspace")}
+              </Badge>
+              <Badge variant="secondary" className="min-w-0 max-w-full truncate" title={session?.workspace.slug}>
+                @{session?.workspace.slug ?? "workspace"}
+              </Badge>
+              <Badge variant="secondary">{roleLabel}</Badge>
             </div>
 
             <div className="rounded-[22px] border border-border/82 bg-card/76">
               <div className="flex items-center justify-between gap-3 px-4 py-3">
-                <div className="text-sm font-semibold text-foreground">Status</div>
+                <div className="text-sm font-semibold text-foreground">{t("common.labels.status")}</div>
                 <Badge variant={failedCount > 0 ? "warning" : healthQuery.data?.status === "healthy" ? "success" : "secondary"}>
-                  {failedCount > 0 ? `${failedCount} failed` : healthQuery.data?.status === "healthy" ? "Healthy" : "Checking"}
+                  {failedCount > 0 ? t("dashboard.failedLabel", { count: failedCount }) : healthQuery.data?.status === "healthy" ? t("dashboard.healthy") : t("dashboard.checking")}
                 </Badge>
               </div>
               <div className="divide-y divide-border/70">
-                <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                  <span className="text-muted-foreground">Latest document</span>
-                  <span className="truncate text-right text-foreground" title={latestDocument?.originalFileName}>
-                    {latestDocument?.originalFileName ?? "None"}
+                <div className="flex min-w-0 items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">{t("dashboard.latestDocument")}</span>
+                  <span className="min-w-0 max-w-[12rem] truncate text-right text-foreground" title={latestDocument?.originalFileName}>
+                    {latestDocument?.originalFileName ?? t("common.helper.none")}
                   </span>
                 </div>
-                <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                  <span className="text-muted-foreground">Latest conversation</span>
-                  <span className="truncate text-right text-foreground" title={latestConversation?.title}>
-                    {latestConversation?.title ?? "None"}
+                <div className="flex min-w-0 items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">{t("dashboard.latestConversation")}</span>
+                  <span className="min-w-0 max-w-[12rem] truncate text-right text-foreground" title={latestConversation?.title}>
+                    {latestConversation?.title ?? t("common.helper.none")}
                   </span>
                 </div>
-                <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                  <span className="text-muted-foreground">Updated</span>
+                <div className="flex min-w-0 items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">{t("common.labels.updatedLabel")}</span>
                   <span className="text-foreground">
-                    {latestConversation ? formatRelativeDate(latestConversation.updatedAtUtc) : "No activity"}
+                    {latestConversation ? formatRelativeDate(latestConversation.updatedAtUtc, locale) : t("common.helper.noActivity")}
                   </span>
                 </div>
-                <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                  <span className="text-muted-foreground">Processing</span>
+                <div className="flex min-w-0 items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">{t("dashboard.processingState")}</span>
                   <span className="text-foreground">
-                    {processingCount === 0 ? "Clear" : `${processingCount} active`}
+                    {processingCount === 0 ? t("common.helper.clear") : t("dashboard.activeProcessing", { count: processingCount })}
                   </span>
                 </div>
               </div>
@@ -184,7 +196,7 @@ export function DashboardPage() {
 
             {documents.length === 0 ? (
               <div className="rounded-[20px] border border-dashed border-border/82 bg-card/60 px-4 py-3 text-sm text-muted-foreground">
-                Upload your first document to turn this workspace into a searchable source of truth.
+                {t("dashboard.uploadFirstDocumentHint")}
               </div>
             ) : null}
           </CardContent>
@@ -193,31 +205,31 @@ export function DashboardPage() {
         <Card className="border-border/80 bg-card/86">
           <CardHeader>
             <div className="space-y-1">
-              <CardTitle>Next</CardTitle>
-              <p className="text-sm text-muted-foreground/95">Move from raw files to grounded answers without losing momentum.</p>
+              <CardTitle>{t("common.labels.next")}</CardTitle>
+              <p className="text-sm text-muted-foreground/95">{t("dashboard.nextDescription")}</p>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-[22px] border border-border/82 bg-card/76 p-3.5">
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary">{documents.length} docs</Badge>
-                <Badge variant="secondary">{conversations.length} sessions</Badge>
-                <Badge variant="secondary">{processedCount} ready</Badge>
+              <div className="flex min-w-0 flex-wrap gap-2">
+                <Badge variant="secondary">{t("dashboard.docsChip", { count: documents.length })}</Badge>
+                <Badge variant="secondary">{t("dashboard.sessionsChip", { count: conversations.length })}</Badge>
+                <Badge variant="secondary">{t("dashboard.readyChip", { count: processedCount })}</Badge>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">Upload fresh docs</Badge>
-              <Badge variant="secondary">Ask specific questions</Badge>
-              <Badge variant="secondary">Share cited answers</Badge>
+            <div className="flex min-w-0 flex-wrap gap-2">
+              <Badge variant="secondary">{t("dashboard.uploadFreshDocs")}</Badge>
+              <Badge variant="secondary">{t("dashboard.askSpecificQuestions")}</Badge>
+              <Badge variant="secondary">{t("dashboard.shareCitedAnswers")}</Badge>
             </div>
             <Button variant="outline" className="w-full justify-between" asChild>
-              <Link to="/knowledge-base">Open documents</Link>
+              <Link to="/knowledge-base">{t("common.actions.openDocuments")}</Link>
             </Button>
             <Button variant="outline" className="w-full justify-between" asChild>
-              <Link to="/assistant">Ask assistant</Link>
+              <Link to="/assistant">{t("common.actions.askAssistant")}</Link>
             </Button>
             <Button variant="outline" className="w-full justify-between" asChild>
-              <Link to="/conversations">Open conversations</Link>
+              <Link to="/conversations">{t("common.actions.openConversations")}</Link>
             </Button>
           </CardContent>
         </Card>

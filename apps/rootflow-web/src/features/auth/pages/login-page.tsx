@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, ShieldCheck, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,20 +15,27 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { AuthScaffold } from "@/features/auth/components/auth-scaffold";
 import { ApiError } from "@/lib/api/client";
 
-const loginSchema = z.object({
-  email: z.email("Enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters."),
-});
-
-type LoginFormValues = z.infer<typeof loginSchema>;
+type LoginFormValues = {
+  email: string;
+  password: string;
+};
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
+  const { t } = useI18n();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const redirect = new URLSearchParams(location.search).get("redirect");
   const safeRedirect = redirect?.startsWith("/") ? redirect : "/dashboard";
+  const loginSchema = useMemo(
+    () =>
+      z.object({
+        email: z.email(t("auth.login.emailValidation")),
+        password: z.string().min(8, t("auth.login.passwordValidation")),
+      }),
+    [t],
+  );
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -43,7 +51,7 @@ export function LoginPage() {
       await login(values);
       navigate(safeRedirect, { replace: true });
     } catch (error) {
-      setErrorMessage(error instanceof ApiError ? error.message : "We could not sign you in right now.");
+      setErrorMessage(error instanceof ApiError ? error.message : t("auth.login.fallbackError"));
     }
   }
 
@@ -52,19 +60,19 @@ export function LoginPage() {
       badge={
         <>
           <ShieldCheck className="size-3.5" />
-          Workspace sign in
+          {t("auth.login.badge")}
         </>
       }
-      title="Sign in to your RootFlow workspace."
-      description="Restore your documents, conversations, and grounded assistant history inside the correct workspace with a cleaner, calmer access flow."
+      title={t("auth.login.title")}
+      description={t("auth.login.description")}
       highlights={[
         {
-          title: "JWT-backed access",
-          description: "RootFlow now protects documents, chat, and conversation history with a real token-backed session.",
+          title: t("auth.login.highlightOneTitle"),
+          description: t("auth.login.highlightOneDescription"),
         },
         {
-          title: "Workspace-scoped AI",
-          description: "Every grounded answer now resolves from the authenticated workspace instead of a shared demo context.",
+          title: t("auth.login.highlightTwoTitle"),
+          description: t("auth.login.highlightTwoDescription"),
         },
       ]}
     >
@@ -72,16 +80,16 @@ export function LoginPage() {
         <CardHeader className="px-0 pt-0">
           <Badge className="w-fit">
             <Sparkles className="size-3.5" />
-            Secure access
+            {t("common.labels.secureAccess")}
           </Badge>
-          <CardTitle>Log in</CardTitle>
-          <CardDescription>Use the account connected to your RootFlow workspace.</CardDescription>
+          <CardTitle>{t("auth.login.cardTitle")}</CardTitle>
+          <CardDescription>{t("auth.login.cardDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-0">
           <form className="space-y-5" onSubmit={form.handleSubmit(handleSubmit)}>
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground" htmlFor="email">
-                Work email
+                {t("common.labels.workEmail")}
               </label>
               <Input id="email" type="email" autoComplete="email" placeholder="team@company.com" {...form.register("email")} />
               {form.formState.errors.email ? (
@@ -92,16 +100,16 @@ export function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
                 <label className="text-sm font-semibold text-foreground" htmlFor="password">
-                  Password
+                  {t("common.labels.password")}
                 </label>
                 <Link className="text-sm font-medium text-primary hover:text-primary/80" to="/auth/forgot-password">
-                  Forgot password
+                  {t("auth.login.forgotPassword")}
                 </Link>
               </div>
               <PasswordInput
                 id="password"
                 autoComplete="current-password"
-                placeholder="Enter your password"
+                placeholder={t("auth.login.passwordPlaceholder")}
                 disabled={form.formState.isSubmitting}
                 {...form.register("password")}
               />
@@ -118,11 +126,11 @@ export function LoginPage() {
 
             <div className="flex flex-col gap-3">
               <Button type="submit" className="w-full justify-between" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Signing in..." : "Log in"}
+                {form.formState.isSubmitting ? t("auth.login.submitting") : t("auth.login.submit")}
                 <ArrowRight />
               </Button>
               <Button variant="outline" className="w-full" asChild>
-                <Link to="/auth/signup">Create a workspace</Link>
+                <Link to="/auth/signup">{t("auth.login.createWorkspace")}</Link>
               </Button>
             </div>
           </form>

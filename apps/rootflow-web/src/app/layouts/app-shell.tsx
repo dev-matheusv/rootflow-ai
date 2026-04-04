@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { RootFlowBrand } from "@/components/branding/rootflow-brand";
 import { ShellSidebar } from "@/components/navigation/shell-sidebar";
 import { Topbar } from "@/components/navigation/topbar";
@@ -11,6 +12,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
+  const { t } = useI18n();
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -54,11 +56,11 @@ export function AppShell() {
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-40 bg-slate-950/32 backdrop-blur-sm lg:hidden" />
           <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-full max-w-[320px] flex-col border-r border-border/75 bg-background/94 p-5 shadow-[0_24px_52px_-30px_rgba(15,37,79,0.24)] backdrop-blur-2xl focus:outline-none lg:hidden">
-            <Dialog.Title className="sr-only">Navigation</Dialog.Title>
+            <Dialog.Title className="sr-only">{t("topbar.navigation")}</Dialog.Title>
             <div className="flex items-center justify-between">
               <RootFlowBrand variant="logo" size="sm" className="h-9" />
               <Dialog.Close asChild>
-                <Button variant="outline" size="icon" aria-label="Close navigation">
+                <Button variant="outline" size="icon" aria-label={t("common.actions.hideNavigation")}>
                   <X />
                 </Button>
               </Dialog.Close>

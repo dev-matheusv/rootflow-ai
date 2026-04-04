@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Sparkles, UserRoundPlus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { z } from "zod";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,22 +15,31 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { AuthScaffold } from "@/features/auth/components/auth-scaffold";
 import { ApiError } from "@/lib/api/client";
 
-const signUpSchema = z.object({
-  fullName: z.string().trim().min(2, "Enter your full name.").max(120, "Name is too long."),
-  email: z.email("Enter a valid email address."),
-  password: z.string().min(8, "Password must be at least 8 characters.").max(128, "Password is too long."),
-  workspaceName: z.string().trim().min(2, "Enter a workspace name.").max(120, "Workspace name is too long."),
-});
-
-type SignUpFormValues = z.infer<typeof signUpSchema>;
+type SignUpFormValues = {
+  fullName: string;
+  email: string;
+  password: string;
+  workspaceName: string;
+};
 
 export function SignUpPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { signup } = useAuth();
+  const { t } = useI18n();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const redirect = new URLSearchParams(location.search).get("redirect");
   const safeRedirect = redirect?.startsWith("/") ? redirect : "/dashboard";
+  const signUpSchema = useMemo(
+    () =>
+      z.object({
+        fullName: z.string().trim().min(2, t("auth.signup.fullNameValidation")).max(120, t("auth.signup.fullNameTooLong")),
+        email: z.email(t("auth.signup.emailValidation")),
+        password: z.string().min(8, t("auth.signup.passwordValidation")).max(128, t("auth.signup.passwordTooLong")),
+        workspaceName: z.string().trim().min(2, t("auth.signup.workspaceValidation")).max(120, t("auth.signup.workspaceTooLong")),
+      }),
+    [t],
+  );
   const form = useForm<SignUpFormValues>({
     resolver: zodResolver(signUpSchema),
     defaultValues: {
@@ -47,7 +57,7 @@ export function SignUpPage() {
       await signup(values);
       navigate(safeRedirect, { replace: true });
     } catch (error) {
-      setErrorMessage(error instanceof ApiError ? error.message : "We could not create your workspace right now.");
+      setErrorMessage(error instanceof ApiError ? error.message : t("auth.signup.fallbackError"));
     }
   }
 
@@ -56,19 +66,19 @@ export function SignUpPage() {
       badge={
         <>
           <UserRoundPlus className="size-3.5" />
-          Create workspace
+          {t("auth.signup.badge")}
         </>
       }
-      title="Create a new RootFlow workspace."
-      description="Set up the workspace, owner account, and secure session in one clean onboarding flow."
+      title={t("auth.signup.title")}
+      description={t("auth.signup.description")}
       highlights={[
         {
-          title: "Brand-new workspace only",
-          description: "Signup always provisions a new workspace. Joining an existing shared workspace now happens through explicit invite links.",
+          title: t("auth.signup.highlightOneTitle"),
+          description: t("auth.signup.highlightOneDescription"),
         },
         {
-          title: "Ready for multi-user growth",
-          description: "The underlying model now supports future admins, members, and shared workspaces without guessing membership from workspace names.",
+          title: t("auth.signup.highlightTwoTitle"),
+          description: t("auth.signup.highlightTwoDescription"),
         },
       ]}
     >
@@ -76,18 +86,18 @@ export function SignUpPage() {
         <CardHeader className="px-0 pt-0">
           <Badge className="w-fit">
             <Sparkles className="size-3.5" />
-            Workspace onboarding
+            {t("auth.signup.onboarding")}
           </Badge>
-          <CardTitle>Sign up</CardTitle>
-          <CardDescription>Create a new RootFlow workspace with secure email and password authentication.</CardDescription>
+          <CardTitle>{t("auth.signup.cardTitle")}</CardTitle>
+          <CardDescription>{t("auth.signup.cardDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-0">
           <form className="space-y-5" onSubmit={form.handleSubmit(handleSubmit)}>
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground" htmlFor="fullName">
-                Full name
+                {t("common.labels.fullName")}
               </label>
-              <Input id="fullName" autoComplete="name" placeholder="Jordan Rivera" {...form.register("fullName")} />
+              <Input id="fullName" autoComplete="name" placeholder={t("auth.signup.fullNamePlaceholder")} {...form.register("fullName")} />
               {form.formState.errors.fullName ? (
                 <p className="text-sm text-destructive">{form.formState.errors.fullName.message}</p>
               ) : null}
@@ -95,9 +105,9 @@ export function SignUpPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground" htmlFor="workspaceName">
-                Workspace name
+                {t("common.labels.workspaceName")}
               </label>
-              <Input id="workspaceName" autoComplete="organization" placeholder="Acme Operations" {...form.register("workspaceName")} />
+              <Input id="workspaceName" autoComplete="organization" placeholder={t("auth.signup.workspacePlaceholder")} {...form.register("workspaceName")} />
               {form.formState.errors.workspaceName ? (
                 <p className="text-sm text-destructive">{form.formState.errors.workspaceName.message}</p>
               ) : null}
@@ -105,7 +115,7 @@ export function SignUpPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground" htmlFor="email">
-                Work email
+                {t("common.labels.workEmail")}
               </label>
               <Input id="email" type="email" autoComplete="email" placeholder="team@company.com" {...form.register("email")} />
               {form.formState.errors.email ? (
@@ -115,12 +125,12 @@ export function SignUpPage() {
 
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground" htmlFor="password">
-                Password
+                {t("common.labels.password")}
               </label>
               <PasswordInput
                 id="password"
                 autoComplete="new-password"
-                placeholder="Choose a secure password"
+                placeholder={t("auth.signup.passwordPlaceholder")}
                 disabled={form.formState.isSubmitting}
                 {...form.register("password")}
               />
@@ -137,11 +147,11 @@ export function SignUpPage() {
 
             <div className="flex flex-col gap-3">
               <Button type="submit" className="w-full justify-between" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Creating workspace..." : "Create new workspace"}
+                {form.formState.isSubmitting ? t("auth.signup.submitting") : t("auth.signup.submit")}
                 <ArrowRight />
               </Button>
               <Button variant="outline" className="w-full" asChild>
-                <Link to="/auth/login">Already have an account?</Link>
+                <Link to="/auth/login">{t("auth.signup.alreadyHaveAccount")}</Link>
               </Button>
             </div>
           </form>

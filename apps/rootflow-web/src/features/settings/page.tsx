@@ -1,6 +1,7 @@
 import { BellDot, LockKeyhole, Search, SlidersHorizontal } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,40 +10,46 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { WorkspaceCollaborationPanel } from "@/features/settings/components/workspace-collaboration-panel";
 import { cn } from "@/lib/utils";
 
-const settingsSections = [
-  {
-    id: "workspace",
-    title: "Workspace",
-    description: "Identity and defaults",
-    icon: SlidersHorizontal,
-    upcoming: ["Name", "Slug", "Defaults"],
-  },
-  {
-    id: "notifications",
-    title: "Notifications",
-    description: "Email and mention routing",
-    icon: BellDot,
-    upcoming: ["Email", "Digest", "Mentions"],
-  },
-  {
-    id: "search",
-    title: "Search",
-    description: "Retrieval and answer behavior",
-    icon: Search,
-    upcoming: ["Retrieval", "Citations", "Answer style"],
-  },
-  {
-    id: "access",
-    title: "Access",
-    description: "Members, invites, roles",
-    icon: LockKeyhole,
-    upcoming: ["Members", "Invites", "Roles"],
-  },
-] as const;
-
 export function SettingsPage() {
+  const { t } = useI18n();
   const { session } = useAuth();
+  const settingsSections = [
+    {
+      id: "workspace",
+      title: t("settings.workspaceTitle"),
+      description: t("settings.workspaceDescription"),
+      icon: SlidersHorizontal,
+      upcoming: [t("settings.name"), t("settings.handle"), t("settings.defaults")],
+    },
+    {
+      id: "notifications",
+      title: t("settings.notificationsTitle"),
+      description: t("settings.notificationsDescription"),
+      icon: BellDot,
+      upcoming: [t("settings.email"), t("settings.digests"), t("settings.mentions")],
+    },
+    {
+      id: "search",
+      title: t("settings.searchTitle"),
+      description: t("settings.searchDescription"),
+      icon: Search,
+      upcoming: [t("common.labels.retrieval"), t("settings.citations"), t("settings.answerStyle")],
+    },
+    {
+      id: "access",
+      title: t("settings.accessTitle"),
+      description: t("settings.accessDescription"),
+      icon: LockKeyhole,
+      upcoming: [t("settings.membersTitle"), t("settings.invites"), t("settings.role")],
+    },
+  ] as const;
   const [searchParams] = useSearchParams();
+  const roleLabel =
+    session?.role === "Owner"
+      ? t("common.labels.owner")
+      : session?.role === "Admin"
+        ? t("common.labels.admin")
+        : t("common.labels.member");
   const selectedSection =
     settingsSections.find((section) => section.id === searchParams.get("section")) ?? settingsSections[0];
   const activeSection = selectedSection.id;
@@ -50,34 +57,34 @@ export function SettingsPage() {
   const sectionSignals =
     activeSection === "workspace"
       ? [
-          { label: "Name", value: session?.workspace.name ?? "Workspace" },
-          { label: "Handle", value: `@${session?.workspace.slug ?? "workspace"}` },
-          { label: "Role", value: session?.role ?? "Member" },
+          { label: t("settings.name"), value: session?.workspace.name ?? t("common.labels.workspace") },
+          { label: t("settings.handle"), value: `@${session?.workspace.slug ?? "workspace"}` },
+          { label: t("settings.role"), value: roleLabel },
         ]
       : activeSection === "notifications"
         ? [
-            { label: "Invites", value: "Email" },
-            { label: "Digests", value: "Soon" },
-            { label: "Mentions", value: "Soon" },
+            { label: t("settings.invites"), value: t("settings.email") },
+            { label: t("settings.digests"), value: t("settings.soon") },
+            { label: t("settings.mentions"), value: t("settings.soon") },
           ]
         : [
-            { label: "Grounding", value: "Active" },
-            { label: "Sources", value: "Available" },
-            { label: "Tuning", value: "Later" },
+            { label: t("settings.grounding"), value: t("settings.active") },
+            { label: t("settings.sources"), value: t("settings.available") },
+            { label: t("settings.tuning"), value: t("settings.later") },
           ];
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Settings"
-        description="Tune workspace controls, defaults, and collaboration surfaces as the product grows."
+        title={t("settings.title")}
+        description={t("settings.description")}
         actions={
           <>
             <Button asChild>
-              <Link to="/assistant">Open assistant</Link>
+              <Link to="/assistant">{t("common.actions.openAssistant")}</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link to="/dashboard">Back to dashboard</Link>
+              <Link to="/dashboard">{t("common.actions.backToDashboard")}</Link>
             </Button>
           </>
         }
@@ -87,7 +94,7 @@ export function SettingsPage() {
         <Card className="border-border/80 bg-card/86">
           <CardHeader>
             <div className="flex items-center justify-between gap-3">
-              <CardTitle>Sections</CardTitle>
+              <CardTitle>{t("common.labels.sections")}</CardTitle>
               <Badge variant="secondary">{settingsSections.length}</Badge>
             </div>
           </CardHeader>
@@ -113,7 +120,7 @@ export function SettingsPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold text-foreground">{section.title}</span>
-                      {isActive ? <Badge variant="secondary">Current</Badge> : null}
+                      {isActive ? <Badge variant="secondary">{t("common.labels.current")}</Badge> : null}
                     </div>
                     <div className="mt-1 text-xs text-muted-foreground">{section.description}</div>
                   </div>
@@ -129,7 +136,7 @@ export function SettingsPage() {
               <div className="flex size-12 shrink-0 items-center justify-center rounded-[22px] bg-primary/10 text-primary">
                 <SelectedIcon className="size-5" />
               </div>
-              <div className="space-y-1">
+              <div className="min-w-0 space-y-1">
                 <Badge variant="secondary">{selectedSection.title}</Badge>
                 <h2 className="font-display text-[1.35rem] tracking-[-0.045em] text-foreground">{selectedSection.title}</h2>
                 <p className="text-sm text-muted-foreground">{selectedSection.description}</p>
@@ -142,8 +149,8 @@ export function SettingsPage() {
               <div className="space-y-4">
                 <div className="rounded-[22px] border border-border/75 bg-card/72 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-foreground">Current view</div>
-                    <Badge variant="secondary">Staged</Badge>
+                    <div className="text-sm font-semibold text-foreground">{t("common.labels.currentView")}</div>
+                    <Badge variant="secondary">{t("common.labels.staged")}</Badge>
                   </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     {sectionSignals.map((item) => (
@@ -155,7 +162,7 @@ export function SettingsPage() {
                   </div>
                 </div>
                 <div className="rounded-[22px] border border-border/75 bg-card/72 p-4">
-                  <div className="text-sm font-semibold text-foreground">Next</div>
+                  <div className="text-sm font-semibold text-foreground">{t("common.labels.next")}</div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {selectedSection.upcoming.map((item) => (
                       <Badge key={item} variant="secondary">
@@ -164,7 +171,7 @@ export function SettingsPage() {
                     ))}
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    RootFlow will surface the next {selectedSection.title.toLowerCase()} controls here as the workspace grows.
+                    {t("settings.workspaceControlsHint", { section: selectedSection.title.toLowerCase() })}
                   </p>
                 </div>
               </div>

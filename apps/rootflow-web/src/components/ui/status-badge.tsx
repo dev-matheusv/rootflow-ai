@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, Clock3, Upload } from "lucide-react";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { getDocumentStatusLabel } from "@/lib/formatting/formatters";
 
@@ -8,11 +9,13 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
+  const { locale } = useI18n();
+
   if (status === 3) {
     return (
       <Badge variant="success">
         <CheckCircle2 className="size-3.5" />
-        {getDocumentStatusLabel(status)}
+        {getDocumentStatusLabel(status, locale)}
       </Badge>
     );
   }
@@ -21,7 +24,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     return (
       <Badge variant="warning">
         <AlertTriangle className="size-3.5" />
-        {getDocumentStatusLabel(status)}
+        {getDocumentStatusLabel(status, locale)}
       </Badge>
     );
   }
@@ -30,7 +33,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     return (
       <Badge variant="secondary">
         <Clock3 className="size-3.5" />
-        {getDocumentStatusLabel(status)}
+        {getDocumentStatusLabel(status, locale)}
       </Badge>
     );
   }
@@ -38,7 +41,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   return (
     <Badge variant="secondary">
       <Upload className="size-3.5" />
-      {getDocumentStatusLabel(status)}
+      {getDocumentStatusLabel(status, locale)}
     </Badge>
   );
 }

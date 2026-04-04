@@ -1,19 +1,22 @@
 import { Server, TriangleAlert } from "lucide-react";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { env } from "@/lib/config/env";
 
 export function ApiBaseUrlIndicator() {
+  const { t } = useI18n();
+
   if (!import.meta.env.DEV) {
     return null;
   }
 
-  const label = env.isApiBaseUrlConfigured ? "API env" : "API missing";
+  const label = env.isApiBaseUrlConfigured ? t("dev.apiEnv") : t("dev.apiMissing");
   const Icon = env.isApiBaseUrlConfigured ? Server : TriangleAlert;
   const title = env.isApiBaseUrlConfigured
     ? `Frontend API base URL (${label}): ${env.apiBaseUrl}`
     : env.apiConfigurationError ?? "VITE_API_BASE_URL is not configured.";
-  const value = env.isApiBaseUrlConfigured ? env.apiBaseUrl : "Set VITE_API_BASE_URL";
+  const value = env.isApiBaseUrlConfigured ? env.apiBaseUrl : t("dev.setApiBaseUrl");
 
   return (
     <Badge

@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, CheckCircle2, MailQuestion, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { z } from "zod";
 
+import { useI18n } from "@/app/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,15 +14,21 @@ import { AuthScaffold } from "@/features/auth/components/auth-scaffold";
 import { ApiError } from "@/lib/api/client";
 import { rootflowApi } from "@/lib/api/rootflow-api";
 
-const forgotPasswordSchema = z.object({
-  email: z.email("Enter a valid email address."),
-});
-
-type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+type ForgotPasswordFormValues = {
+  email: string;
+};
 
 export function ForgotPasswordPage() {
+  const { t } = useI18n();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const forgotPasswordSchema = useMemo(
+    () =>
+      z.object({
+        email: z.email(t("auth.forgotPassword.emailValidation")),
+      }),
+    [t],
+  );
   const form = useForm<ForgotPasswordFormValues>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: {
@@ -37,7 +44,7 @@ export function ForgotPasswordPage() {
       setSuccessMessage(response.message);
       form.reset(values);
     } catch (error) {
-      setErrorMessage(error instanceof ApiError ? error.message : "We could not start the reset flow right now.");
+      setErrorMessage(error instanceof ApiError ? error.message : t("auth.forgotPassword.fallbackError"));
     }
   }
 
@@ -46,19 +53,19 @@ export function ForgotPasswordPage() {
       badge={
         <>
           <MailQuestion className="size-3.5" />
-          Password recovery
+          {t("auth.forgotPassword.badge")}
         </>
       }
-      title="Reset your RootFlow password."
-      description="Request a secure reset link without exposing account existence, then return to the same workspace-scoped access flow once your password is updated."
+      title={t("auth.forgotPassword.title")}
+      description={t("auth.forgotPassword.description")}
       highlights={[
         {
-          title: "Neutral response by design",
-          description: "The recovery request always returns the same message so RootFlow never reveals whether an email belongs to an account.",
+          title: t("auth.forgotPassword.highlightOneTitle"),
+          description: t("auth.forgotPassword.highlightOneDescription"),
         },
         {
-          title: "Single-use reset links",
-          description: "Reset tokens are time-bound, one-time, and delivered through RootFlow's shared outbound email configuration without changing the frontend flow.",
+          title: t("auth.forgotPassword.highlightTwoTitle"),
+          description: t("auth.forgotPassword.highlightTwoDescription"),
         },
       ]}
     >
@@ -66,10 +73,10 @@ export function ForgotPasswordPage() {
         <CardHeader className="px-0 pt-0">
           <Badge className="w-fit">
             <ShieldCheck className="size-3.5" />
-            Secure recovery
+            {t("common.labels.secureRecovery")}
           </Badge>
-          <CardTitle>Forgot password</CardTitle>
-          <CardDescription>Enter your work email and RootFlow will send a reset link if the account exists.</CardDescription>
+          <CardTitle>{t("auth.forgotPassword.cardTitle")}</CardTitle>
+          <CardDescription>{t("auth.forgotPassword.cardDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-0">
           {successMessage ? (
@@ -78,7 +85,7 @@ export function ForgotPasswordPage() {
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 size-5 text-primary" />
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold text-foreground">Check your inbox</p>
+                    <p className="text-sm font-semibold text-foreground">{t("auth.forgotPassword.checkInbox")}</p>
                     <p className="text-sm leading-6 text-muted-foreground">{successMessage}</p>
                   </div>
                 </div>
@@ -86,11 +93,11 @@ export function ForgotPasswordPage() {
 
               <div className="flex flex-col gap-3">
                 <Button type="button" className="w-full justify-between" onClick={() => setSuccessMessage(null)}>
-                  Send another link
+                  {t("common.actions.sendAnotherLink")}
                   <ArrowRight />
                 </Button>
                 <Button variant="outline" className="w-full" asChild>
-                  <Link to="/auth/login">Back to login</Link>
+                  <Link to="/auth/login">{t("common.actions.backToLogin")}</Link>
                 </Button>
               </div>
             </div>
@@ -98,7 +105,7 @@ export function ForgotPasswordPage() {
             <form className="space-y-5" onSubmit={form.handleSubmit(handleSubmit)}>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground" htmlFor="email">
-                  Work email
+                  {t("common.labels.workEmail")}
                 </label>
                 <Input
                   id="email"
@@ -121,11 +128,11 @@ export function ForgotPasswordPage() {
 
               <div className="flex flex-col gap-3">
                 <Button type="submit" className="w-full justify-between" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? "Sending link..." : "Send reset link"}
+                  {form.formState.isSubmitting ? t("auth.forgotPassword.sendingLink") : t("auth.forgotPassword.sendResetLink")}
                   <ArrowRight />
                 </Button>
                 <Button variant="outline" className="w-full" asChild>
-                  <Link to="/auth/login">Back to login</Link>
+                  <Link to="/auth/login">{t("common.actions.backToLogin")}</Link>
                 </Button>
               </div>
             </form>

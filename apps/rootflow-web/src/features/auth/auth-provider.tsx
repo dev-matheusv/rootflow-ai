@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from "react";
 
 import type { AuthResponse, LoginPayload, SessionInfo, SignupPayload } from "@/lib/api/contracts";
 import { rootflowApi } from "@/lib/api/rootflow-api";
@@ -60,50 +60,53 @@ export function AuthProvider({ children }: PropsWithChildren) {
     });
   }, [queryClient]);
 
-  async function synchronizeSession(options?: { expectedToken?: string; clearOnFailure?: boolean }) {
-    const currentSession = getStoredAuthSession();
-    const expectedToken = options?.expectedToken;
+  const synchronizeSession = useCallback(
+    async (options?: { expectedToken?: string; clearOnFailure?: boolean }) => {
+      const currentSession = getStoredAuthSession();
+      const expectedToken = options?.expectedToken;
 
-    if (!currentSession) {
-      if (options?.clearOnFailure) {
+      if (!currentSession) {
+        if (options?.clearOnFailure) {
+          clearStoredAuthSession();
+          setStoredSession(null);
+          setStatus("unauthenticated");
+          queryClient.clear();
+        }
+        return;
+      }
+
+      if (expectedToken && currentSession.token !== expectedToken) {
+        return;
+      }
+
+      try {
+        const session = await rootflowApi.getCurrentSession();
+        const latestSession = getStoredAuthSession();
+        if (!latestSession || (expectedToken && latestSession.token !== expectedToken)) {
+          return;
+        }
+
+        const refreshedSession: AuthResponse = {
+          ...latestSession,
+          session,
+        };
+
+        persistAuthSession(refreshedSession);
+        setStoredSession(refreshedSession);
+        setStatus("authenticated");
+      } catch {
+        if (!options?.clearOnFailure) {
+          return;
+        }
+
         clearStoredAuthSession();
         setStoredSession(null);
         setStatus("unauthenticated");
         queryClient.clear();
       }
-      return;
-    }
-
-    if (expectedToken && currentSession.token !== expectedToken) {
-      return;
-    }
-
-    try {
-      const session = await rootflowApi.getCurrentSession();
-      const latestSession = getStoredAuthSession();
-      if (!latestSession || (expectedToken && latestSession.token !== expectedToken)) {
-        return;
-      }
-
-      const refreshedSession: AuthResponse = {
-        ...latestSession,
-        session,
-      };
-
-      persistAuthSession(refreshedSession);
-      setStoredSession(refreshedSession);
-      setStatus("authenticated");
-    } catch {
-      if (!options?.clearOnFailure) {
-        return;
-      }
-
-      clearStoredAuthSession();
-      setStoredSession(null);
-      setStatus("unauthenticated");
-      queryClient.clear();
-    }
-  }
+    },
+    [queryClient],
+  );
 
   useEffect(() => {
     const token = storedSession?.token;
@@ -124,7 +127,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return () => {
       isCancelled = true;
     };
-  }, [status, storedSession?.token]);
+  }, [status, storedSession?.token, synchronizeSession]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -171,7 +174,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       window.removeEventListener("pageshow", revalidateOnForeground);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [queryClient, status]);
+  }, [status, synchronizeSession]);
 
   async function login(payload: LoginPayload) {
     applyAuthResponse(await rootflowApi.login(payload));

@@ -1,27 +1,30 @@
-export function formatRelativeDate(input: string | Date): string {
+import { type AppLocale } from "@/lib/i18n/types";
+
+export function formatRelativeDate(input: string | Date, locale: AppLocale = "en"): string {
   const value = typeof input === "string" ? new Date(input) : input;
   const deltaMs = Date.now() - value.getTime();
   const deltaMinutes = Math.round(deltaMs / 60000);
+  const isPortuguese = locale === "pt-BR";
 
   if (deltaMinutes < 1) {
-    return "Just now";
+    return isPortuguese ? "Agora mesmo" : "Just now";
   }
 
   if (deltaMinutes < 60) {
-    return `${deltaMinutes}m ago`;
+    return isPortuguese ? `há ${deltaMinutes} min` : `${deltaMinutes}m ago`;
   }
 
   const deltaHours = Math.round(deltaMinutes / 60);
   if (deltaHours < 24) {
-    return `${deltaHours}h ago`;
+    return isPortuguese ? `há ${deltaHours} h` : `${deltaHours}h ago`;
   }
 
   const deltaDays = Math.round(deltaHours / 24);
   if (deltaDays === 1) {
-    return "Yesterday";
+    return isPortuguese ? "Ontem" : "Yesterday";
   }
 
-  return `${deltaDays}d ago`;
+  return isPortuguese ? `há ${deltaDays} d` : `${deltaDays}d ago`;
 }
 
 export function formatFileSize(bytes: number): string {
@@ -83,17 +86,34 @@ export function getDocumentTypeLabel(fileName: string, contentType: string): str
   return subtype.toUpperCase();
 }
 
-export function getDocumentStatusLabel(status: number): string {
+export function getDocumentStatusLabel(status: number, locale: AppLocale = "en"): string {
+  const labels =
+    locale === "pt-BR"
+      ? {
+          uploaded: "Enviado",
+          processing: "Processando",
+          processed: "Processado",
+          failed: "Falhou",
+          unknown: "Desconhecido",
+        }
+      : {
+          uploaded: "Uploaded",
+          processing: "Processing",
+          processed: "Processed",
+          failed: "Failed",
+          unknown: "Unknown",
+        };
+
   switch (status) {
     case 1:
-      return "Uploaded";
+      return labels.uploaded;
     case 2:
-      return "Processing";
+      return labels.processing;
     case 3:
-      return "Processed";
+      return labels.processed;
     case 4:
-      return "Failed";
+      return labels.failed;
     default:
-      return "Unknown";
+      return labels.unknown;
   }
 }
