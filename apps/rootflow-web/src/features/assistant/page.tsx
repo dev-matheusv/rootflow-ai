@@ -1,11 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Bot, CornerDownLeft, LoaderCircle, Microscope, Quote, SendHorizonal } from "lucide-react";
+import { Bot, Coins, CornerDownLeft, LoaderCircle, Microscope, Quote, SendHorizonal, TriangleAlert } from "lucide-react";
 import { type KeyboardEvent, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link, useSearchParams } from "react-router-dom";
 import { z } from "zod";
 
 import { useI18n } from "@/app/providers/i18n-provider";
+import { WorkspaceCreditProgress } from "@/components/billing/workspace-credit-progress";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { FormattedAnswer } from "@/components/chat/formatted-answer";
@@ -14,8 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { Textarea } from "@/components/ui/textarea";
-import { useAskQuestionMutation, useConversationQuery, useDocumentsQuery } from "@/hooks/use-rootflow-data";
+import { useAuth } from "@/features/auth/auth-provider";
+import { useAskQuestionMutation, useConversationQuery, useDocumentsQuery, useWorkspaceBillingSummaryQuery } from "@/hooks/use-rootflow-data";
 import type { ChatAnswer } from "@/lib/api/contracts";
+import { getApiErrorCode } from "@/lib/api/client";
+import { formatCredits, getWorkspaceCreditSnapshot } from "@/lib/billing/workspace-credits";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 
 type AssistantFormValues = {
@@ -28,6 +32,8 @@ export function AssistantPage() {
   const [latestAnswer, setLatestAnswer] = useState<ChatAnswer | null>(null);
   const [showDebug, setShowDebug] = useState(false);
   const { locale, t } = useI18n();
+  const { session } = useAuth();
+  const workspaceId = session?.workspace.id;
   const assistantSchema = useMemo(
     () =>
       z.object({
@@ -38,7 +44,8 @@ export function AssistantPage() {
 
   const documentsQuery = useDocumentsQuery({ autoRefreshProcessing: true });
   const conversationQuery = useConversationQuery(conversationId);
-  const askQuestionMutation = useAskQuestionMutation();
+  const billingSummaryQuery = useWorkspaceBillingSummaryQuery(workspaceId);
+  const askQuestionMutation = useAskQuestionMutation(workspaceId);
 
   const form = useForm<AssistantFormValues>({
     resolver: zodResolver(assistantSchema),
@@ -90,7 +97,21 @@ export function AssistantPage() {
   const isSendingQuestion = askQuestionMutation.isPending || form.formState.isSubmitting;
   const canReviewRetrieval = Boolean(activeLatestAnswer?.debug?.retrievedChunks?.length);
   const isDebugVisible = showDebug && canReviewRetrieval;
-  const canAsk = question.trim().length >= 3 && !isSendingQuestion && readyDocumentCount > 0;
+  const creditSnapshot = useMemo(
+    () => getWorkspaceCreditSnapshot(billingSummaryQuery.data),
+    [billingSummaryQuery.data],
+  );
+  const billingErrorCode = getApiErrorCode(askQuestionMutation.error);
+  const isInactiveSubscription = billingErrorCode === "inactive_subscription" || creditSnapshot?.tone === "inactive";
+  const isOutOfCredits = billingErrorCode === "insufficient_credits" || creditSnapshot?.tone === "empty";
+  const isBillingBlocked = isInactiveSubscription || isOutOfCredits;
+  const inlineCreditWarning =
+    !isBillingBlocked && creditSnapshot?.tone === "critical"
+      ? t("billing.assistantCriticalHint")
+      : !isBillingBlocked && creditSnapshot?.tone === "low"
+        ? t("billing.assistantLowHint")
+        : null;
+  const canAsk = question.trim().length >= 3 && !isSendingQuestion && readyDocumentCount > 0 && !isBillingBlocked;
 
   const submitQuestion = form.handleSubmit(async (values) => {
     if (askQuestionMutation.isPending) {
@@ -298,75 +319,153 @@ export function AssistantPage() {
                 </div>
               )}
 
-              <div className="border-t border-border/75 pt-4">
-                <form
-                  className="space-y-4 rounded-[28px] border border-primary/20 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--primary)_4%,var(--card)),color-mix(in_srgb,var(--background)_78%,transparent))] p-4 shadow-[0_24px_48px_-32px_rgba(37,99,235,0.18)]"
-                  onSubmit={submitQuestion}
-                >
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <div className="flex size-8 items-center justify-center rounded-2xl border border-primary/14 bg-primary/10 text-primary">
-                          <Bot className="size-4" />
+              <div className="space-y-3 border-t border-border/75 pt-4">
+                {inlineCreditWarning && creditSnapshot ? (
+                  <div className="rounded-[22px] border border-amber-500/18 bg-amber-500/[0.08] px-4 py-3 text-sm shadow-[0_18px_34px_-28px_rgba(245,158,11,0.24)]">
+                    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-2xl border border-amber-500/18 bg-background/80 text-amber-700 dark:text-amber-300">
+                          <TriangleAlert className="size-4" />
                         </div>
-                        <div className="truncate text-sm font-semibold text-foreground">{t("assistant.askRootFlow")}</div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-foreground">{inlineCreditWarning}</div>
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {t("billing.availableShort", { count: formatCredits(creditSnapshot.availableCredits, locale) })}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground/95">{t("assistant.askRootFlowHint")}</div>
+                      <div className="min-w-0 w-full max-w-[220px] space-y-2">
+                        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                          <span>{creditSnapshot.planName ?? t("billing.sharedHint")}</span>
+                          <span>{t("billing.remainingShort", { percent: creditSnapshot.remainingPercent })}</span>
+                        </div>
+                        <WorkspaceCreditProgress ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
+                      </div>
                     </div>
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <Badge variant="secondary">{t("dashboard.readyChip", { count: readyDocumentCount })}</Badge>
-                      {latestReadyUpdatedLabel ? <div className="text-sm font-medium text-foreground/86">{t("common.labels.updated", { time: latestReadyUpdatedLabel })}</div> : null}
+                  </div>
+                ) : null}
+
+                {isBillingBlocked ? (
+                  <div className="space-y-4 rounded-[28px] border border-primary/18 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--primary)_5%,var(--card)),color-mix(in_srgb,var(--background)_80%,transparent))] p-5 shadow-[0_24px_48px_-32px_rgba(37,99,235,0.18)]">
+                    <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="flex size-11 shrink-0 items-center justify-center rounded-[22px] border border-primary/14 bg-primary/10 text-primary">
+                          <Coins className="size-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-foreground">
+                            {isInactiveSubscription ? t("billing.assistantInactiveTitle") : t("billing.assistantBlockedTitle")}
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground/95">
+                            {isInactiveSubscription ? t("billing.assistantInactiveDescription") : t("billing.assistantBlockedDescription")}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge
+                        className={
+                          isInactiveSubscription
+                            ? "border-border/78 bg-background/84 text-muted-foreground"
+                            : "border-rose-500/24 bg-rose-500/[0.12] text-rose-700 dark:text-rose-300"
+                        }
+                      >
+                        {isInactiveSubscription ? t("billing.inactiveState") : t("billing.emptyState")}
+                      </Badge>
                     </div>
-                    {activeLatestAnswer?.sources.length ? (
-                      <Badge variant="secondary">{activeLatestAnswer.sources.length} {t("assistant.sourcesTitle").toLowerCase()}</Badge>
+
+                    {creditSnapshot ? (
+                      <div className="rounded-[24px] border border-border/80 bg-background/82 p-4">
+                        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.shellLabel")}</div>
+                            <div className="mt-1 text-base font-semibold tracking-[-0.02em] text-foreground">
+                              {t("billing.availableShort", { count: formatCredits(creditSnapshot.availableCredits, locale) })}
+                            </div>
+                          </div>
+                          <div className="text-sm text-muted-foreground">{t("billing.remainingDetail", { percent: creditSnapshot.remainingPercent })}</div>
+                        </div>
+                        <WorkspaceCreditProgress className="mt-3" ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
+                      </div>
                     ) : null}
-                  </div>
-                  {readyDocumentCount > 0 && question.trim().length === 0 ? (
-                    <div className="flex min-w-0 flex-wrap gap-2">
-                      {suggestedPrompts.slice(0, 3).map((prompt) => (
-                        <button
-                          key={prompt.label}
-                          type="button"
-                          className="min-w-0 max-w-full overflow-hidden rounded-full border border-border/85 bg-background/90 px-3.5 py-1.5 text-sm font-medium text-foreground/82 transition-[transform,border-color,background-color,color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-secondary/72 hover:text-foreground hover:shadow-[0_14px_28px_-24px_rgba(18,72,166,0.18)]"
-                          onClick={() => handlePromptSelect(prompt.prompt)}
-                          title={prompt.prompt}
-                        >
-                          <span className="block truncate">{prompt.label}</span>
-                        </button>
-                      ))}
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button asChild className="sm:flex-1">
+                        <Link to="/billing">{isInactiveSubscription ? t("common.actions.upgradePlan") : t("common.actions.buyCredits")}</Link>
+                      </Button>
+                      <Button variant="outline" asChild className="sm:flex-1">
+                        <Link to="/billing">{t("common.actions.openBilling")}</Link>
+                      </Button>
                     </div>
-                  ) : null}
-                  <div className="rounded-[24px] border border-border/88 bg-background/96 p-3.5 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-[0_22px_40px_-22px_rgba(37,99,235,0.24)]">
-                    <Textarea
-                      className="min-h-[120px] resize-none border-none bg-transparent px-2 py-2 text-[0.96rem] leading-7 shadow-none focus-visible:ring-0"
-                      placeholder={t("assistant.inputPlaceholder")}
-                      disabled={isSendingQuestion}
-                      onKeyDown={handleQuestionKeyDown}
-                      {...form.register("question")}
-                    />
                   </div>
-                  {form.formState.errors.question ? (
-                    <p className="text-sm text-destructive">{form.formState.errors.question.message}</p>
-                  ) : null}
-                  {askQuestionMutation.isError ? (
-                    <p className="text-sm text-destructive">
-                      {t("assistant.answerError")}
-                    </p>
-                  ) : null}
-                  {readyDocumentCount === 0 && !documentsQuery.isLoading ? (
-                    <p className="text-sm text-muted-foreground">{t("assistant.uploadProcessedDocumentFirst")}</p>
-                  ) : null}
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <CornerDownLeft className="size-4" />
-                      {isSendingQuestion ? t("common.helper.searching") : t("common.helper.enterSends")}
+                ) : (
+                  <form
+                    className="space-y-4 rounded-[28px] border border-primary/20 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--primary)_4%,var(--card)),color-mix(in_srgb,var(--background)_78%,transparent))] p-4 shadow-[0_24px_48px_-32px_rgba(37,99,235,0.18)]"
+                    onSubmit={submitQuestion}
+                  >
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <div className="flex size-8 items-center justify-center rounded-2xl border border-primary/14 bg-primary/10 text-primary">
+                            <Bot className="size-4" />
+                          </div>
+                          <div className="truncate text-sm font-semibold text-foreground">{t("assistant.askRootFlow")}</div>
+                        </div>
+                        <div className="text-sm text-muted-foreground/95">{t("assistant.askRootFlowHint")}</div>
+                      </div>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <Badge variant="secondary">{t("dashboard.readyChip", { count: readyDocumentCount })}</Badge>
+                        {latestReadyUpdatedLabel ? <div className="text-sm font-medium text-foreground/86">{t("common.labels.updated", { time: latestReadyUpdatedLabel })}</div> : null}
+                      </div>
+                      {activeLatestAnswer?.sources.length ? (
+                        <Badge variant="secondary">{activeLatestAnswer.sources.length} {t("assistant.sourcesTitle").toLowerCase()}</Badge>
+                      ) : null}
                     </div>
-                    <Button type="submit" disabled={!canAsk} aria-busy={isSendingQuestion} className="min-w-[152px]">
-                      {isSendingQuestion ? <LoaderCircle className="animate-spin" /> : <SendHorizonal />}
-                      {isSendingQuestion ? t("assistant.sending") : t("common.actions.send")}
-                    </Button>
-                  </div>
-                </form>
+                    {readyDocumentCount > 0 && question.trim().length === 0 ? (
+                      <div className="flex min-w-0 flex-wrap gap-2">
+                        {suggestedPrompts.slice(0, 3).map((prompt) => (
+                          <button
+                            key={prompt.label}
+                            type="button"
+                            className="min-w-0 max-w-full overflow-hidden rounded-full border border-border/85 bg-background/90 px-3.5 py-1.5 text-sm font-medium text-foreground/82 transition-[transform,border-color,background-color,color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/28 hover:bg-secondary/72 hover:text-foreground hover:shadow-[0_14px_28px_-24px_rgba(18,72,166,0.18)]"
+                            onClick={() => handlePromptSelect(prompt.prompt)}
+                            title={prompt.prompt}
+                          >
+                            <span className="block truncate">{prompt.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    <div className="rounded-[24px] border border-border/88 bg-background/96 p-3.5 transition-[border-color,background-color,box-shadow] duration-200 focus-within:border-primary/40 focus-within:bg-background focus-within:shadow-[0_22px_40px_-22px_rgba(37,99,235,0.24)]">
+                      <Textarea
+                        className="min-h-[120px] resize-none border-none bg-transparent px-2 py-2 text-[0.96rem] leading-7 shadow-none focus-visible:ring-0"
+                        placeholder={t("assistant.inputPlaceholder")}
+                        disabled={isSendingQuestion}
+                        onKeyDown={handleQuestionKeyDown}
+                        {...form.register("question")}
+                      />
+                    </div>
+                    {form.formState.errors.question ? (
+                      <p className="text-sm text-destructive">{form.formState.errors.question.message}</p>
+                    ) : null}
+                    {askQuestionMutation.isError && !billingErrorCode ? (
+                      <p className="text-sm text-destructive">
+                        {t("assistant.answerError")}
+                      </p>
+                    ) : null}
+                    {readyDocumentCount === 0 && !documentsQuery.isLoading ? (
+                      <p className="text-sm text-muted-foreground">{t("assistant.uploadProcessedDocumentFirst")}</p>
+                    ) : null}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <CornerDownLeft className="size-4" />
+                        {isSendingQuestion ? t("common.helper.searching") : t("common.helper.enterSends")}
+                      </div>
+                      <Button type="submit" disabled={!canAsk} aria-busy={isSendingQuestion} className="min-w-[152px]">
+                        {isSendingQuestion ? <LoaderCircle className="animate-spin" /> : <SendHorizonal />}
+                        {isSendingQuestion ? t("assistant.sending") : t("common.actions.send")}
+                      </Button>
+                    </div>
+                  </form>
+                )}
               </div>
             </CardContent>
           </Card>

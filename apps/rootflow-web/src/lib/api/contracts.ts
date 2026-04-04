@@ -100,6 +100,42 @@ export interface AskQuestionPayload {
   maxContextChunks?: number;
 }
 
+export interface BillingPlanSummary {
+  id: string;
+  code: string;
+  name: string;
+  monthlyPrice: number;
+  currencyCode: string;
+  includedCredits: number;
+  maxUsers: number;
+  isActive: boolean;
+}
+
+export interface WorkspaceSubscriptionSummary {
+  id: string;
+  workspaceId: string;
+  billingPlanId: string;
+  status: string;
+  currentPeriodStartUtc: string;
+  currentPeriodEndUtc: string;
+  canceledAtUtc?: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface WorkspaceCreditBalanceSummary {
+  workspaceId: string;
+  availableCredits: number;
+  consumedCredits: number;
+  updatedAtUtc: string;
+}
+
+export interface WorkspaceBillingSummary {
+  billingPlan?: BillingPlanSummary | null;
+  subscription?: WorkspaceSubscriptionSummary | null;
+  balance: WorkspaceCreditBalanceSummary;
+}
+
 export interface ChatSource {
   documentId: string;
   chunkId: string;

@@ -1,7 +1,8 @@
-import { BookOpenText, Bot, DatabaseZap, MessagesSquare } from "lucide-react";
+import { BookOpenText, Bot, Coins, CreditCard, DatabaseZap, MessagesSquare } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { useI18n } from "@/app/providers/i18n-provider";
+import { WorkspaceCreditProgress } from "@/components/billing/workspace-credit-progress";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from "@/features/auth/auth-provider";
-import { useConversationsQuery, useDocumentsQuery, useHealthQuery } from "@/hooks/use-rootflow-data";
+import { useConversationsQuery, useDocumentsQuery, useHealthQuery, useWorkspaceBillingSummaryQuery } from "@/hooks/use-rootflow-data";
+import { formatCredits, getWorkspaceCreditSnapshot } from "@/lib/billing/workspace-credits";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 
 export function DashboardPage() {
@@ -18,6 +20,7 @@ export function DashboardPage() {
   const healthQuery = useHealthQuery();
   const documentsQuery = useDocumentsQuery({ autoRefreshProcessing: true });
   const conversationsQuery = useConversationsQuery();
+  const billingSummaryQuery = useWorkspaceBillingSummaryQuery(session?.workspace.id);
 
   const documents = documentsQuery.data ?? [];
   const conversations = conversationsQuery.data ?? [];
@@ -30,6 +33,15 @@ export function DashboardPage() {
       new Date(right.processedAtUtc ?? right.createdAtUtc).getTime() -
       new Date(left.processedAtUtc ?? left.createdAtUtc).getTime(),
   )[0];
+  const creditSnapshot = getWorkspaceCreditSnapshot(billingSummaryQuery.data);
+  const creditStatusClassName =
+    creditSnapshot?.tone === "healthy"
+      ? undefined
+      : creditSnapshot?.tone === "low"
+        ? undefined
+        : creditSnapshot?.tone === "inactive"
+          ? "border-border/78 bg-background/84 text-muted-foreground"
+          : "border-rose-500/24 bg-rose-500/[0.12] text-rose-700 dark:text-rose-300";
 
   const metrics = [
     { label: t("dashboard.documentsMetric"), value: String(documents.length), note: t("dashboard.total"), hint: t("common.helper.librarySize"), icon: BookOpenText },
@@ -202,37 +214,141 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 bg-card/86">
-          <CardHeader>
-            <div className="space-y-1">
-              <CardTitle>{t("common.labels.next")}</CardTitle>
-              <p className="text-sm text-muted-foreground/95">{t("dashboard.nextDescription")}</p>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-[22px] border border-border/82 bg-card/76 p-3.5">
-              <div className="flex min-w-0 flex-wrap gap-2">
-                <Badge variant="secondary">{t("dashboard.docsChip", { count: documents.length })}</Badge>
-                <Badge variant="secondary">{t("dashboard.sessionsChip", { count: conversations.length })}</Badge>
-                <Badge variant="secondary">{t("dashboard.readyChip", { count: processedCount })}</Badge>
+        <div className="space-y-3">
+          <Card className="border-border/80 bg-card/86">
+            <CardHeader className="pb-3">
+              <div className="space-y-1">
+                <CardTitle>{t("billing.summaryTitle")}</CardTitle>
+                <p className="text-sm text-muted-foreground/95">{t("billing.summaryDescription")}</p>
               </div>
-            </div>
-            <div className="flex min-w-0 flex-wrap gap-2">
-              <Badge variant="secondary">{t("dashboard.uploadFreshDocs")}</Badge>
-              <Badge variant="secondary">{t("dashboard.askSpecificQuestions")}</Badge>
-              <Badge variant="secondary">{t("dashboard.shareCitedAnswers")}</Badge>
-            </div>
-            <Button variant="outline" className="w-full justify-between" asChild>
-              <Link to="/knowledge-base">{t("common.actions.openDocuments")}</Link>
-            </Button>
-            <Button variant="outline" className="w-full justify-between" asChild>
-              <Link to="/assistant">{t("common.actions.askAssistant")}</Link>
-            </Button>
-            <Button variant="outline" className="w-full justify-between" asChild>
-              <Link to="/conversations">{t("common.actions.openConversations")}</Link>
-            </Button>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {billingSummaryQuery.isLoading ? (
+                <div className="animate-pulse space-y-3 rounded-[22px] border border-border/80 bg-card/76 p-4">
+                  <div className="h-3 w-28 rounded-full bg-border/70" />
+                  <div className="h-7 w-36 rounded-full bg-border/70" />
+                  <div className="h-2 rounded-full bg-border/70" />
+                </div>
+              ) : billingSummaryQuery.isError || !creditSnapshot ? (
+                <ErrorState
+                  title={t("common.labels.somethingWentWrong")}
+                  description={t("billing.sharedHint")}
+                  onRetry={() => billingSummaryQuery.refetch()}
+                />
+              ) : (
+                <>
+                  <div className="rounded-[22px] border border-border/82 bg-card/76 p-4">
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.shellLabel")}</div>
+                        <div className="mt-1 text-[1.65rem] font-semibold tracking-[-0.05em] text-foreground">
+                          {formatCredits(creditSnapshot.availableCredits, locale)}
+                        </div>
+                        <div className="mt-1 text-sm text-muted-foreground">{t("billing.availableShort", { count: formatCredits(creditSnapshot.availableCredits, locale) })}</div>
+                      </div>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        {creditSnapshot.planName ? <Badge variant="secondary">{creditSnapshot.planName}</Badge> : null}
+                        <Badge
+                          variant={creditSnapshot.tone === "healthy" ? "success" : creditSnapshot.tone === "low" ? "warning" : "secondary"}
+                          className={creditStatusClassName}
+                        >
+                          {creditSnapshot.tone === "healthy"
+                            ? t("billing.healthyState")
+                            : creditSnapshot.tone === "low"
+                              ? t("billing.lowState")
+                              : creditSnapshot.tone === "critical"
+                                ? t("billing.criticalState")
+                                : creditSnapshot.tone === "inactive"
+                                  ? t("billing.inactiveState")
+                                  : t("billing.emptyState")}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-2.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.available")}</div>
+                        <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{formatCredits(creditSnapshot.availableCredits, locale)}</div>
+                      </div>
+                      <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-2.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.used")}</div>
+                        <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{formatCredits(creditSnapshot.consumedCredits, locale)}</div>
+                      </div>
+                      <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-2.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.tracked")}</div>
+                        <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{formatCredits(creditSnapshot.totalTrackedCredits, locale)}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                      <span>{t("billing.remainingShort", { percent: creditSnapshot.remainingPercent })}</span>
+                      <span>{t("billing.currentPlan")}</span>
+                    </div>
+                    <WorkspaceCreditProgress className="mt-2.5" ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      {creditSnapshot.tone === "low"
+                        ? t("billing.lowWarning")
+                        : creditSnapshot.tone === "critical"
+                          ? t("billing.criticalWarning")
+                          : creditSnapshot.tone === "inactive"
+                            ? t("billing.inactiveWarning")
+                            : creditSnapshot.tone === "empty"
+                              ? t("billing.emptyWarning")
+                              : t("billing.dashboardHint")}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button className="justify-between" asChild>
+                      <Link to="/billing">
+                        <span>{t("common.actions.buyCredits")}</span>
+                        <Coins className="size-4" />
+                      </Link>
+                    </Button>
+                    <Button variant="outline" className="justify-between" asChild>
+                      <Link to="/billing">
+                        <span>{t("common.actions.upgradePlan")}</span>
+                        <CreditCard className="size-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/80 bg-card/86">
+            <CardHeader>
+              <div className="space-y-1">
+                <CardTitle>{t("common.labels.next")}</CardTitle>
+                <p className="text-sm text-muted-foreground/95">{t("dashboard.nextDescription")}</p>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-[22px] border border-border/82 bg-card/76 p-3.5">
+                <div className="flex min-w-0 flex-wrap gap-2">
+                  <Badge variant="secondary">{t("dashboard.docsChip", { count: documents.length })}</Badge>
+                  <Badge variant="secondary">{t("dashboard.sessionsChip", { count: conversations.length })}</Badge>
+                  <Badge variant="secondary">{t("dashboard.readyChip", { count: processedCount })}</Badge>
+                </div>
+              </div>
+              <div className="flex min-w-0 flex-wrap gap-2">
+                <Badge variant="secondary">{t("dashboard.uploadFreshDocs")}</Badge>
+                <Badge variant="secondary">{t("dashboard.askSpecificQuestions")}</Badge>
+                <Badge variant="secondary">{t("dashboard.shareCitedAnswers")}</Badge>
+              </div>
+              <Button variant="outline" className="w-full justify-between" asChild>
+                <Link to="/knowledge-base">{t("common.actions.openDocuments")}</Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-between" asChild>
+                <Link to="/assistant">{t("common.actions.askAssistant")}</Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-between" asChild>
+                <Link to="/conversations">{t("common.actions.openConversations")}</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </section>
     </div>
   );

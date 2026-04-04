@@ -13,6 +13,11 @@ export class ApiError extends Error {
   }
 }
 
+export interface ApiErrorPayload {
+  error?: string;
+  code?: string;
+}
+
 interface RequestOptions extends RequestInit {
   parseAs?: "json" | "text" | "none";
 }
@@ -67,4 +72,22 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return (await response.json()) as T;
+}
+
+export function getApiErrorCode(error: unknown): string | null {
+  if (!(error instanceof ApiError)) {
+    return null;
+  }
+
+  const payload = error.payload;
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    "code" in payload &&
+    typeof payload.code === "string"
+  ) {
+    return payload.code;
+  }
+
+  return null;
 }

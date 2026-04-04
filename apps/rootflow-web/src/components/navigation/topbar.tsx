@@ -2,6 +2,7 @@ import { BellDot, LogOut, Menu, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { useI18n } from "@/app/providers/i18n-provider";
+import { TopbarCreditSummary } from "@/components/billing/topbar-credit-summary";
 import { ApiBaseUrlIndicator } from "@/components/diagnostics/api-base-url-indicator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -85,6 +86,8 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
                   <span className="truncate text-foreground">{t("topbar.askAssistant")}</span>
                 </Link>
               </Button>
+
+              <TopbarCreditSummary workspaceId={session?.workspace.id} className="w-full sm:w-auto" />
 
               <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                 <LanguageSwitcher compact />

@@ -9,6 +9,7 @@ import { ForgotPasswordPage } from "@/features/auth/pages/forgot-password-page";
 import { LoginPage } from "@/features/auth/pages/login-page";
 import { ResetPasswordPage } from "@/features/auth/pages/reset-password-page";
 import { SignUpPage } from "@/features/auth/pages/sign-up-page";
+import { BillingPage } from "@/features/billing/page";
 import { ConversationsPage } from "@/features/conversations/page";
 import { DashboardPage } from "@/features/dashboard/page";
 import { KnowledgeBasePage } from "@/features/knowledge-base/page";
@@ -49,6 +50,14 @@ export const router = createBrowserRouter([
         handle: {
           title: "Assistant",
           subtitle: "Grounded answer experience with a premium conversation surface.",
+        },
+      },
+      {
+        path: "billing",
+        element: <BillingPage />,
+        handle: {
+          title: "Billing",
+          subtitle: "Credits visibility and upgrade path placeholder.",
         },
       },
       {

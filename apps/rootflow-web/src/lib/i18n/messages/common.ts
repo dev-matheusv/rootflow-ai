@@ -37,6 +37,9 @@ export const commonMessages = {
         openConversationHistory: "Open conversation history",
         showNavigation: "Show navigation",
         hideNavigation: "Hide navigation",
+        openBilling: "Open billing",
+        buyCredits: "Buy credits",
+        upgradePlan: "Upgrade plan",
       },
       labels: {
         loading: "Loading",
@@ -189,6 +192,9 @@ export const commonMessages = {
         openConversationHistory: "Abrir histórico da conversa",
         showNavigation: "Mostrar navegação",
         hideNavigation: "Ocultar navegação",
+        openBilling: "Abrir faturamento",
+        buyCredits: "Comprar créditos",
+        upgradePlan: "Fazer upgrade do plano",
       },
       labels: {
         loading: "Carregando",

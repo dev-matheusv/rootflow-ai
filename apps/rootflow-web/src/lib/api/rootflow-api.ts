@@ -2,6 +2,7 @@ import type {
   AskQuestionPayload,
   AcceptWorkspaceInvitePayload,
   AuthResponse,
+  WorkspaceBillingSummary,
   ChatAnswer,
   ConversationHistory,
   ConversationSummary,
@@ -71,6 +72,8 @@ export const rootflowApi = {
       body: JSON.stringify(payload),
     }),
   getCurrentSession: () => apiRequest<SessionInfo>("/api/auth/me"),
+  getWorkspaceBillingSummary: (workspaceId: string) =>
+    apiRequest<WorkspaceBillingSummary>(`/api/workspaces/${workspaceId}/billing/summary`),
   listWorkspaceMembers: (workspaceId: string) => apiRequest<WorkspaceMember[]>(`/api/workspaces/${workspaceId}/members`),
   listDocuments: () => apiRequest<DocumentSummary[]>("/api/documents"),
   listConversations: () => apiRequest<ConversationSummary[]>("/api/conversations"),

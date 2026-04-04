@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { AskQuestionPayload, DocumentSummary, InviteWorkspaceMemberPayload, UploadDocumentPayload } from "@/lib/api/contracts";
+import type {
+  AskQuestionPayload,
+  DocumentSummary,
+  InviteWorkspaceMemberPayload,
+  UploadDocumentPayload,
+} from "@/lib/api/contracts";
 import { rootflowApi } from "@/lib/api/rootflow-api";
 import { queryKeys } from "@/lib/api/query-keys";
 
@@ -36,6 +41,14 @@ export function useWorkspaceMembersQuery(workspaceId?: string | null) {
   });
 }
 
+export function useWorkspaceBillingSummaryQuery(workspaceId?: string | null) {
+  return useQuery({
+    queryKey: workspaceId ? queryKeys.workspaceBillingSummary(workspaceId) : ["workspace-billing-summary", "none"],
+    queryFn: () => rootflowApi.getWorkspaceBillingSummary(workspaceId!),
+    enabled: Boolean(workspaceId),
+  });
+}
+
 export function useConversationsQuery() {
   return useQuery({
     queryKey: queryKeys.conversations,
@@ -60,15 +73,16 @@ export function useUploadDocumentMutation() {
   });
 }
 
-export function useAskQuestionMutation() {
+export function useAskQuestionMutation(workspaceId?: string | null) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (payload: AskQuestionPayload) => rootflowApi.askQuestion(payload),
-    onSuccess: async (answer) => {
+    onSettled: async (answer) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.conversations }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.conversation(answer.conversationId) }),
+        ...(answer ? [queryClient.invalidateQueries({ queryKey: queryKeys.conversation(answer.conversationId) })] : []),
+        ...(workspaceId ? [queryClient.invalidateQueries({ queryKey: queryKeys.workspaceBillingSummary(workspaceId) })] : []),
       ]);
     },
   });
