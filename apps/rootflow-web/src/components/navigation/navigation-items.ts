@@ -1,5 +1,6 @@
 import {
   Bot,
+  CreditCard,
   LayoutDashboard,
   MessagesSquare,
   Settings2,
@@ -34,6 +35,13 @@ export const navigationItems = [
     icon: MessagesSquare,
     labelKey: "nav.conversations",
     captionKey: "nav.conversationsCaption",
+  },
+  {
+    id: "billing",
+    to: "/billing",
+    icon: CreditCard,
+    labelKey: "nav.billing",
+    captionKey: "nav.billingCaption",
   },
   {
     id: "settings",

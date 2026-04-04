@@ -24,6 +24,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
             className={({ isActive }) =>
               cn(
                 "group relative flex rounded-[22px] border border-transparent transition-[transform,background-color,border-color,box-shadow,color] duration-200 motion-safe:hover:-translate-y-0.5",
+                item.id === "billing" ? "mt-3" : undefined,
                 collapsed ? "justify-center px-0 py-1.5" : "items-center gap-3 px-3 py-2.5",
                 isActive
                   ? "border-primary/24 bg-primary/[0.1] text-sidebar-accent-foreground shadow-[0_16px_32px_-22px_rgba(18,72,166,0.22)]"
