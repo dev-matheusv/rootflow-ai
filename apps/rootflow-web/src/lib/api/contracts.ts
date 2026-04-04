@@ -20,6 +20,7 @@ export interface SessionInfo {
   user: AuthUser;
   workspace: AuthWorkspace;
   role: WorkspaceRole;
+  isPlatformAdmin: boolean;
 }
 
 export interface AuthResponse {
@@ -158,6 +159,126 @@ export interface WorkspaceBillingSummary {
   billingPlan?: BillingPlanSummary | null;
   subscription?: WorkspaceSubscriptionSummary | null;
   balance: WorkspaceCreditBalanceSummary;
+}
+
+export interface PlatformAdminOverview {
+  totalWorkspaces: number;
+  totalActiveSubscriptions: number;
+  totalTrials: number;
+  totalUsers: number;
+  totalAvailableCredits: number;
+  totalConsumedCredits: number;
+  estimatedProviderCost: number;
+  estimatedRevenueBasis: number;
+  estimatedGrossMargin: number;
+}
+
+export interface PlatformAdminAlertCounts {
+  lowCreditWorkspaces: number;
+  noCreditWorkspaces: number;
+  trialsExpiringSoon: number;
+  paymentIssues: number;
+}
+
+export interface PlatformAdminUsageWindow {
+  key: string;
+  workspaceCount: number;
+  eventCount: number;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  creditsCharged: number;
+  estimatedProviderCost: number;
+  estimatedRevenueBasis: number;
+  estimatedGrossMargin: number;
+}
+
+export interface PlatformAdminWorkspaceSummary {
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  planName?: string | null;
+  subscriptionStatus: string;
+  memberCount: number;
+  availableCredits: number;
+  consumedCredits: number;
+  totalTrackedCredits: number;
+  remainingRatio: number;
+  remainingPercent: number;
+  trialEndsAtUtc?: string | null;
+  lastUsageAtUtc?: string | null;
+  creditsCharged: number;
+  totalTokens: number;
+  estimatedProviderCost: number;
+  estimatedRevenueBasis: number;
+  estimatedGrossMargin: number;
+}
+
+export interface PlatformAdminModelUsage {
+  provider: string;
+  model: string;
+  workspaceCount: number;
+  eventCount: number;
+  creditsCharged: number;
+  totalTokens: number;
+  estimatedProviderCost: number;
+  estimatedRevenueBasis: number;
+  estimatedGrossMargin: number;
+  lastUsedAtUtc?: string | null;
+}
+
+export interface PlatformAdminBillingTransaction {
+  transactionId: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  type: string;
+  status: string;
+  planName?: string | null;
+  credits?: number | null;
+  amount: number;
+  currencyCode: string;
+  occurredAtUtc: string;
+}
+
+export interface PlatformAdminSubscriptionActivity {
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  planName?: string | null;
+  status: string;
+  updatedAtUtc: string;
+  currentPeriodEndUtc: string;
+  trialEndsAtUtc?: string | null;
+}
+
+export interface PlatformAdminPaymentIssue {
+  transactionId: string;
+  workspaceId: string;
+  workspaceName: string;
+  workspaceSlug: string;
+  type: string;
+  status: string;
+  amount: number;
+  currencyCode: string;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface PlatformAdminDashboard {
+  overview: PlatformAdminOverview;
+  alerts: PlatformAdminAlertCounts;
+  usageWindows: PlatformAdminUsageWindow[];
+  lowCreditWorkspaces: PlatformAdminWorkspaceSummary[];
+  noCreditWorkspaces: PlatformAdminWorkspaceSummary[];
+  trialsExpiringSoon: PlatformAdminWorkspaceSummary[];
+  paymentIssues: PlatformAdminPaymentIssue[];
+  recentCreditPurchases: PlatformAdminBillingTransaction[];
+  recentSubscriptionChanges: PlatformAdminSubscriptionActivity[];
+  topCreditConsumers: PlatformAdminWorkspaceSummary[];
+  topProviderCostWorkspaces: PlatformAdminWorkspaceSummary[];
+  topRevenueBasisWorkspaces: PlatformAdminWorkspaceSummary[];
+  modelBreakdown: PlatformAdminModelUsage[];
 }
 
 export interface ChatSource {

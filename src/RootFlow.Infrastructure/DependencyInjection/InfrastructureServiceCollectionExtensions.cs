@@ -17,6 +17,7 @@ using RootFlow.Application.Billing;
 using RootFlow.Application.Chat;
 using RootFlow.Application.Conversations;
 using RootFlow.Application.Documents;
+using RootFlow.Application.PlatformAdmin;
 using RootFlow.Application.Workspaces;
 using RootFlow.Infrastructure.AI;
 using RootFlow.Infrastructure.Auth;
@@ -47,6 +48,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<AiOptions>(configuration.GetSection("AI"));
         services.Configure<WorkspaceBillingOptions>(configuration.GetSection("Billing"));
+        services.Configure<PlatformAdminOptions>(configuration.GetSection("PlatformAdmin"));
         services.Configure<StripeBillingOptions>(configuration.GetSection("Stripe"));
         services.Configure<EmailDeliveryOptions>(configuration.GetSection("EmailDelivery"));
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
@@ -87,6 +89,16 @@ public static class InfrastructureServiceCollectionExtensions
             ApplyStripePlanPriceOverride(options, "pro", configuration["ROOTFLOW_STRIPE_PRO_PRICE_ID"]);
             ApplyStripePlanPriceOverride(options, "business", configuration["ROOTFLOW_STRIPE_BUSINESS_PRICE_ID"]);
             ApplyStripeCreditPackPriceOverride(options, "credits_10000", configuration["ROOTFLOW_STRIPE_CREDITS_10000_PRICE_ID"]);
+        });
+        services.PostConfigure<PlatformAdminOptions>(options =>
+        {
+            var configuredEmails = SplitDelimitedValues(configuration["ROOTFLOW_PLATFORM_ADMIN_EMAILS"]);
+            if (configuredEmails.Length == 0)
+            {
+                return;
+            }
+
+            options.Emails = configuredEmails.ToList();
         });
         services.PostConfigure<EmailDeliveryOptions>(options =>
         {
@@ -140,6 +152,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton(serviceProvider =>
             serviceProvider.GetRequiredService<IOptions<WorkspaceBillingOptions>>().Value);
         services.AddSingleton(serviceProvider =>
+            serviceProvider.GetRequiredService<IOptions<PlatformAdminOptions>>().Value);
+        services.AddSingleton(serviceProvider =>
             serviceProvider.GetRequiredService<IOptions<StripeBillingOptions>>().Value);
         services.AddSingleton(_ =>
         {
@@ -176,11 +190,13 @@ public static class InfrastructureServiceCollectionExtensions
         });
 
         services.AddScoped<IPasswordHashingService, AspNetPasswordHashingService>();
+        services.AddSingleton<IPlatformAdminAccessService, ConfiguredPlatformAdminAccessService>();
         services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
         services.AddScoped<IWorkspaceInvitationNotifier, LoggingWorkspaceInvitationNotifier>();
         services.AddScoped<IAiUsagePricingCalculator, ConfiguredAiUsagePricingCalculator>();
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
         services.AddScoped<IBillingPlanRepository, PostgresBillingPlanRepository>();
+        services.AddScoped<IPlatformAdminRepository, PostgresPlatformAdminRepository>();
         services.AddScoped<IWorkspaceBillingRepository, PostgresWorkspaceBillingRepository>();
         services.AddScoped<IWorkspaceInvitationRepository, PostgresWorkspaceInvitationRepository>();
         services.AddScoped<IWorkspaceMembershipRepository, PostgresWorkspaceMembershipRepository>();
@@ -204,6 +220,7 @@ public static class InfrastructureServiceCollectionExtensions
         }
 
         services.AddScoped<AuthService>();
+        services.AddScoped<PlatformAdminDashboardService>();
         services.AddScoped<WorkspaceBillingService>();
         services.AddScoped<WorkspacePaymentService>();
         services.AddScoped<DocumentService>();
@@ -347,6 +364,14 @@ public static class InfrastructureServiceCollectionExtensions
     private static string? FirstNonEmpty(params string?[] values)
     {
         return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+    }
+
+    private static string[] SplitDelimitedValues(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? []
+            : value
+                .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     private static int? FirstParsedInt(params string?[] values)

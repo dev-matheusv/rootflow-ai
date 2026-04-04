@@ -450,7 +450,8 @@ public sealed class PostgresAuthRepository : IAuthRepository
                 reader.GetGuid(3),
                 reader.GetString(4),
                 reader.GetString(5)),
-            Enum.Parse<WorkspaceRole>(reader.GetString(6), ignoreCase: true));
+            Enum.Parse<WorkspaceRole>(reader.GetString(6), ignoreCase: true),
+            false);
     }
 
     private async Task<PasswordResetToken?> GetPasswordResetTokenAsync<TState>(

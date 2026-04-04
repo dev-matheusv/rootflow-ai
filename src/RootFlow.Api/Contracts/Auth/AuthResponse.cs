@@ -13,7 +13,8 @@ public sealed record AuthWorkspaceResponse(
 public sealed record SessionResponse(
     AuthUserResponse User,
     AuthWorkspaceResponse Workspace,
-    string Role);
+    string Role,
+    bool IsPlatformAdmin);
 
 public sealed record AuthResponse(
     string Token,

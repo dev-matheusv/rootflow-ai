@@ -5,6 +5,7 @@ import type {
   BillingCheckoutSession,
   BillingCreditPackSummary,
   BillingPlanSummary,
+  PlatformAdminDashboard,
   WorkspaceBillingSummary,
   ChatAnswer,
   CreateWorkspaceCreditPurchaseCheckoutPayload,
@@ -30,6 +31,7 @@ export const rootflowApi = {
   getHealth: () => apiRequest<HealthResponse>("/health"),
   listBillingPlans: () => apiRequest<BillingPlanSummary[]>("/api/billing/plans"),
   listBillingCreditPacks: () => apiRequest<BillingCreditPackSummary[]>("/api/billing/credit-packs"),
+  getPlatformAdminDashboard: () => apiRequest<PlatformAdminDashboard>("/api/admin/dashboard"),
   signup: (payload: SignupPayload) =>
     apiRequest<AuthResponse>("/api/auth/signup", {
       method: "POST",

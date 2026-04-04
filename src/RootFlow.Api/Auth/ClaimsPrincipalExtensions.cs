@@ -25,4 +25,15 @@ public static class ClaimsPrincipalExtensions
 
         return workspaceId;
     }
+
+    public static string GetRequiredUserEmail(this ClaimsPrincipal principal)
+    {
+        var value = principal.FindFirstValue(ClaimTypes.Email);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidOperationException("Authenticated email claim is missing.");
+        }
+
+        return value;
+    }
 }

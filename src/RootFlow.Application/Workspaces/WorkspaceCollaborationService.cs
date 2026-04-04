@@ -1,6 +1,7 @@
 using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
+using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Abstractions.Time;
 using RootFlow.Application.Abstractions.Workspaces;
@@ -22,6 +23,7 @@ public sealed class WorkspaceCollaborationService
     private readonly IWorkspaceMembershipRepository _workspaceMembershipRepository;
     private readonly IWorkspaceInvitationRepository _workspaceInvitationRepository;
     private readonly IWorkspaceInvitationNotifier _workspaceInvitationNotifier;
+    private readonly IPlatformAdminAccessService? _platformAdminAccessService;
     private readonly IClock _clock;
 
     public WorkspaceCollaborationService(
@@ -30,6 +32,7 @@ public sealed class WorkspaceCollaborationService
         IWorkspaceMembershipRepository workspaceMembershipRepository,
         IWorkspaceInvitationRepository workspaceInvitationRepository,
         IWorkspaceInvitationNotifier workspaceInvitationNotifier,
+        IPlatformAdminAccessService? platformAdminAccessService,
         IClock clock)
     {
         _authRepository = authRepository;
@@ -37,6 +40,7 @@ public sealed class WorkspaceCollaborationService
         _workspaceMembershipRepository = workspaceMembershipRepository;
         _workspaceInvitationRepository = workspaceInvitationRepository;
         _workspaceInvitationNotifier = workspaceInvitationNotifier;
+        _platformAdminAccessService = platformAdminAccessService;
         _clock = clock;
     }
 
@@ -209,7 +213,10 @@ public sealed class WorkspaceCollaborationService
             throw new InvalidOperationException("The workspace membership could not be loaded after accepting the invite.");
         }
 
-        return session;
+        return session with
+        {
+            IsPlatformAdmin = _platformAdminAccessService?.HasAccess(session.User.Email) == true
+        };
     }
 
     public async Task<IReadOnlyList<WorkspaceMemberDto>> ListMembersAsync(

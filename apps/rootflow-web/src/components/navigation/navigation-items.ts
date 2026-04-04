@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   MessagesSquare,
   Settings2,
+  Shield,
   Sparkles,
 } from "lucide-react";
 
@@ -14,6 +15,7 @@ export const navigationItems = [
     icon: LayoutDashboard,
     labelKey: "nav.dashboard",
     captionKey: "nav.dashboardCaption",
+    requiresPlatformAdmin: false,
   },
   {
     id: "knowledge-base",
@@ -21,6 +23,7 @@ export const navigationItems = [
     icon: Sparkles,
     labelKey: "nav.knowledgeBase",
     captionKey: "nav.knowledgeBaseCaption",
+    requiresPlatformAdmin: false,
   },
   {
     id: "assistant",
@@ -28,6 +31,7 @@ export const navigationItems = [
     icon: Bot,
     labelKey: "nav.assistant",
     captionKey: "nav.assistantCaption",
+    requiresPlatformAdmin: false,
   },
   {
     id: "conversations",
@@ -35,6 +39,7 @@ export const navigationItems = [
     icon: MessagesSquare,
     labelKey: "nav.conversations",
     captionKey: "nav.conversationsCaption",
+    requiresPlatformAdmin: false,
   },
   {
     id: "billing",
@@ -42,6 +47,15 @@ export const navigationItems = [
     icon: CreditCard,
     labelKey: "nav.billing",
     captionKey: "nav.billingCaption",
+    requiresPlatformAdmin: false,
+  },
+  {
+    id: "admin",
+    to: "/admin",
+    icon: Shield,
+    labelKey: "nav.admin",
+    captionKey: "nav.adminCaption",
+    requiresPlatformAdmin: true,
   },
   {
     id: "settings",
@@ -49,5 +63,6 @@ export const navigationItems = [
     icon: Settings2,
     labelKey: "nav.settings",
     captionKey: "nav.settingsCaption",
+    requiresPlatformAdmin: false,
   },
 ] as const;

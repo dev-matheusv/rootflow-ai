@@ -2,11 +2,14 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
+using RootFlow.Api.Admin;
 using RootFlow.Api.Auth;
+using RootFlow.Api.Contracts.Admin;
 using RootFlow.Api.Contracts.Auth;
 using RootFlow.Api.Contracts.Billing;
 using RootFlow.Api.Contracts.Chat;
 using RootFlow.Api.Contracts.Workspaces;
+using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Application.Auth;
 using RootFlow.Application.Billing;
 using RootFlow.Application.Billing.Commands;
@@ -20,6 +23,8 @@ using RootFlow.Application.Conversations.Queries;
 using RootFlow.Application.Documents;
 using RootFlow.Application.Documents.Commands;
 using RootFlow.Application.Documents.Queries;
+using RootFlow.Application.PlatformAdmin;
+using RootFlow.Application.PlatformAdmin.Queries;
 using RootFlow.Application.Workspaces;
 using RootFlow.Application.Workspaces.Commands;
 using RootFlow.Application.Workspaces.Queries;
@@ -147,11 +152,13 @@ var documents = app.MapGroup("/api/documents");
 var conversations = app.MapGroup("/api/conversations");
 var auth = app.MapGroup("/api/auth");
 var billing = app.MapGroup("/api/billing");
+var admin = app.MapGroup("/api/admin");
 var workspaces = app.MapGroup("/api/workspaces");
 
 documents.RequireAuthorization();
 conversations.RequireAuthorization();
 billing.RequireAuthorization();
+admin.RequireAuthorization();
 workspaces.RequireAuthorization();
 
 auth.MapPost("/signup", async (
@@ -317,6 +324,24 @@ billing.MapGet("/credit-packs", async (
 {
     var creditPacks = await workspacePaymentService.ListCreditPacksAsync(cancellationToken);
     return Results.Ok(creditPacks.Select(creditPack => creditPack.ToResponse()));
+});
+
+admin.MapGet("/dashboard", async (
+    ClaimsPrincipal user,
+    IPlatformAdminAccessService platformAdminAccessService,
+    PlatformAdminDashboardService platformAdminDashboardService,
+    CancellationToken cancellationToken) =>
+{
+    if (!platformAdminAccessService.HasAccess(user.GetRequiredUserEmail()))
+    {
+        return Results.Forbid();
+    }
+
+    var dashboard = await platformAdminDashboardService.GetDashboardAsync(
+        new GetPlatformAdminDashboardQuery(),
+        cancellationToken);
+
+    return Results.Ok(dashboard.ToResponse());
 });
 
 billing.MapPost("/checkout/subscription", async (

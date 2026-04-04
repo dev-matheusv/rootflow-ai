@@ -23,6 +23,7 @@ public sealed class AuthService
     private readonly IAuthRepository _authRepository;
     private readonly IPasswordHashingService _passwordHashingService;
     private readonly IPasswordResetNotifier _passwordResetNotifier;
+    private readonly IPlatformAdminAccessService? _platformAdminAccessService;
     private readonly IClock _clock;
     private readonly WorkspaceBillingService? _workspaceBillingService;
 
@@ -30,12 +31,14 @@ public sealed class AuthService
         IAuthRepository authRepository,
         IPasswordHashingService passwordHashingService,
         IPasswordResetNotifier passwordResetNotifier,
+        IPlatformAdminAccessService? platformAdminAccessService,
         IClock clock,
         WorkspaceBillingService? workspaceBillingService = null)
     {
         _authRepository = authRepository;
         _passwordHashingService = passwordHashingService;
         _passwordResetNotifier = passwordResetNotifier;
+        _platformAdminAccessService = platformAdminAccessService;
         _clock = clock;
         _workspaceBillingService = workspaceBillingService;
     }
@@ -86,7 +89,7 @@ public sealed class AuthService
             await _workspaceBillingService.EnsureTrialProvisionedAsync(workspace.Id, cancellationToken);
         }
 
-        return MapSession(user, workspace, membership.Role);
+        return CreateSession(user, workspace, membership.Role);
     }
 
     public async Task<AuthSessionDto> LoginAsync(
@@ -116,7 +119,7 @@ public sealed class AuthService
             throw new UnauthorizedAccessException("No active workspace membership was found for this account.");
         }
 
-        return session;
+        return ApplyPlatformAdminAccess(session);
     }
 
     public Task<AuthSessionDto?> GetCurrentSessionAsync(
@@ -124,7 +127,7 @@ public sealed class AuthService
         Guid workspaceId,
         CancellationToken cancellationToken = default)
     {
-        return _authRepository.GetSessionAsync(userId, workspaceId, cancellationToken);
+        return GetCurrentSessionInternalAsync(userId, workspaceId, cancellationToken);
     }
 
     public async Task<string> RequestPasswordResetAsync(
@@ -215,12 +218,35 @@ public sealed class AuthService
         return candidate;
     }
 
-    private static AuthSessionDto MapSession(AppUser user, Workspace workspace, WorkspaceRole role)
+    private async Task<AuthSessionDto?> GetCurrentSessionInternalAsync(
+        Guid userId,
+        Guid workspaceId,
+        CancellationToken cancellationToken)
+    {
+        var session = await _authRepository.GetSessionAsync(userId, workspaceId, cancellationToken);
+        return session is null ? null : ApplyPlatformAdminAccess(session);
+    }
+
+    private AuthSessionDto CreateSession(AppUser user, Workspace workspace, WorkspaceRole role)
     {
         return new AuthSessionDto(
             new AuthUserDto(user.Id, user.FullName, user.Email),
             new AuthWorkspaceDto(workspace.Id, workspace.Name, workspace.Slug),
-            role);
+            role,
+            IsPlatformAdmin(user.Email));
+    }
+
+    private AuthSessionDto ApplyPlatformAdminAccess(AuthSessionDto session)
+    {
+        return session with
+        {
+            IsPlatformAdmin = IsPlatformAdmin(session.User.Email)
+        };
+    }
+
+    private bool IsPlatformAdmin(string? email)
+    {
+        return _platformAdminAccessService?.HasAccess(email) == true;
     }
 
     private static string NormalizeRequiredValue(string? value, string fieldName, int maxLength)

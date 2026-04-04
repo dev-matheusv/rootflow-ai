@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 
 import { useI18n } from "@/app/providers/i18n-provider";
 import { navigationItems } from "@/components/navigation/navigation-items";
+import { useAuth } from "@/features/auth/auth-provider";
 import { cn } from "@/lib/utils";
 
 interface SidebarNavProps {
@@ -11,11 +12,13 @@ interface SidebarNavProps {
 
 export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
   const { t } = useI18n();
+  const { session } = useAuth();
+  const visibleNavigationItems = navigationItems.filter((item) => !item.requiresPlatformAdmin || session?.isPlatformAdmin);
 
   return (
     <section>
       <nav className="space-y-1.5">
-        {navigationItems.map((item) => (
+        {visibleNavigationItems.map((item) => (
           <NavLink
             key={item.id}
             to={item.to}
@@ -24,7 +27,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
             className={({ isActive }) =>
               cn(
                 "group relative flex rounded-[22px] border border-transparent transition-[transform,background-color,border-color,box-shadow,color] duration-200 motion-safe:hover:-translate-y-0.5",
-                item.id === "billing" ? "mt-3" : undefined,
+                item.id === "admin" ? "mt-3" : undefined,
                 collapsed ? "justify-center px-0 py-1.5" : "items-center gap-3 px-3 py-2.5",
                 isActive
                   ? "border-primary/24 bg-primary/[0.1] text-sidebar-accent-foreground shadow-[0_16px_32px_-22px_rgba(18,72,166,0.22)]"

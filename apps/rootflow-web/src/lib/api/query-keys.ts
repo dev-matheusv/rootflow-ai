@@ -1,5 +1,6 @@
 export const queryKeys = {
   health: ["health"] as const,
+  platformAdminDashboard: ["platform-admin-dashboard"] as const,
   billingPlans: ["billing-plans"] as const,
   billingCreditPacks: ["billing-credit-packs"] as const,
   workspaceBillingSummary: (workspaceId: string) => ["workspace-billing-summary", workspaceId] as const,

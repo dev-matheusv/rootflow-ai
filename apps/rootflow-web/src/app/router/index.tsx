@@ -1,9 +1,11 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { AppShell } from "@/app/layouts/app-shell";
+import { AdminPage } from "@/features/admin/page";
 import { AssistantPage } from "@/features/assistant/page";
 import { RedirectIfAuthenticated } from "@/features/auth/components/redirect-if-authenticated";
 import { RequireAuth } from "@/features/auth/components/require-auth";
+import { RequirePlatformAdmin } from "@/features/auth/components/require-platform-admin";
 import { AcceptInvitePage } from "@/features/auth/pages/accept-invite-page";
 import { ForgotPasswordPage } from "@/features/auth/pages/forgot-password-page";
 import { LoginPage } from "@/features/auth/pages/login-page";
@@ -58,6 +60,18 @@ export const router = createBrowserRouter([
         handle: {
           title: "Billing",
           subtitle: "Credits visibility and upgrade path placeholder.",
+        },
+      },
+      {
+        path: "admin",
+        element: (
+          <RequirePlatformAdmin>
+            <AdminPage />
+          </RequirePlatformAdmin>
+        ),
+        handle: {
+          title: "Admin",
+          subtitle: "Internal platform operations and billing telemetry.",
         },
       },
       {

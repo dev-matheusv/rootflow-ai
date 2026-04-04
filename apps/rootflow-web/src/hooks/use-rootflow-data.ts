@@ -22,6 +22,14 @@ export function useHealthQuery() {
   });
 }
 
+export function usePlatformAdminDashboardQuery(enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.platformAdminDashboard,
+    queryFn: rootflowApi.getPlatformAdminDashboard,
+    enabled,
+  });
+}
+
 export function useBillingPlansQuery() {
   return useQuery({
     queryKey: queryKeys.billingPlans,

@@ -220,6 +220,7 @@ public sealed class WorkspaceCollaborationServiceTests
             membershipRepository,
             invitationRepository,
             notifier,
+            null,
             clock);
     }
 

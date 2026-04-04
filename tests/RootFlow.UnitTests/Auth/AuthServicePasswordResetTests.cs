@@ -94,7 +94,7 @@ public sealed class AuthServicePasswordResetTests
         FakePasswordResetNotifier notifier,
         FakeClock clock)
     {
-        return new AuthService(repository, new FakePasswordHashingService(), notifier, clock);
+        return new AuthService(repository, new FakePasswordHashingService(), notifier, null, clock);
     }
 
     private sealed class FakeAuthRepository : IAuthRepository

@@ -16,7 +16,8 @@ public static class AuthContractMapper
                 session.Workspace.Id,
                 session.Workspace.Name,
                 session.Workspace.Slug),
-            session.Role.ToString());
+            session.Role.ToString(),
+            session.IsPlatformAdmin);
     }
 
     public static AuthResponse ToResponse(this GeneratedJwtToken token, AuthSessionDto session)

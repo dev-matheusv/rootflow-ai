@@ -15,4 +15,5 @@ public sealed record AuthWorkspaceDto(
 public sealed record AuthSessionDto(
     AuthUserDto User,
     AuthWorkspaceDto Workspace,
-    WorkspaceRole Role);
+    WorkspaceRole Role,
+    bool IsPlatformAdmin = false);
