@@ -284,6 +284,200 @@ public sealed class PostgresDatabaseInitializer
 
                 CREATE INDEX IF NOT EXISTS ix_workspace_memberships_workspace_created
                     ON workspace_memberships (workspace_id, created_at_utc, id);
+                """),
+            new DatabaseMigration(
+                "202604040001_workspace_billing_foundation",
+                "Create workspace billing plans, subscriptions, shared credits, and AI usage tracking",
+                """
+                CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+                CREATE TABLE IF NOT EXISTS billing_plans (
+                    id uuid PRIMARY KEY,
+                    code text NOT NULL,
+                    name text NOT NULL,
+                    monthly_price numeric(18,2) NOT NULL,
+                    currency_code text NOT NULL,
+                    included_credits bigint NOT NULL,
+                    max_users integer NOT NULL,
+                    is_active boolean NOT NULL,
+                    created_at_utc timestamptz NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS workspace_subscriptions (
+                    id uuid PRIMARY KEY,
+                    workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    billing_plan_id uuid NOT NULL REFERENCES billing_plans(id),
+                    status text NOT NULL,
+                    current_period_start_utc timestamptz NOT NULL,
+                    current_period_end_utc timestamptz NOT NULL,
+                    canceled_at_utc timestamptz NULL,
+                    created_at_utc timestamptz NOT NULL,
+                    updated_at_utc timestamptz NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS workspace_credit_balances (
+                    workspace_id uuid PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+                    available_credits bigint NOT NULL,
+                    consumed_credits bigint NOT NULL,
+                    updated_at_utc timestamptz NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS workspace_credit_ledger (
+                    id uuid PRIMARY KEY,
+                    workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    type text NOT NULL,
+                    amount bigint NOT NULL,
+                    description text NOT NULL,
+                    reference_type text NULL,
+                    reference_id text NULL,
+                    created_at_utc timestamptz NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS workspace_usage_events (
+                    id uuid PRIMARY KEY,
+                    workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    user_id uuid NULL REFERENCES app_users(id) ON DELETE SET NULL,
+                    conversation_id uuid NULL REFERENCES conversations(id) ON DELETE SET NULL,
+                    provider text NOT NULL,
+                    model text NOT NULL,
+                    prompt_tokens integer NOT NULL,
+                    completion_tokens integer NOT NULL,
+                    total_tokens integer NOT NULL,
+                    estimated_cost numeric(18,6) NOT NULL,
+                    credits_charged bigint NOT NULL,
+                    created_at_utc timestamptz NOT NULL
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_billing_plans_code
+                    ON billing_plans (code);
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_subscriptions_workspace_active
+                    ON workspace_subscriptions (workspace_id)
+                    WHERE status = 'Active';
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_subscriptions_workspace_period_end
+                    ON workspace_subscriptions (workspace_id, current_period_end_utc DESC, created_at_utc DESC);
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_credit_ledger_workspace_created
+                    ON workspace_credit_ledger (workspace_id, created_at_utc DESC, id DESC);
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_usage_events_workspace_created
+                    ON workspace_usage_events (workspace_id, created_at_utc DESC, id DESC);
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_usage_events_conversation_created
+                    ON workspace_usage_events (conversation_id, created_at_utc DESC, id DESC);
+
+                INSERT INTO billing_plans (
+                    id,
+                    code,
+                    name,
+                    monthly_price,
+                    currency_code,
+                    included_credits,
+                    max_users,
+                    is_active,
+                    created_at_utc
+                )
+                VALUES
+                    ('7d402ac6-b828-4df0-92de-d7d4bf79e001', 'starter', 'Starter', 49.00, 'USD', 10000, 3, TRUE, NOW()),
+                    ('7d402ac6-b828-4df0-92de-d7d4bf79e002', 'pro', 'Pro', 149.00, 'USD', 50000, 10, TRUE, NOW()),
+                    ('7d402ac6-b828-4df0-92de-d7d4bf79e003', 'business', 'Business', 499.00, 'USD', 200000, 50, TRUE, NOW())
+                ON CONFLICT (code) DO UPDATE
+                SET name = EXCLUDED.name,
+                    monthly_price = EXCLUDED.monthly_price,
+                    currency_code = EXCLUDED.currency_code,
+                    included_credits = EXCLUDED.included_credits,
+                    max_users = EXCLUDED.max_users,
+                    is_active = EXCLUDED.is_active;
+
+                CREATE TEMP TABLE temp_seeded_workspace_subscriptions (
+                    id uuid NOT NULL,
+                    workspace_id uuid NOT NULL
+                )
+                ON COMMIT DROP;
+
+                WITH starter_plan AS (
+                    SELECT id
+                    FROM billing_plans
+                    WHERE code = 'starter'
+                ),
+                inserted_subscriptions AS (
+                    INSERT INTO workspace_subscriptions (
+                        id,
+                        workspace_id,
+                        billing_plan_id,
+                        status,
+                        current_period_start_utc,
+                        current_period_end_utc,
+                        canceled_at_utc,
+                        created_at_utc,
+                        updated_at_utc
+                    )
+                    SELECT gen_random_uuid(),
+                           w.id,
+                           starter_plan.id,
+                           'Active',
+                           NOW(),
+                           NOW() + INTERVAL '1 month',
+                           NULL,
+                           NOW(),
+                           NOW()
+                    FROM workspaces AS w
+                    CROSS JOIN starter_plan
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM workspace_subscriptions AS s
+                        WHERE s.workspace_id = w.id
+                    )
+                    RETURNING id, workspace_id
+                )
+                INSERT INTO temp_seeded_workspace_subscriptions (id, workspace_id)
+                SELECT id, workspace_id
+                FROM inserted_subscriptions;
+
+                INSERT INTO workspace_credit_balances (
+                    workspace_id,
+                    available_credits,
+                    consumed_credits,
+                    updated_at_utc
+                )
+                SELECT w.id, 0, 0, NOW()
+                FROM workspaces AS w
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM workspace_credit_balances AS b
+                    WHERE b.workspace_id = w.id
+                );
+
+                UPDATE workspace_credit_balances AS b
+                SET available_credits = b.available_credits + starter_plan.included_credits,
+                    updated_at_utc = NOW()
+                FROM billing_plans AS starter_plan
+                INNER JOIN temp_seeded_workspace_subscriptions AS seeded
+                    ON seeded.workspace_id = b.workspace_id
+                WHERE starter_plan.code = 'starter';
+
+                INSERT INTO workspace_credit_ledger (
+                    id,
+                    workspace_id,
+                    type,
+                    amount,
+                    description,
+                    reference_type,
+                    reference_id,
+                    created_at_utc
+                )
+                SELECT gen_random_uuid(),
+                       seeded.workspace_id,
+                       'SubscriptionGrant',
+                       starter_plan.included_credits,
+                       'Included credits for the Starter plan',
+                       'workspace_subscription',
+                       seeded.id::text,
+                       NOW()
+                FROM temp_seeded_workspace_subscriptions AS seeded
+                CROSS JOIN billing_plans AS starter_plan
+                WHERE starter_plan.code = 'starter';
                 """)
         ];
     }

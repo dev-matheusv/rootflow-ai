@@ -179,7 +179,7 @@ public sealed class ChatServiceTests
         public Task<ChatCompletionResponse> CompleteAsync(ChatCompletionRequest request, CancellationToken cancellationToken = default)
         {
             CallCount++;
-            return Task.FromResult(new ChatCompletionResponse("Structured answer. [1]", "test-model"));
+            return Task.FromResult(new ChatCompletionResponse("Structured answer. [1]", "test-model", "test"));
         }
     }
 

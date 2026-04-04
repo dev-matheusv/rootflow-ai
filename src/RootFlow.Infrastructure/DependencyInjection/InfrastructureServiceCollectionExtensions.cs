@@ -6,18 +6,21 @@ using Npgsql;
 using Pgvector;
 using RootFlow.Application.Abstractions.AI;
 using RootFlow.Application.Abstractions.Auth;
+using RootFlow.Application.Abstractions.Billing;
 using RootFlow.Application.Abstractions.Documents;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Abstractions.Search;
 using RootFlow.Application.Abstractions.Time;
 using RootFlow.Application.Abstractions.Workspaces;
 using RootFlow.Application.Auth;
+using RootFlow.Application.Billing;
 using RootFlow.Application.Chat;
 using RootFlow.Application.Conversations;
 using RootFlow.Application.Documents;
 using RootFlow.Application.Workspaces;
 using RootFlow.Infrastructure.AI;
 using RootFlow.Infrastructure.Auth;
+using RootFlow.Infrastructure.Billing;
 using RootFlow.Infrastructure.Configuration;
 using RootFlow.Infrastructure.Documents;
 using RootFlow.Infrastructure.Email;
@@ -43,6 +46,7 @@ public static class InfrastructureServiceCollectionExtensions
         }
 
         services.Configure<AiOptions>(configuration.GetSection("AI"));
+        services.Configure<WorkspaceBillingOptions>(configuration.GetSection("Billing"));
         services.Configure<EmailDeliveryOptions>(configuration.GetSection("EmailDelivery"));
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
         services.Configure<PasswordResetOptions>(configuration.GetSection("PasswordReset"));
@@ -116,6 +120,8 @@ public static class InfrastructureServiceCollectionExtensions
         });
 
         services.AddSingleton<IClock, SystemClock>();
+        services.AddSingleton(serviceProvider =>
+            serviceProvider.GetRequiredService<IOptions<WorkspaceBillingOptions>>().Value);
         services.AddSingleton(_ =>
         {
             var builder = new NpgsqlDataSourceBuilder(connectionString);
@@ -147,7 +153,10 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IPasswordHashingService, AspNetPasswordHashingService>();
         services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
         services.AddScoped<IWorkspaceInvitationNotifier, LoggingWorkspaceInvitationNotifier>();
+        services.AddScoped<IAiUsagePricingCalculator, ConfiguredAiUsagePricingCalculator>();
         services.AddScoped<IAuthRepository, PostgresAuthRepository>();
+        services.AddScoped<IBillingPlanRepository, PostgresBillingPlanRepository>();
+        services.AddScoped<IWorkspaceBillingRepository, PostgresWorkspaceBillingRepository>();
         services.AddScoped<IWorkspaceInvitationRepository, PostgresWorkspaceInvitationRepository>();
         services.AddScoped<IWorkspaceMembershipRepository, PostgresWorkspaceMembershipRepository>();
         services.AddScoped<IWorkspaceRepository, PostgresWorkspaceRepository>();
@@ -170,6 +179,7 @@ public static class InfrastructureServiceCollectionExtensions
         }
 
         services.AddScoped<AuthService>();
+        services.AddScoped<WorkspaceBillingService>();
         services.AddScoped<DocumentService>();
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();

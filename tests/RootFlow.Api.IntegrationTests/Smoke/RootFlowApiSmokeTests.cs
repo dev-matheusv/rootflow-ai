@@ -105,9 +105,45 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
         Assert.Contains("RootFlow helps businesses answer questions", conversations[0].LastMessagePreview, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task BillingFoundation_ExposesSeededPlans_AndWorkspaceCreditSummary()
+    {
+        await _factory.ResetStateAsync();
+        using var client = await _factory.CreateAuthenticatedClientAsync();
+
+        var session = await client.GetFromJsonAsync<SessionResponse>("/api/auth/me");
+        Assert.NotNull(session);
+
+        var plansResponse = await client.GetAsync("/api/billing/plans");
+        plansResponse.EnsureSuccessStatusCode();
+
+        var plans = await plansResponse.Content.ReadFromJsonAsync<List<BillingPlanResponse>>();
+        Assert.NotNull(plans);
+        Assert.Equal(3, plans!.Count);
+        Assert.Contains(plans, plan => string.Equals(plan.Code, "starter", StringComparison.OrdinalIgnoreCase));
+
+        var summaryResponse = await client.GetAsync($"/api/workspaces/{session!.Workspace.Id}/billing/summary");
+        summaryResponse.EnsureSuccessStatusCode();
+
+        var summary = await summaryResponse.Content.ReadFromJsonAsync<WorkspaceBillingSummaryResponse>();
+        Assert.NotNull(summary);
+        Assert.NotNull(summary!.BillingPlan);
+        Assert.Equal("starter", summary.BillingPlan!.Code);
+        Assert.NotNull(summary.Subscription);
+        Assert.Equal("Active", summary.Subscription!.Status);
+        Assert.Equal(10_000, summary.Balance.AvailableCredits);
+        Assert.Equal(0, summary.Balance.ConsumedCredits);
+    }
+
     private sealed record HealthResponse(string Status);
 
     private sealed record DocumentResponse(Guid Id, Guid WorkspaceId, string OriginalFileName);
+
+    private sealed record SessionResponse(AuthUserResponse User, AuthWorkspaceResponse Workspace, string Role);
+
+    private sealed record AuthUserResponse(Guid Id, string FullName, string Email);
+
+    private sealed record AuthWorkspaceResponse(Guid Id, string Name, string Slug);
 
     private sealed record ChatResponse(Guid ConversationId, string Answer, string? ModelName, List<ChatSourceResponse> Sources);
 
@@ -124,4 +160,36 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
         DateTime UpdatedAtUtc,
         int MessageCount,
         string? LastMessagePreview);
+
+    private sealed record BillingPlanResponse(
+        Guid Id,
+        string Code,
+        string Name,
+        decimal MonthlyPrice,
+        string CurrencyCode,
+        long IncludedCredits,
+        int MaxUsers,
+        bool IsActive);
+
+    private sealed record WorkspaceBillingSummaryResponse(
+        BillingPlanResponse? BillingPlan,
+        WorkspaceSubscriptionResponse? Subscription,
+        WorkspaceCreditBalanceResponse Balance);
+
+    private sealed record WorkspaceSubscriptionResponse(
+        Guid Id,
+        Guid WorkspaceId,
+        Guid BillingPlanId,
+        string Status,
+        DateTime CurrentPeriodStartUtc,
+        DateTime CurrentPeriodEndUtc,
+        DateTime? CanceledAtUtc,
+        DateTime CreatedAtUtc,
+        DateTime UpdatedAtUtc);
+
+    private sealed record WorkspaceCreditBalanceResponse(
+        Guid WorkspaceId,
+        long AvailableCredits,
+        long ConsumedCredits,
+        DateTime UpdatedAtUtc);
 }

@@ -45,18 +45,34 @@ public sealed class OpenAiChatCompletionService : IChatCompletionService
         var modelName = root.TryGetProperty("model", out var modelProperty)
             ? modelProperty.GetString()
             : null;
+        ChatCompletionUsage? usage = null;
 
         var content = root.GetProperty("choices")[0]
             .GetProperty("message")
             .GetProperty("content")
             .GetString();
 
+        if (root.TryGetProperty("usage", out var usageProperty))
+        {
+            var promptTokens = usageProperty.TryGetProperty("prompt_tokens", out var promptTokensProperty)
+                ? promptTokensProperty.GetInt32()
+                : 0;
+            var completionTokens = usageProperty.TryGetProperty("completion_tokens", out var completionTokensProperty)
+                ? completionTokensProperty.GetInt32()
+                : 0;
+            var totalTokens = usageProperty.TryGetProperty("total_tokens", out var totalTokensProperty)
+                ? totalTokensProperty.GetInt32()
+                : promptTokens + completionTokens;
+
+            usage = new ChatCompletionUsage(promptTokens, completionTokens, totalTokens);
+        }
+
         if (string.IsNullOrWhiteSpace(content))
         {
             throw new InvalidOperationException("The chat completion response did not include any content.");
         }
 
-        return new ChatCompletionResponse(content.Trim(), modelName);
+        return new ChatCompletionResponse(content.Trim(), modelName, "openai", usage);
     }
 
     private void EnsureConfigured()

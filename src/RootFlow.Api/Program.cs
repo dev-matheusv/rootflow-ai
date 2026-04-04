@@ -4,9 +4,12 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using RootFlow.Api.Auth;
 using RootFlow.Api.Contracts.Auth;
+using RootFlow.Api.Contracts.Billing;
 using RootFlow.Api.Contracts.Chat;
 using RootFlow.Api.Contracts.Workspaces;
 using RootFlow.Application.Auth;
+using RootFlow.Application.Billing;
+using RootFlow.Application.Billing.Queries;
 using RootFlow.Application.Auth.Commands;
 using RootFlow.Application.Abstractions.Documents;
 using RootFlow.Application.Chat;
@@ -142,10 +145,12 @@ app.MapGet("/health", () => Results.Ok(new
 var documents = app.MapGroup("/api/documents");
 var conversations = app.MapGroup("/api/conversations");
 var auth = app.MapGroup("/api/auth");
+var billing = app.MapGroup("/api/billing");
 var workspaces = app.MapGroup("/api/workspaces");
 
 documents.RequireAuthorization();
 conversations.RequireAuthorization();
+billing.RequireAuthorization();
 workspaces.RequireAuthorization();
 
 auth.MapPost("/signup", async (
@@ -294,6 +299,17 @@ auth.MapPost("/reset-password", async (
     }
 });
 
+billing.MapGet("/plans", async (
+    WorkspaceBillingService workspaceBillingService,
+    CancellationToken cancellationToken) =>
+{
+    var plans = await workspaceBillingService.ListPlansAsync(
+        new ListBillingPlansQuery(),
+        cancellationToken);
+
+    return Results.Ok(plans.Select(plan => plan.ToResponse()));
+});
+
 workspaces.MapPost("/{workspaceId:guid}/invites", async (
     Guid workspaceId,
     InviteWorkspaceMemberRequest request,
@@ -411,6 +427,24 @@ workspaces.MapGet("/{workspaceId:guid}/members", async (
     {
         return Results.Json(new { error = exception.Message }, statusCode: StatusCodes.Status403Forbidden);
     }
+});
+
+workspaces.MapGet("/{workspaceId:guid}/billing/summary", async (
+    Guid workspaceId,
+    ClaimsPrincipal user,
+    WorkspaceBillingService workspaceBillingService,
+    CancellationToken cancellationToken) =>
+{
+    if (user.GetRequiredWorkspaceId() != workspaceId)
+    {
+        return Results.Forbid();
+    }
+
+    var summary = await workspaceBillingService.GetCreditSummaryAsync(
+        new GetWorkspaceCreditSummaryQuery(workspaceId),
+        cancellationToken);
+
+    return Results.Ok(summary.ToResponse());
 });
 
 documents.MapPost("", async (

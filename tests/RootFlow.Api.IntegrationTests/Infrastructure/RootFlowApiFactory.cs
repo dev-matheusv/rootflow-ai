@@ -192,6 +192,10 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
     {
         const string truncateSql = """
                                    TRUNCATE TABLE
+                                       workspace_usage_events,
+                                       workspace_credit_ledger,
+                                       workspace_credit_balances,
+                                       workspace_subscriptions,
                                        conversation_messages,
                                        conversations,
                                        document_chunks,

@@ -29,15 +29,39 @@ public sealed class PremiumFakeChatCompletionService : IChatCompletionService
 
         if (blocks.Count == 0)
         {
+            var noContextAnswer = ChatLanguageDetector.GetNoContextAnswer(language);
             return Task.FromResult(new ChatCompletionResponse(
-                ChatLanguageDetector.GetNoContextAnswer(language),
-                "fake-chat-premium-v1"));
+                noContextAnswer,
+                "fake-chat-premium-v1",
+                "fake",
+                CreateUsage(request, noContextAnswer)));
         }
 
         var bestBlock = SelectBestBlock(blocks, expandedQuestion);
         var answer = FormatStructuredAnswer(bestBlock.Content, answerIntent, language, bestBlock.Index);
 
-        return Task.FromResult(new ChatCompletionResponse(answer, "fake-chat-premium-v1"));
+        return Task.FromResult(new ChatCompletionResponse(
+            answer,
+            "fake-chat-premium-v1",
+            "fake",
+            CreateUsage(request, answer)));
+    }
+
+    private static ChatCompletionUsage CreateUsage(ChatCompletionRequest request, string answer)
+    {
+        var promptTokens = EstimateTokens(string.Join(Environment.NewLine, request.Messages.Select(static message => message.Content)));
+        var completionTokens = EstimateTokens(answer);
+        return new ChatCompletionUsage(promptTokens, completionTokens, promptTokens + completionTokens);
+    }
+
+    private static int EstimateTokens(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return 0;
+        }
+
+        return Math.Max(1, (int)Math.Ceiling(text.Length / 4d));
     }
 
     private static List<ContextBlock> ParseBlocks(string context)
