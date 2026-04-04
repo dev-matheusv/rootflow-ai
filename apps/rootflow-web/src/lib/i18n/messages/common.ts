@@ -133,7 +133,7 @@ export const commonMessages = {
       settingsCaption: "Workspace controls",
     },
     topbar: {
-      navigation: "Navigation",
+      navigation: "Menu",
       menu: "Menu",
       askAssistant: "Ask assistant",
       openNotificationsSettings: "Open notifications settings",
@@ -285,7 +285,7 @@ export const commonMessages = {
       settingsCaption: "Controles do workspace",
     },
     topbar: {
-      navigation: "Navegação",
+      navigation: "Menu",
       menu: "Menu",
       askAssistant: "Perguntar ao assistente",
       openNotificationsSettings: "Abrir configurações de notificações",
