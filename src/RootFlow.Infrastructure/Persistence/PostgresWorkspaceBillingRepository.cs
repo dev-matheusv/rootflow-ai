@@ -45,6 +45,10 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                                  current_period_start_utc,
                                                  current_period_end_utc,
                                                  trial_ends_at_utc,
+                                                 provider,
+                                                 provider_customer_id,
+                                                 provider_subscription_id,
+                                                 provider_price_id,
                                                  canceled_at_utc,
                                                  created_at_utc,
                                                  updated_at_utc
@@ -57,6 +61,10 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                                  @currentPeriodStartUtc,
                                                  @currentPeriodEndUtc,
                                                  @trialEndsAtUtc,
+                                                 @provider,
+                                                 @providerCustomerId,
+                                                 @providerSubscriptionId,
+                                                 @providerPriceId,
                                                  @canceledAtUtc,
                                                  @createdAtUtc,
                                                  @updatedAtUtc
@@ -145,6 +153,10 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                   current_period_start_utc,
                                   current_period_end_utc,
                                   trial_ends_at_utc,
+                                  provider,
+                                  provider_customer_id,
+                                  provider_subscription_id,
+                                  provider_price_id,
                                   canceled_at_utc,
                                   created_at_utc,
                                   updated_at_utc
@@ -182,6 +194,10 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                   current_period_start_utc,
                                   current_period_end_utc,
                                   trial_ends_at_utc,
+                                  provider,
+                                  provider_customer_id,
+                                  provider_subscription_id,
+                                  provider_price_id,
                                   canceled_at_utc,
                                   created_at_utc,
                                   updated_at_utc
@@ -201,6 +217,44 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
             : null;
     }
 
+    public async Task<WorkspaceSubscription?> GetSubscriptionByProviderSubscriptionIdAsync(
+        string provider,
+        string providerSubscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  workspace_id,
+                                  billing_plan_id,
+                                  status,
+                                  current_period_start_utc,
+                                  current_period_end_utc,
+                                  trial_ends_at_utc,
+                                  provider,
+                                  provider_customer_id,
+                                  provider_subscription_id,
+                                  provider_price_id,
+                                  canceled_at_utc,
+                                  created_at_utc,
+                                  updated_at_utc
+                           FROM workspace_subscriptions
+                           WHERE provider = @provider
+                             AND provider_subscription_id = @providerSubscriptionId
+                           ORDER BY updated_at_utc DESC, created_at_utc DESC, id DESC
+                           LIMIT 1;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", provider);
+        command.Parameters.AddWithValue("providerSubscriptionId", providerSubscriptionId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? MapSubscription(reader)
+            : null;
+    }
+
     public async Task UpdateSubscriptionAsync(
         WorkspaceSubscription subscription,
         CancellationToken cancellationToken = default)
@@ -212,6 +266,10 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                current_period_start_utc = @currentPeriodStartUtc,
                                current_period_end_utc = @currentPeriodEndUtc,
                                trial_ends_at_utc = @trialEndsAtUtc,
+                               provider = @provider,
+                               provider_customer_id = @providerCustomerId,
+                               provider_subscription_id = @providerSubscriptionId,
+                               provider_price_id = @providerPriceId,
                                canceled_at_utc = @canceledAtUtc,
                                updated_at_utc = @updatedAtUtc
                            WHERE id = @id;
@@ -257,6 +315,29 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
 
         await transaction.CommitAsync(cancellationToken);
         return updatedBalance;
+    }
+
+    public async Task<bool> LedgerReferenceExistsAsync(
+        string referenceType,
+        string referenceId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT EXISTS (
+                               SELECT 1
+                               FROM workspace_credit_ledger
+                               WHERE reference_type = @referenceType
+                                 AND reference_id = @referenceId
+                           );
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("referenceType", referenceType);
+        command.Parameters.AddWithValue("referenceId", referenceId);
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is true;
     }
 
     public async Task AddUsageEventAsync(
@@ -390,6 +471,206 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         }
 
         return usageEvents;
+    }
+
+    public async Task AddBillingTransactionAsync(
+        WorkspaceBillingTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            INSERT INTO workspace_billing_transactions (
+                id,
+                workspace_id,
+                provider,
+                type,
+                status,
+                billing_plan_id,
+                credit_amount,
+                amount,
+                currency_code,
+                external_checkout_session_id,
+                external_payment_intent_id,
+                external_subscription_id,
+                external_invoice_id,
+                external_customer_id,
+                created_at_utc,
+                updated_at_utc,
+                completed_at_utc
+            )
+            VALUES (
+                @id,
+                @workspaceId,
+                @provider,
+                @type,
+                @status,
+                @billingPlanId,
+                @creditAmount,
+                @amount,
+                @currencyCode,
+                @externalCheckoutSessionId,
+                @externalPaymentIntentId,
+                @externalSubscriptionId,
+                @externalInvoiceId,
+                @externalCustomerId,
+                @createdAtUtc,
+                @updatedAtUtc,
+                @completedAtUtc
+            );
+            """,
+            connection);
+
+        ConfigureBillingTransactionParameters(command, transaction);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<WorkspaceBillingTransaction?> GetBillingTransactionByCheckoutSessionIdAsync(
+        string provider,
+        string externalCheckoutSessionId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  workspace_id,
+                                  provider,
+                                  type,
+                                  status,
+                                  billing_plan_id,
+                                  credit_amount,
+                                  amount,
+                                  currency_code,
+                                  external_checkout_session_id,
+                                  external_payment_intent_id,
+                                  external_subscription_id,
+                                  external_invoice_id,
+                                  external_customer_id,
+                                  created_at_utc,
+                                  updated_at_utc,
+                                  completed_at_utc
+                           FROM workspace_billing_transactions
+                           WHERE provider = @provider
+                             AND external_checkout_session_id = @externalCheckoutSessionId
+                           LIMIT 1;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", provider);
+        command.Parameters.AddWithValue("externalCheckoutSessionId", externalCheckoutSessionId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? MapBillingTransaction(reader)
+            : null;
+    }
+
+    public async Task<WorkspaceBillingTransaction?> GetBillingTransactionByInvoiceIdAsync(
+        string provider,
+        string externalInvoiceId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  workspace_id,
+                                  provider,
+                                  type,
+                                  status,
+                                  billing_plan_id,
+                                  credit_amount,
+                                  amount,
+                                  currency_code,
+                                  external_checkout_session_id,
+                                  external_payment_intent_id,
+                                  external_subscription_id,
+                                  external_invoice_id,
+                                  external_customer_id,
+                                  created_at_utc,
+                                  updated_at_utc,
+                                  completed_at_utc
+                           FROM workspace_billing_transactions
+                           WHERE provider = @provider
+                             AND external_invoice_id = @externalInvoiceId
+                           LIMIT 1;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", provider);
+        command.Parameters.AddWithValue("externalInvoiceId", externalInvoiceId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? MapBillingTransaction(reader)
+            : null;
+    }
+
+    public async Task<WorkspaceBillingTransaction?> GetLatestBillingTransactionBySubscriptionIdAsync(
+        string provider,
+        string externalSubscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  workspace_id,
+                                  provider,
+                                  type,
+                                  status,
+                                  billing_plan_id,
+                                  credit_amount,
+                                  amount,
+                                  currency_code,
+                                  external_checkout_session_id,
+                                  external_payment_intent_id,
+                                  external_subscription_id,
+                                  external_invoice_id,
+                                  external_customer_id,
+                                  created_at_utc,
+                                  updated_at_utc,
+                                  completed_at_utc
+                           FROM workspace_billing_transactions
+                           WHERE provider = @provider
+                             AND external_subscription_id = @externalSubscriptionId
+                           ORDER BY updated_at_utc DESC, created_at_utc DESC, id DESC
+                           LIMIT 1;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", provider);
+        command.Parameters.AddWithValue("externalSubscriptionId", externalSubscriptionId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? MapBillingTransaction(reader)
+            : null;
+    }
+
+    public async Task UpdateBillingTransactionAsync(
+        WorkspaceBillingTransaction transaction,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE workspace_billing_transactions
+                           SET status = @status,
+                               billing_plan_id = @billingPlanId,
+                               credit_amount = @creditAmount,
+                               amount = @amount,
+                               currency_code = @currencyCode,
+                               external_checkout_session_id = @externalCheckoutSessionId,
+                               external_payment_intent_id = @externalPaymentIntentId,
+                               external_subscription_id = @externalSubscriptionId,
+                               external_invoice_id = @externalInvoiceId,
+                               external_customer_id = @externalCustomerId,
+                               updated_at_utc = @updatedAtUtc,
+                               completed_at_utc = @completedAtUtc
+                           WHERE id = @id;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        ConfigureBillingTransactionParameters(command, transaction);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task<bool> ExistsAsync(
@@ -579,6 +860,22 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         {
             Value = (object?)subscription.TrialEndsAtUtc ?? DBNull.Value
         });
+        command.Parameters.Add(new NpgsqlParameter("provider", NpgsqlDbType.Text)
+        {
+            Value = (object?)subscription.Provider ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("providerCustomerId", NpgsqlDbType.Text)
+        {
+            Value = (object?)subscription.ProviderCustomerId ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("providerSubscriptionId", NpgsqlDbType.Text)
+        {
+            Value = (object?)subscription.ProviderSubscriptionId ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("providerPriceId", NpgsqlDbType.Text)
+        {
+            Value = (object?)subscription.ProviderPriceId ?? DBNull.Value
+        });
         command.Parameters.Add(new NpgsqlParameter("canceledAtUtc", NpgsqlDbType.TimestampTz)
         {
             Value = (object?)subscription.CanceledAtUtc ?? DBNull.Value
@@ -633,6 +930,53 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         });
     }
 
+    private static void ConfigureBillingTransactionParameters(
+        NpgsqlCommand command,
+        WorkspaceBillingTransaction transaction)
+    {
+        command.Parameters.AddWithValue("id", transaction.Id);
+        command.Parameters.AddWithValue("workspaceId", transaction.WorkspaceId);
+        command.Parameters.AddWithValue("provider", transaction.Provider);
+        command.Parameters.AddWithValue("type", transaction.Type.ToString());
+        command.Parameters.AddWithValue("status", transaction.Status.ToString());
+        command.Parameters.AddWithValue("amount", transaction.Amount);
+        command.Parameters.AddWithValue("currencyCode", transaction.CurrencyCode);
+        command.Parameters.AddWithValue("createdAtUtc", transaction.CreatedAtUtc);
+        command.Parameters.AddWithValue("updatedAtUtc", transaction.UpdatedAtUtc);
+        command.Parameters.Add(new NpgsqlParameter("billingPlanId", NpgsqlDbType.Uuid)
+        {
+            Value = (object?)transaction.BillingPlanId ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("creditAmount", NpgsqlDbType.Bigint)
+        {
+            Value = (object?)transaction.CreditAmount ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("externalCheckoutSessionId", NpgsqlDbType.Text)
+        {
+            Value = (object?)transaction.ExternalCheckoutSessionId ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("externalPaymentIntentId", NpgsqlDbType.Text)
+        {
+            Value = (object?)transaction.ExternalPaymentIntentId ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("externalSubscriptionId", NpgsqlDbType.Text)
+        {
+            Value = (object?)transaction.ExternalSubscriptionId ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("externalInvoiceId", NpgsqlDbType.Text)
+        {
+            Value = (object?)transaction.ExternalInvoiceId ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("externalCustomerId", NpgsqlDbType.Text)
+        {
+            Value = (object?)transaction.ExternalCustomerId ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("completedAtUtc", NpgsqlDbType.TimestampTz)
+        {
+            Value = (object?)transaction.CompletedAtUtc ?? DBNull.Value
+        });
+    }
+
     private static WorkspaceSubscription MapSubscription(NpgsqlDataReader reader)
     {
         return new WorkspaceSubscription(
@@ -642,10 +986,14 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
             Enum.Parse<WorkspaceSubscriptionStatus>(reader.GetString(3), ignoreCase: true),
             reader.GetFieldValue<DateTime>(4),
             reader.GetFieldValue<DateTime>(5),
-            reader.GetFieldValue<DateTime>(8),
-            reader.GetFieldValue<DateTime>(9),
-            reader.IsDBNull(7) ? null : reader.GetFieldValue<DateTime>(7),
-            reader.IsDBNull(6) ? null : reader.GetFieldValue<DateTime>(6));
+            reader.GetFieldValue<DateTime>(12),
+            reader.GetFieldValue<DateTime>(13),
+            reader.IsDBNull(11) ? null : reader.GetFieldValue<DateTime>(11),
+            reader.IsDBNull(6) ? null : reader.GetFieldValue<DateTime>(6),
+            reader.IsDBNull(7) ? null : reader.GetString(7),
+            reader.IsDBNull(8) ? null : reader.GetString(8),
+            reader.IsDBNull(9) ? null : reader.GetString(9),
+            reader.IsDBNull(10) ? null : reader.GetString(10));
     }
 
     private static WorkspaceCreditBalance MapBalance(NpgsqlDataReader reader)
@@ -685,5 +1033,27 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
             reader.GetFieldValue<decimal>(9),
             reader.GetInt64(10),
             reader.GetFieldValue<DateTime>(11));
+    }
+
+    private static WorkspaceBillingTransaction MapBillingTransaction(NpgsqlDataReader reader)
+    {
+        return new WorkspaceBillingTransaction(
+            reader.GetGuid(0),
+            reader.GetGuid(1),
+            reader.GetString(2),
+            Enum.Parse<WorkspaceBillingTransactionType>(reader.GetString(3), ignoreCase: true),
+            Enum.Parse<WorkspaceBillingTransactionStatus>(reader.GetString(4), ignoreCase: true),
+            reader.GetFieldValue<decimal>(7),
+            reader.GetString(8),
+            reader.GetFieldValue<DateTime>(14),
+            reader.GetFieldValue<DateTime>(15),
+            reader.IsDBNull(5) ? null : reader.GetGuid(5),
+            reader.IsDBNull(6) ? null : reader.GetInt64(6),
+            reader.IsDBNull(9) ? null : reader.GetString(9),
+            reader.IsDBNull(10) ? null : reader.GetString(10),
+            reader.IsDBNull(11) ? null : reader.GetString(11),
+            reader.IsDBNull(12) ? null : reader.GetString(12),
+            reader.IsDBNull(13) ? null : reader.GetString(13),
+            reader.IsDBNull(16) ? null : reader.GetFieldValue<DateTime>(16));
     }
 }

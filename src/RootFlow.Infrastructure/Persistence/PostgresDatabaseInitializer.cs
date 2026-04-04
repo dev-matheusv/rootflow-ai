@@ -514,6 +514,78 @@ public sealed class PostgresDatabaseInitializer
                 CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_subscriptions_workspace_current
                     ON workspace_subscriptions (workspace_id)
                     WHERE status IN ('Active', 'Trial');
+                """),
+            new DatabaseMigration(
+                "202604040003_workspace_billing_stripe_payments",
+                "Add Stripe payment transaction auditability and external subscription references",
+                """
+                ALTER TABLE workspace_subscriptions
+                ADD COLUMN IF NOT EXISTS provider text NULL;
+
+                ALTER TABLE workspace_subscriptions
+                ADD COLUMN IF NOT EXISTS provider_customer_id text NULL;
+
+                ALTER TABLE workspace_subscriptions
+                ADD COLUMN IF NOT EXISTS provider_subscription_id text NULL;
+
+                ALTER TABLE workspace_subscriptions
+                ADD COLUMN IF NOT EXISTS provider_price_id text NULL;
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_subscriptions_provider_subscription
+                    ON workspace_subscriptions (provider, provider_subscription_id)
+                    WHERE provider IS NOT NULL
+                      AND provider_subscription_id IS NOT NULL;
+
+                CREATE TABLE IF NOT EXISTS workspace_billing_transactions (
+                    id uuid PRIMARY KEY,
+                    workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    provider text NOT NULL,
+                    type text NOT NULL,
+                    status text NOT NULL,
+                    billing_plan_id uuid NULL REFERENCES billing_plans(id),
+                    credit_amount bigint NULL,
+                    amount numeric(18,2) NOT NULL,
+                    currency_code text NOT NULL,
+                    external_checkout_session_id text NULL,
+                    external_payment_intent_id text NULL,
+                    external_subscription_id text NULL,
+                    external_invoice_id text NULL,
+                    external_customer_id text NULL,
+                    created_at_utc timestamptz NOT NULL,
+                    updated_at_utc timestamptz NOT NULL,
+                    completed_at_utc timestamptz NULL
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_credit_ledger_reference_unique
+                    ON workspace_credit_ledger (reference_type, reference_id)
+                    WHERE reference_type IS NOT NULL
+                      AND reference_id IS NOT NULL;
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_billing_transactions_checkout
+                    ON workspace_billing_transactions (provider, external_checkout_session_id)
+                    WHERE external_checkout_session_id IS NOT NULL;
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_billing_transactions_invoice
+                    ON workspace_billing_transactions (provider, external_invoice_id)
+                    WHERE external_invoice_id IS NOT NULL;
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_billing_transactions_workspace_created
+                    ON workspace_billing_transactions (workspace_id, created_at_utc DESC, id DESC);
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_billing_transactions_subscription_updated
+                    ON workspace_billing_transactions (provider, external_subscription_id, updated_at_utc DESC, id DESC)
+                    WHERE external_subscription_id IS NOT NULL;
+
+                UPDATE billing_plans
+                SET monthly_price = CASE code
+                        WHEN 'starter' THEN 49.90
+                        WHEN 'pro' THEN 99.90
+                        WHEN 'business' THEN 199.90
+                        ELSE monthly_price
+                    END,
+                    currency_code = 'BRL',
+                    is_active = TRUE
+                WHERE code IN ('starter', 'pro', 'business');
                 """)
         ];
     }

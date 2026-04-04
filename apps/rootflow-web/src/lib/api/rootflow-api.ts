@@ -2,8 +2,13 @@ import type {
   AskQuestionPayload,
   AcceptWorkspaceInvitePayload,
   AuthResponse,
+  BillingCheckoutSession,
+  BillingCreditPackSummary,
+  BillingPlanSummary,
   WorkspaceBillingSummary,
   ChatAnswer,
+  CreateWorkspaceCreditPurchaseCheckoutPayload,
+  CreateWorkspaceSubscriptionCheckoutPayload,
   ConversationHistory,
   ConversationSummary,
   DocumentSummary,
@@ -23,6 +28,8 @@ import { apiRequest } from "@/lib/api/client";
 
 export const rootflowApi = {
   getHealth: () => apiRequest<HealthResponse>("/health"),
+  listBillingPlans: () => apiRequest<BillingPlanSummary[]>("/api/billing/plans"),
+  listBillingCreditPacks: () => apiRequest<BillingCreditPackSummary[]>("/api/billing/credit-packs"),
   signup: (payload: SignupPayload) =>
     apiRequest<AuthResponse>("/api/auth/signup", {
       method: "POST",
@@ -74,6 +81,22 @@ export const rootflowApi = {
   getCurrentSession: () => apiRequest<SessionInfo>("/api/auth/me"),
   getWorkspaceBillingSummary: (workspaceId: string) =>
     apiRequest<WorkspaceBillingSummary>(`/api/workspaces/${workspaceId}/billing/summary`),
+  createWorkspaceSubscriptionCheckout: (workspaceId: string, payload: CreateWorkspaceSubscriptionCheckoutPayload) =>
+    apiRequest<BillingCheckoutSession>(`/api/workspaces/${workspaceId}/billing/checkout/subscription`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
+  createWorkspaceCreditPurchaseCheckout: (workspaceId: string, payload: CreateWorkspaceCreditPurchaseCheckoutPayload) =>
+    apiRequest<BillingCheckoutSession>(`/api/workspaces/${workspaceId}/billing/checkout/credits`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
   listWorkspaceMembers: (workspaceId: string) => apiRequest<WorkspaceMember[]>(`/api/workspaces/${workspaceId}/members`),
   listDocuments: () => apiRequest<DocumentSummary[]>("/api/documents"),
   listConversations: () => apiRequest<ConversationSummary[]>("/api/conversations"),

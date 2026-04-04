@@ -111,6 +111,29 @@ export interface BillingPlanSummary {
   isActive: boolean;
 }
 
+export interface BillingCreditPackSummary {
+  code: string;
+  name: string;
+  description: string;
+  credits: number;
+  amount: number;
+  currencyCode: string;
+  isConfigured: boolean;
+}
+
+export interface BillingCheckoutSession {
+  sessionId: string;
+  checkoutUrl: string;
+}
+
+export interface CreateWorkspaceSubscriptionCheckoutPayload {
+  planCode: string;
+}
+
+export interface CreateWorkspaceCreditPurchaseCheckoutPayload {
+  creditPackCode: string;
+}
+
 export interface WorkspaceSubscriptionSummary {
   id: string;
   workspaceId: string;
@@ -118,6 +141,7 @@ export interface WorkspaceSubscriptionSummary {
   status: string;
   currentPeriodStartUtc: string;
   currentPeriodEndUtc: string;
+  trialEndsAtUtc?: string | null;
   canceledAtUtc?: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;

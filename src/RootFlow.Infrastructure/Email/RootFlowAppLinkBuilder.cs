@@ -1,10 +1,11 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Infrastructure.Configuration;
 
 namespace RootFlow.Infrastructure.Email;
 
-public sealed class RootFlowAppLinkBuilder
+public sealed class RootFlowAppLinkBuilder : IAppLinkBuilder
 {
     private const string LocalFrontendBaseUrl = "http://localhost:5173";
     private readonly PasswordResetOptions _passwordResetOptions;
@@ -39,6 +40,33 @@ public sealed class RootFlowAppLinkBuilder
             token,
             "ROOTFLOW_FRONTEND_BASE_URL or WorkspaceInvitations:FrontendBaseUrl must be configured to send workspace invite emails.",
             requireAbsoluteUrl);
+    }
+
+    public string BuildAppRouteLink(string routePathWithQuery, bool requireAbsoluteUrl = false)
+    {
+        var baseUrl = ResolveFrontendBaseUrl(
+            !string.IsNullOrWhiteSpace(_workspaceInvitationOptions.FrontendBaseUrl)
+                ? _workspaceInvitationOptions.FrontendBaseUrl
+                : _passwordResetOptions.FrontendBaseUrl);
+
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            if (requireAbsoluteUrl)
+            {
+                throw new InvalidOperationException(
+                    "ROOTFLOW_FRONTEND_BASE_URL must be configured to create billing checkout return URLs.");
+            }
+
+            return routePathWithQuery.StartsWith("/", StringComparison.Ordinal)
+                ? routePathWithQuery
+                : $"/{routePathWithQuery}";
+        }
+
+        var normalizedBaseUrl = baseUrl.EndsWith("/", StringComparison.Ordinal)
+            ? baseUrl
+            : $"{baseUrl}/";
+        var normalizedRoutePath = routePathWithQuery.TrimStart('/');
+        return $"{normalizedBaseUrl}{normalizedRoutePath}";
     }
 
     private string BuildLink(

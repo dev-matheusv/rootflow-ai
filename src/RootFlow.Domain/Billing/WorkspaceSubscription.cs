@@ -16,7 +16,11 @@ public sealed class WorkspaceSubscription
         DateTime createdAtUtc,
         DateTime updatedAtUtc,
         DateTime? canceledAtUtc = null,
-        DateTime? trialEndsAtUtc = null)
+        DateTime? trialEndsAtUtc = null,
+        string? provider = null,
+        string? providerCustomerId = null,
+        string? providerSubscriptionId = null,
+        string? providerPriceId = null)
     {
         if (id == Guid.Empty)
         {
@@ -58,6 +62,10 @@ public sealed class WorkspaceSubscription
         CreatedAtUtc = createdAtUtc;
         UpdatedAtUtc = updatedAtUtc;
         TrialEndsAtUtc = trialEndsAtUtc;
+        Provider = NormalizeOptional(provider);
+        ProviderCustomerId = NormalizeOptional(providerCustomerId);
+        ProviderSubscriptionId = NormalizeOptional(providerSubscriptionId);
+        ProviderPriceId = NormalizeOptional(providerPriceId);
     }
 
     public Guid Id { get; private set; }
@@ -79,6 +87,14 @@ public sealed class WorkspaceSubscription
     public DateTime CreatedAtUtc { get; private set; }
 
     public DateTime UpdatedAtUtc { get; private set; }
+
+    public string? Provider { get; private set; }
+
+    public string? ProviderCustomerId { get; private set; }
+
+    public string? ProviderSubscriptionId { get; private set; }
+
+    public string? ProviderPriceId { get; private set; }
 
     public bool IsActiveAt(DateTime asOfUtc)
     {
@@ -114,7 +130,11 @@ public sealed class WorkspaceSubscription
         Guid billingPlanId,
         DateTime currentPeriodStartUtc,
         DateTime currentPeriodEndUtc,
-        DateTime updatedAtUtc)
+        DateTime updatedAtUtc,
+        string? provider = null,
+        string? providerCustomerId = null,
+        string? providerSubscriptionId = null,
+        string? providerPriceId = null)
     {
         if (billingPlanId == Guid.Empty)
         {
@@ -133,6 +153,10 @@ public sealed class WorkspaceSubscription
         CanceledAtUtc = null;
         TrialEndsAtUtc = null;
         UpdatedAtUtc = updatedAtUtc;
+        Provider = NormalizeOptional(provider);
+        ProviderCustomerId = NormalizeOptional(providerCustomerId);
+        ProviderSubscriptionId = NormalizeOptional(providerSubscriptionId);
+        ProviderPriceId = NormalizeOptional(providerPriceId);
     }
 
     public void Cancel(DateTime canceledAtUtc)
@@ -146,5 +170,57 @@ public sealed class WorkspaceSubscription
     {
         Status = WorkspaceSubscriptionStatus.Expired;
         UpdatedAtUtc = expiredAtUtc;
+    }
+
+    public void SyncProviderSubscription(
+        Guid billingPlanId,
+        WorkspaceSubscriptionStatus status,
+        DateTime currentPeriodStartUtc,
+        DateTime currentPeriodEndUtc,
+        DateTime updatedAtUtc,
+        string provider,
+        string? providerCustomerId,
+        string providerSubscriptionId,
+        string? providerPriceId,
+        DateTime? canceledAtUtc = null)
+    {
+        if (billingPlanId == Guid.Empty)
+        {
+            throw new ArgumentException("Billing plan id cannot be empty.", nameof(billingPlanId));
+        }
+
+        if (currentPeriodEndUtc <= currentPeriodStartUtc)
+        {
+            throw new ArgumentException("Current billing period must end after it starts.", nameof(currentPeriodEndUtc));
+        }
+
+        if (status == WorkspaceSubscriptionStatus.Trial)
+        {
+            throw new ArgumentException("Provider-managed subscriptions cannot be synced as trial subscriptions.", nameof(status));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(provider);
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerSubscriptionId);
+
+        BillingPlanId = billingPlanId;
+        Status = status;
+        CurrentPeriodStartUtc = currentPeriodStartUtc;
+        CurrentPeriodEndUtc = currentPeriodEndUtc;
+        TrialEndsAtUtc = null;
+        CanceledAtUtc = status == WorkspaceSubscriptionStatus.Canceled
+            ? canceledAtUtc ?? updatedAtUtc
+            : null;
+        UpdatedAtUtc = updatedAtUtc;
+        Provider = provider.Trim().ToLowerInvariant();
+        ProviderCustomerId = NormalizeOptional(providerCustomerId);
+        ProviderSubscriptionId = providerSubscriptionId.Trim();
+        ProviderPriceId = NormalizeOptional(providerPriceId);
+    }
+
+    private static string? NormalizeOptional(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim();
     }
 }

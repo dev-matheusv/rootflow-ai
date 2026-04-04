@@ -1,5 +1,6 @@
-import { Coins, CreditCard, Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Coins, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { useI18n } from "@/app/providers/i18n-provider";
 import { WorkspaceCreditProgress } from "@/components/billing/workspace-credit-progress";
@@ -10,15 +11,67 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from "@/features/auth/auth-provider";
-import { useWorkspaceBillingSummaryQuery } from "@/hooks/use-rootflow-data";
+import {
+  useBillingCreditPacksQuery,
+  useBillingPlansQuery,
+  useCreditPurchaseCheckoutMutation,
+  useSubscriptionCheckoutMutation,
+  useWorkspaceBillingSummaryQuery,
+} from "@/hooks/use-rootflow-data";
 import { formatCredits, getWorkspaceCreditSnapshot } from "@/lib/billing/workspace-credits";
 
 export function BillingPage() {
   const { session } = useAuth();
   const { locale, t } = useI18n();
+  const [searchParams] = useSearchParams();
+  const [activeCheckoutKey, setActiveCheckoutKey] = useState<string | null>(null);
   const workspaceId = session?.workspace.id;
   const billingSummaryQuery = useWorkspaceBillingSummaryQuery(workspaceId);
+  const billingPlansQuery = useBillingPlansQuery();
+  const creditPacksQuery = useBillingCreditPacksQuery();
+  const subscriptionCheckoutMutation = useSubscriptionCheckoutMutation(workspaceId);
+  const creditPurchaseCheckoutMutation = useCreditPurchaseCheckoutMutation(workspaceId);
   const snapshot = getWorkspaceCreditSnapshot(billingSummaryQuery.data);
+  const currentPlanCode = billingSummaryQuery.data?.billingPlan?.code?.toLowerCase() ?? null;
+  const currentSubscriptionStatus = billingSummaryQuery.data?.subscription?.status ?? null;
+  const checkoutStatus = searchParams.get("checkout");
+
+  useEffect(() => {
+    if (checkoutStatus === "success") {
+      void billingSummaryQuery.refetch();
+    }
+  }, [billingSummaryQuery, checkoutStatus]);
+
+  const handlePlanCheckout = async (planCode: string) => {
+    setActiveCheckoutKey(`plan:${planCode}`);
+
+    try {
+      const checkoutSession = await subscriptionCheckoutMutation.mutateAsync({ planCode });
+      window.location.assign(checkoutSession.checkoutUrl);
+    } finally {
+      setActiveCheckoutKey(null);
+    }
+  };
+
+  const handleCreditCheckout = async (creditPackCode: string) => {
+    setActiveCheckoutKey(`credits:${creditPackCode}`);
+
+    try {
+      const checkoutSession = await creditPurchaseCheckoutMutation.mutateAsync({ creditPackCode });
+      window.location.assign(checkoutSession.checkoutUrl);
+    } finally {
+      setActiveCheckoutKey(null);
+    }
+  };
+
+  const subscriptionCheckoutError =
+    subscriptionCheckoutMutation.error instanceof Error
+      ? subscriptionCheckoutMutation.error.message
+      : null;
+  const creditCheckoutError =
+    creditPurchaseCheckoutMutation.error instanceof Error
+      ? creditPurchaseCheckoutMutation.error.message
+      : null;
 
   return (
     <div className="space-y-5">
@@ -37,7 +90,32 @@ export function BillingPage() {
         )}
       />
 
-      <section className="grid gap-3 xl:grid-cols-[1.1fr_0.9fr]">
+      {checkoutStatus === "success" ? (
+        <Card className="border-primary/18 bg-primary/[0.05]">
+          <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <div className="text-sm font-semibold text-foreground">{t("billing.checkoutSuccessTitle")}</div>
+              <p className="text-sm text-muted-foreground">{t("billing.checkoutSuccessDescription")}</p>
+            </div>
+            <Button variant="outline" onClick={() => void billingSummaryQuery.refetch()}>
+              {t("common.actions.tryAgain")}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {checkoutStatus === "cancel" ? (
+        <Card className="border-border/82 bg-card/88">
+          <CardContent className="p-5">
+            <div className="space-y-1">
+              <div className="text-sm font-semibold text-foreground">{t("billing.checkoutCanceledTitle")}</div>
+              <p className="text-sm text-muted-foreground">{t("billing.checkoutCanceledDescription")}</p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <section className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
         <Card className="border-border/82 bg-card/88">
           <CardHeader>
             <div className="space-y-1">
@@ -105,36 +183,139 @@ export function BillingPage() {
 
         <div className="space-y-3">
           <Card className="border-border/82 bg-card/88">
-            <CardContent className="p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex size-11 shrink-0 items-center justify-center rounded-[20px] border border-primary/14 bg-primary/10 text-primary">
-                  <Coins className="size-5" />
-                </div>
-                <div className="min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-sm font-semibold text-foreground">{t("billing.buyCreditsPlaceholderTitle")}</div>
-                    <Badge variant="secondary">{t("billing.comingSoon")}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{t("billing.buyCreditsPlaceholderDescription")}</p>
-                </div>
+            <CardHeader>
+              <div className="space-y-1">
+                <CardTitle>{t("billing.plansTitle")}</CardTitle>
+                <p className="text-sm text-muted-foreground/95">{t("billing.plansDescription")}</p>
               </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {billingPlansQuery.isLoading ? (
+                <LoadingState title={t("common.labels.loading")} description={t("billing.plansDescription")} />
+              ) : billingPlansQuery.isError ? (
+                <ErrorState
+                  title={t("common.labels.somethingWentWrong")}
+                  description={t("billing.plansDescription")}
+                  onRetry={() => billingPlansQuery.refetch()}
+                />
+              ) : (
+                <>
+                  <div className="grid gap-3">
+                    {billingPlansQuery.data?.map((plan) => {
+                      const isCurrentPlan =
+                        currentSubscriptionStatus === "Active" &&
+                        currentPlanCode === plan.code.toLowerCase();
+                      const isRedirecting = activeCheckoutKey === `plan:${plan.code}`;
+
+                      return (
+                        <div
+                          key={plan.id}
+                          className={`rounded-[22px] border p-4 ${
+                            isCurrentPlan
+                              ? "border-primary/20 bg-primary/[0.05]"
+                              : "border-border/78 bg-background/80"
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="text-base font-semibold tracking-[-0.03em] text-foreground">{plan.name}</div>
+                                {isCurrentPlan ? <Badge>{t("billing.currentPlanBadge")}</Badge> : null}
+                              </div>
+                              <div className="text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                                {formatCurrency(plan.monthlyPrice, plan.currencyCode, locale)}
+                              </div>
+                              <div className="flex min-w-0 flex-wrap gap-2 text-sm text-muted-foreground">
+                                <span>{t("billing.includedCreditsLabel", { count: formatCredits(plan.includedCredits, locale) })}</span>
+                                <span>{t("billing.maxUsersLabel", { count: plan.maxUsers })}</span>
+                              </div>
+                            </div>
+
+                            <Button
+                              variant={isCurrentPlan ? "outline" : "default"}
+                              disabled={isCurrentPlan || isRedirecting}
+                              onClick={() => void handlePlanCheckout(plan.code)}
+                            >
+                              {isRedirecting
+                                ? t("billing.redirecting")
+                                : isCurrentPlan
+                                  ? t("billing.currentPlanBadge")
+                                  : t("billing.choosePlan")}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {subscriptionCheckoutError ? (
+                    <p className="text-sm text-rose-600 dark:text-rose-300">{subscriptionCheckoutError}</p>
+                  ) : null}
+                </>
+              )}
             </CardContent>
           </Card>
 
           <Card className="border-border/82 bg-card/88">
-            <CardContent className="p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex size-11 shrink-0 items-center justify-center rounded-[20px] border border-primary/14 bg-primary/10 text-primary">
-                  <CreditCard className="size-5" />
-                </div>
-                <div className="min-w-0 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-sm font-semibold text-foreground">{t("billing.upgradePlaceholderTitle")}</div>
-                    <Badge variant="secondary">{t("billing.comingSoon")}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{t("billing.upgradePlaceholderDescription")}</p>
-                </div>
+            <CardHeader>
+              <div className="space-y-1">
+                <CardTitle>{t("billing.creditPacksTitle")}</CardTitle>
+                <p className="text-sm text-muted-foreground/95">{t("billing.creditPacksDescription")}</p>
               </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {creditPacksQuery.isLoading ? (
+                <LoadingState title={t("common.labels.loading")} description={t("billing.creditPacksDescription")} />
+              ) : creditPacksQuery.isError ? (
+                <ErrorState
+                  title={t("common.labels.somethingWentWrong")}
+                  description={t("billing.creditPacksDescription")}
+                  onRetry={() => creditPacksQuery.refetch()}
+                />
+              ) : (
+                <>
+                  {creditPacksQuery.data?.map((creditPack) => {
+                    const isRedirecting = activeCheckoutKey === `credits:${creditPack.code}`;
+
+                    return (
+                      <div key={creditPack.code} className="rounded-[22px] border border-border/78 bg-background/80 p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="flex size-11 shrink-0 items-center justify-center rounded-[20px] border border-primary/14 bg-primary/10 text-primary">
+                            <Coins className="size-5" />
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-semibold text-foreground">{creditPack.name}</div>
+                              {!creditPack.isConfigured ? (
+                                <Badge variant="secondary">{t("billing.comingSoon")}</Badge>
+                              ) : null}
+                            </div>
+                            <p className="text-sm text-muted-foreground">{creditPack.description}</p>
+                            <div className="flex min-w-0 flex-wrap gap-2 text-sm text-muted-foreground">
+                              <span>{formatCredits(creditPack.credits, locale)}</span>
+                              <span>{formatCurrency(creditPack.amount, creditPack.currencyCode, locale)}</span>
+                            </div>
+                            <Button
+                              disabled={!creditPack.isConfigured || isRedirecting}
+                              onClick={() => void handleCreditCheckout(creditPack.code)}
+                            >
+                              {isRedirecting
+                                ? t("billing.redirecting")
+                                : creditPack.isConfigured
+                                  ? t("common.actions.buyCredits")
+                                  : t("billing.unavailableCta")}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {creditCheckoutError ? (
+                    <p className="text-sm text-rose-600 dark:text-rose-300">{creditCheckoutError}</p>
+                  ) : null}
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -149,9 +330,14 @@ export function BillingPage() {
                     <div className="text-sm font-semibold text-foreground">{t("billing.sharedHint")}</div>
                     <p className="mt-1 text-sm text-muted-foreground">{t("billing.dashboardHint")}</p>
                   </div>
-                  <Button variant="outline" asChild>
-                    <Link to="/assistant">{t("common.actions.askAssistant")}</Link>
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" asChild>
+                      <Link to="/assistant">{t("common.actions.askAssistant")}</Link>
+                    </Button>
+                    <Button variant="ghost" asChild>
+                      <Link to="/dashboard">{t("common.actions.backToDashboard")}</Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -160,4 +346,13 @@ export function BillingPage() {
       </section>
     </div>
   );
+}
+
+function formatCurrency(value: number, currencyCode: string, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: currencyCode,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }

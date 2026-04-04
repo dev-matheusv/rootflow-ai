@@ -255,6 +255,7 @@ public sealed class WorkspaceBillingServiceTests
     {
         private readonly Dictionary<Guid, WorkspaceSubscription> _subscriptions = [];
         private readonly Dictionary<Guid, WorkspaceCreditBalance> _balances = [];
+        private readonly Dictionary<Guid, WorkspaceBillingTransaction> _billingTransactions = [];
 
         public List<WorkspaceCreditLedgerEntry> LedgerEntries { get; } = [];
 
@@ -312,6 +313,17 @@ public sealed class WorkspaceBillingServiceTests
             return Task.FromResult<WorkspaceSubscription?>(_subscriptions.GetValueOrDefault(workspaceId));
         }
 
+        public Task<WorkspaceSubscription?> GetSubscriptionByProviderSubscriptionIdAsync(
+            string provider,
+            string providerSubscriptionId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<WorkspaceSubscription?>(
+                _subscriptions.Values.FirstOrDefault(subscription =>
+                    string.Equals(subscription.Provider, provider, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(subscription.ProviderSubscriptionId, providerSubscriptionId, StringComparison.Ordinal)));
+        }
+
         public Task UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
         {
             _subscriptions[subscription.WorkspaceId] = subscription;
@@ -337,6 +349,17 @@ public sealed class WorkspaceBillingServiceTests
 
             LedgerEntries.Add(entry);
             return Task.FromResult(balance);
+        }
+
+        public Task<bool> LedgerReferenceExistsAsync(
+            string referenceType,
+            string referenceId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(
+                LedgerEntries.Any(entry =>
+                    string.Equals(entry.ReferenceType, referenceType, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(entry.ReferenceId, referenceId, StringComparison.Ordinal)));
         }
 
         public Task AddUsageEventAsync(WorkspaceUsageEvent usageEvent, CancellationToken cancellationToken = default)
@@ -365,6 +388,58 @@ public sealed class WorkspaceBillingServiceTests
         {
             return Task.FromResult<IReadOnlyList<WorkspaceUsageEvent>>(
                 UsageEvents.Where(entry => entry.WorkspaceId == workspaceId).Take(take).ToArray());
+        }
+
+        public Task AddBillingTransactionAsync(
+            WorkspaceBillingTransaction transaction,
+            CancellationToken cancellationToken = default)
+        {
+            _billingTransactions[transaction.Id] = transaction;
+            return Task.CompletedTask;
+        }
+
+        public Task<WorkspaceBillingTransaction?> GetBillingTransactionByCheckoutSessionIdAsync(
+            string provider,
+            string externalCheckoutSessionId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<WorkspaceBillingTransaction?>(
+                _billingTransactions.Values.FirstOrDefault(transaction =>
+                    string.Equals(transaction.Provider, provider, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(transaction.ExternalCheckoutSessionId, externalCheckoutSessionId, StringComparison.Ordinal)));
+        }
+
+        public Task<WorkspaceBillingTransaction?> GetBillingTransactionByInvoiceIdAsync(
+            string provider,
+            string externalInvoiceId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<WorkspaceBillingTransaction?>(
+                _billingTransactions.Values.FirstOrDefault(transaction =>
+                    string.Equals(transaction.Provider, provider, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(transaction.ExternalInvoiceId, externalInvoiceId, StringComparison.Ordinal)));
+        }
+
+        public Task<WorkspaceBillingTransaction?> GetLatestBillingTransactionBySubscriptionIdAsync(
+            string provider,
+            string externalSubscriptionId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<WorkspaceBillingTransaction?>(
+                _billingTransactions.Values
+                    .Where(transaction =>
+                        string.Equals(transaction.Provider, provider, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(transaction.ExternalSubscriptionId, externalSubscriptionId, StringComparison.Ordinal))
+                    .OrderByDescending(transaction => transaction.UpdatedAtUtc)
+                    .FirstOrDefault());
+        }
+
+        public Task UpdateBillingTransactionAsync(
+            WorkspaceBillingTransaction transaction,
+            CancellationToken cancellationToken = default)
+        {
+            _billingTransactions[transaction.Id] = transaction;
+            return Task.CompletedTask;
         }
     }
 

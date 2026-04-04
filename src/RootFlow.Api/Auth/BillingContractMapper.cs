@@ -18,6 +18,18 @@ public static class BillingContractMapper
             plan.IsActive);
     }
 
+    public static BillingCreditPackResponse ToResponse(this BillingCreditPackDto creditPack)
+    {
+        return new BillingCreditPackResponse(
+            creditPack.Code,
+            creditPack.Name,
+            creditPack.Description,
+            creditPack.Credits,
+            creditPack.Amount,
+            creditPack.CurrencyCode,
+            creditPack.IsConfigured);
+    }
+
     public static WorkspaceBillingSummaryResponse ToResponse(this WorkspaceCreditSummaryDto summary)
     {
         return new WorkspaceBillingSummaryResponse(
@@ -48,5 +60,12 @@ public static class BillingContractMapper
             balance.AvailableCredits,
             balance.ConsumedCredits,
             balance.UpdatedAtUtc);
+    }
+
+    public static BillingCheckoutSessionResponse ToResponse(this BillingCheckoutSessionDto checkoutSession)
+    {
+        return new BillingCheckoutSessionResponse(
+            checkoutSession.SessionId,
+            checkoutSession.CheckoutUrl);
     }
 }

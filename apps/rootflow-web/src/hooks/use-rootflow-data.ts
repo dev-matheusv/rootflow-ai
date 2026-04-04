@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
   AskQuestionPayload,
+  CreateWorkspaceCreditPurchaseCheckoutPayload,
+  CreateWorkspaceSubscriptionCheckoutPayload,
   DocumentSummary,
   InviteWorkspaceMemberPayload,
   UploadDocumentPayload,
@@ -17,6 +19,20 @@ export function useHealthQuery() {
   return useQuery({
     queryKey: queryKeys.health,
     queryFn: rootflowApi.getHealth,
+  });
+}
+
+export function useBillingPlansQuery() {
+  return useQuery({
+    queryKey: queryKeys.billingPlans,
+    queryFn: rootflowApi.listBillingPlans,
+  });
+}
+
+export function useBillingCreditPacksQuery() {
+  return useQuery({
+    queryKey: queryKeys.billingCreditPacks,
+    queryFn: rootflowApi.listBillingCreditPacks,
   });
 }
 
@@ -93,5 +109,19 @@ export function useConversationQuery(conversationId?: string | null) {
     queryKey: conversationId ? queryKeys.conversation(conversationId) : ["conversation", "none"],
     queryFn: () => rootflowApi.getConversationHistory(conversationId!),
     enabled: Boolean(conversationId),
+  });
+}
+
+export function useSubscriptionCheckoutMutation(workspaceId?: string | null) {
+  return useMutation({
+    mutationFn: (payload: CreateWorkspaceSubscriptionCheckoutPayload) =>
+      rootflowApi.createWorkspaceSubscriptionCheckout(workspaceId!, payload),
+  });
+}
+
+export function useCreditPurchaseCheckoutMutation(workspaceId?: string | null) {
+  return useMutation({
+    mutationFn: (payload: CreateWorkspaceCreditPurchaseCheckoutPayload) =>
+      rootflowApi.createWorkspaceCreditPurchaseCheckout(workspaceId!, payload),
   });
 }

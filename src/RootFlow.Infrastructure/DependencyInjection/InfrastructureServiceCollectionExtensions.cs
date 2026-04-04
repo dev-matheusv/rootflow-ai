@@ -47,6 +47,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<AiOptions>(configuration.GetSection("AI"));
         services.Configure<WorkspaceBillingOptions>(configuration.GetSection("Billing"));
+        services.Configure<StripeBillingOptions>(configuration.GetSection("Stripe"));
         services.Configure<EmailDeliveryOptions>(configuration.GetSection("EmailDelivery"));
         services.Configure<OpenAiOptions>(configuration.GetSection("OpenAI"));
         services.Configure<PasswordResetOptions>(configuration.GetSection("PasswordReset"));
@@ -70,6 +71,22 @@ public static class InfrastructureServiceCollectionExtensions
                 configuration["ROOTFLOW_FRONTEND_BASE_URL"],
                 configuration["WorkspaceInvitations:FrontendBaseUrl"],
                 options.FrontendBaseUrl) ?? string.Empty;
+        });
+        services.PostConfigure<StripeBillingOptions>(options =>
+        {
+            options.SecretKey = FirstNonEmpty(
+                configuration["ROOTFLOW_STRIPE_SECRET_KEY"],
+                configuration["Stripe:SecretKey"],
+                options.SecretKey) ?? string.Empty;
+            options.WebhookSecret = FirstNonEmpty(
+                configuration["ROOTFLOW_STRIPE_WEBHOOK_SECRET"],
+                configuration["Stripe:WebhookSecret"],
+                options.WebhookSecret) ?? string.Empty;
+
+            ApplyStripePlanPriceOverride(options, "starter", configuration["ROOTFLOW_STRIPE_STARTER_PRICE_ID"]);
+            ApplyStripePlanPriceOverride(options, "pro", configuration["ROOTFLOW_STRIPE_PRO_PRICE_ID"]);
+            ApplyStripePlanPriceOverride(options, "business", configuration["ROOTFLOW_STRIPE_BUSINESS_PRICE_ID"]);
+            ApplyStripeCreditPackPriceOverride(options, "credits_10000", configuration["ROOTFLOW_STRIPE_CREDITS_10000_PRICE_ID"]);
         });
         services.PostConfigure<EmailDeliveryOptions>(options =>
         {
@@ -122,6 +139,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton(serviceProvider =>
             serviceProvider.GetRequiredService<IOptions<WorkspaceBillingOptions>>().Value);
+        services.AddSingleton(serviceProvider =>
+            serviceProvider.GetRequiredService<IOptions<StripeBillingOptions>>().Value);
         services.AddSingleton(_ =>
         {
             var builder = new NpgsqlDataSourceBuilder(connectionString);
@@ -131,6 +150,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddSingleton<PostgresDatabaseInitializer>();
         services.AddSingleton<RootFlowAppLinkBuilder>();
+        services.AddSingleton<IAppLinkBuilder>(serviceProvider => serviceProvider.GetRequiredService<RootFlowAppLinkBuilder>());
 
         services.AddScoped<IFileStorage, LocalFileStorage>();
         services.AddScoped<IDocumentTextExtractor, SimpleDocumentTextExtractor>();
@@ -149,6 +169,11 @@ public static class InfrastructureServiceCollectionExtensions
         });
         services.AddScoped<ConfigurableEmailSender>();
         services.AddScoped<IEmailSender>(serviceProvider => serviceProvider.GetRequiredService<ConfigurableEmailSender>());
+        services.AddHttpClient<IStripePaymentGateway, StripePaymentGateway>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.stripe.com/", UriKind.Absolute);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("RootFlow/1.0");
+        });
 
         services.AddScoped<IPasswordHashingService, AspNetPasswordHashingService>();
         services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
@@ -180,6 +205,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<AuthService>();
         services.AddScoped<WorkspaceBillingService>();
+        services.AddScoped<WorkspacePaymentService>();
         services.AddScoped<DocumentService>();
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();
@@ -347,5 +373,62 @@ public static class InfrastructureServiceCollectionExtensions
         }
 
         return null;
+    }
+
+    private static void ApplyStripePlanPriceOverride(
+        StripeBillingOptions options,
+        string planCode,
+        string? priceId)
+    {
+        if (string.IsNullOrWhiteSpace(priceId))
+        {
+            return;
+        }
+
+        var existing = options.PlanPrices.FirstOrDefault(option =>
+            string.Equals(option.PlanCode, planCode, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is not null)
+        {
+            existing.PriceId = priceId.Trim();
+            return;
+        }
+
+        options.PlanPrices.Add(new StripePlanPriceOptions
+        {
+            PlanCode = planCode,
+            PriceId = priceId.Trim()
+        });
+    }
+
+    private static void ApplyStripeCreditPackPriceOverride(
+        StripeBillingOptions options,
+        string creditPackCode,
+        string? priceId)
+    {
+        if (string.IsNullOrWhiteSpace(priceId))
+        {
+            return;
+        }
+
+        var existing = options.CreditPacks.FirstOrDefault(option =>
+            string.Equals(option.Code, creditPackCode, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is not null)
+        {
+            existing.PriceId = priceId.Trim();
+            return;
+        }
+
+        options.CreditPacks.Add(new StripeCreditPackOptions
+        {
+            Code = creditPackCode,
+            Name = "10,000 credits",
+            Description = "Extra shared credits for the workspace.",
+            Credits = 10_000,
+            Amount = 49.90m,
+            CurrencyCode = "BRL",
+            PriceId = priceId.Trim()
+        });
     }
 }

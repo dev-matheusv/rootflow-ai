@@ -9,6 +9,7 @@ using RootFlow.Api.Contracts.Chat;
 using RootFlow.Api.Contracts.Workspaces;
 using RootFlow.Application.Auth;
 using RootFlow.Application.Billing;
+using RootFlow.Application.Billing.Commands;
 using RootFlow.Application.Billing.Queries;
 using RootFlow.Application.Auth.Commands;
 using RootFlow.Application.Abstractions.Documents;
@@ -310,6 +311,39 @@ billing.MapGet("/plans", async (
     return Results.Ok(plans.Select(plan => plan.ToResponse()));
 });
 
+billing.MapGet("/credit-packs", async (
+    WorkspacePaymentService workspacePaymentService,
+    CancellationToken cancellationToken) =>
+{
+    var creditPacks = await workspacePaymentService.ListCreditPacksAsync(cancellationToken);
+    return Results.Ok(creditPacks.Select(creditPack => creditPack.ToResponse()));
+});
+
+app.MapPost("/api/billing/webhooks/stripe", async (
+    HttpRequest request,
+    WorkspacePaymentService workspacePaymentService,
+    CancellationToken cancellationToken) =>
+{
+    request.EnableBuffering();
+    request.Body.Position = 0;
+
+    using var reader = new StreamReader(request.Body, leaveOpen: true);
+    var payload = await reader.ReadToEndAsync(cancellationToken);
+    request.Body.Position = 0;
+
+    var signatureHeader = request.Headers["Stripe-Signature"].ToString();
+
+    try
+    {
+        await workspacePaymentService.HandleStripeWebhookAsync(payload, signatureHeader, cancellationToken);
+        return Results.Ok(new MessageResponse("Stripe webhook processed."));
+    }
+    catch (BillingWebhookValidationException exception)
+    {
+        return Results.BadRequest(new { error = exception.Message });
+    }
+});
+
 workspaces.MapPost("/{workspaceId:guid}/invites", async (
     Guid workspaceId,
     InviteWorkspaceMemberRequest request,
@@ -445,6 +479,88 @@ workspaces.MapGet("/{workspaceId:guid}/billing/summary", async (
         cancellationToken);
 
     return Results.Ok(summary.ToResponse());
+});
+
+workspaces.MapPost("/{workspaceId:guid}/billing/checkout/subscription", async (
+    Guid workspaceId,
+    CreateWorkspaceSubscriptionCheckoutRequest request,
+    ClaimsPrincipal user,
+    WorkspacePaymentService workspacePaymentService,
+    CancellationToken cancellationToken) =>
+{
+    if (user.GetRequiredWorkspaceId() != workspaceId)
+    {
+        return Results.Forbid();
+    }
+
+    if (string.IsNullOrWhiteSpace(request.PlanCode))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["planCode"] = ["Plan code is required."]
+        });
+    }
+
+    try
+    {
+        var checkoutSession = await workspacePaymentService.CreateSubscriptionCheckoutAsync(
+            new CreateWorkspaceSubscriptionCheckoutCommand(workspaceId, request.PlanCode),
+            cancellationToken);
+
+        return Results.Ok(checkoutSession.ToResponse());
+    }
+    catch (BillingCheckoutUnavailableException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [exception.ParamName ?? "request"] = [exception.Message]
+        });
+    }
+});
+
+workspaces.MapPost("/{workspaceId:guid}/billing/checkout/credits", async (
+    Guid workspaceId,
+    CreateWorkspaceCreditPurchaseCheckoutRequest request,
+    ClaimsPrincipal user,
+    WorkspacePaymentService workspacePaymentService,
+    CancellationToken cancellationToken) =>
+{
+    if (user.GetRequiredWorkspaceId() != workspaceId)
+    {
+        return Results.Forbid();
+    }
+
+    if (string.IsNullOrWhiteSpace(request.CreditPackCode))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["creditPackCode"] = ["Credit pack code is required."]
+        });
+    }
+
+    try
+    {
+        var checkoutSession = await workspacePaymentService.CreateCreditPurchaseCheckoutAsync(
+            new CreateWorkspaceCreditPurchaseCheckoutCommand(workspaceId, request.CreditPackCode),
+            cancellationToken);
+
+        return Results.Ok(checkoutSession.ToResponse());
+    }
+    catch (BillingCheckoutUnavailableException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [exception.ParamName ?? "request"] = [exception.Message]
+        });
+    }
 });
 
 documents.MapPost("", async (

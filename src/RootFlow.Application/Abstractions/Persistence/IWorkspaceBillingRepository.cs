@@ -19,6 +19,11 @@ public interface IWorkspaceBillingRepository
         Guid workspaceId,
         CancellationToken cancellationToken = default);
 
+    Task<WorkspaceSubscription?> GetSubscriptionByProviderSubscriptionIdAsync(
+        string provider,
+        string providerSubscriptionId,
+        CancellationToken cancellationToken = default);
+
     Task UpdateSubscriptionAsync(
         WorkspaceSubscription subscription,
         CancellationToken cancellationToken = default);
@@ -29,6 +34,11 @@ public interface IWorkspaceBillingRepository
 
     Task<WorkspaceCreditBalance> AppendLedgerEntryAsync(
         WorkspaceCreditLedgerEntry entry,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> LedgerReferenceExistsAsync(
+        string referenceType,
+        string referenceId,
         CancellationToken cancellationToken = default);
 
     Task AddUsageEventAsync(
@@ -48,5 +58,28 @@ public interface IWorkspaceBillingRepository
     Task<IReadOnlyList<WorkspaceUsageEvent>> ListUsageEventsAsync(
         Guid workspaceId,
         int take = 100,
+        CancellationToken cancellationToken = default);
+
+    Task AddBillingTransactionAsync(
+        WorkspaceBillingTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkspaceBillingTransaction?> GetBillingTransactionByCheckoutSessionIdAsync(
+        string provider,
+        string externalCheckoutSessionId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkspaceBillingTransaction?> GetBillingTransactionByInvoiceIdAsync(
+        string provider,
+        string externalInvoiceId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkspaceBillingTransaction?> GetLatestBillingTransactionBySubscriptionIdAsync(
+        string provider,
+        string externalSubscriptionId,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateBillingTransactionAsync(
+        WorkspaceBillingTransaction transaction,
         CancellationToken cancellationToken = default);
 }
