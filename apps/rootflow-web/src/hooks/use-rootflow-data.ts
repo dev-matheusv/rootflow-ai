@@ -112,16 +112,14 @@ export function useConversationQuery(conversationId?: string | null) {
   });
 }
 
-export function useSubscriptionCheckoutMutation(workspaceId?: string | null) {
+export function useSubscriptionCheckoutMutation() {
   return useMutation({
-    mutationFn: (payload: CreateWorkspaceSubscriptionCheckoutPayload) =>
-      rootflowApi.createWorkspaceSubscriptionCheckout(workspaceId!, payload),
+    mutationFn: (payload: CreateWorkspaceSubscriptionCheckoutPayload) => rootflowApi.createSubscriptionCheckout(payload),
   });
 }
 
-export function useCreditPurchaseCheckoutMutation(workspaceId?: string | null) {
+export function useCreditPurchaseCheckoutMutation() {
   return useMutation({
-    mutationFn: (payload: CreateWorkspaceCreditPurchaseCheckoutPayload) =>
-      rootflowApi.createWorkspaceCreditPurchaseCheckout(workspaceId!, payload),
+    mutationFn: (payload: CreateWorkspaceCreditPurchaseCheckoutPayload) => rootflowApi.createCreditPurchaseCheckout(payload),
   });
 }

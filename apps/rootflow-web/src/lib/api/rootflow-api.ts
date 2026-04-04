@@ -81,16 +81,16 @@ export const rootflowApi = {
   getCurrentSession: () => apiRequest<SessionInfo>("/api/auth/me"),
   getWorkspaceBillingSummary: (workspaceId: string) =>
     apiRequest<WorkspaceBillingSummary>(`/api/workspaces/${workspaceId}/billing/summary`),
-  createWorkspaceSubscriptionCheckout: (workspaceId: string, payload: CreateWorkspaceSubscriptionCheckoutPayload) =>
-    apiRequest<BillingCheckoutSession>(`/api/workspaces/${workspaceId}/billing/checkout/subscription`, {
+  createSubscriptionCheckout: (payload: CreateWorkspaceSubscriptionCheckoutPayload) =>
+    apiRequest<BillingCheckoutSession>("/api/billing/checkout/subscription", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
     }),
-  createWorkspaceCreditPurchaseCheckout: (workspaceId: string, payload: CreateWorkspaceCreditPurchaseCheckoutPayload) =>
-    apiRequest<BillingCheckoutSession>(`/api/workspaces/${workspaceId}/billing/checkout/credits`, {
+  createCreditPurchaseCheckout: (payload: CreateWorkspaceCreditPurchaseCheckoutPayload) =>
+    apiRequest<BillingCheckoutSession>("/api/billing/checkout/credits", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

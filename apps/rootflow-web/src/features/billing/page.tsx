@@ -1,10 +1,11 @@
 import { Coins, Sparkles } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { useI18n } from "@/app/providers/i18n-provider";
 import { WorkspaceCreditProgress } from "@/components/billing/workspace-credit-progress";
 import { ErrorState } from "@/components/feedback/error-state";
+import { FeedbackToast } from "@/components/feedback/feedback-toast";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,27 +21,67 @@ import {
 } from "@/hooks/use-rootflow-data";
 import { formatCredits, getWorkspaceCreditSnapshot } from "@/lib/billing/workspace-credits";
 
+interface BillingFeedbackToast {
+  id: number;
+  tone: "success" | "error" | "info";
+  title: string;
+  description: string;
+}
+
 export function BillingPage() {
   const { session } = useAuth();
   const { locale, t } = useI18n();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeCheckoutKey, setActiveCheckoutKey] = useState<string | null>(null);
+  const [feedbackToast, setFeedbackToast] = useState<BillingFeedbackToast | null>(null);
   const workspaceId = session?.workspace.id;
   const billingSummaryQuery = useWorkspaceBillingSummaryQuery(workspaceId);
   const billingPlansQuery = useBillingPlansQuery();
   const creditPacksQuery = useBillingCreditPacksQuery();
-  const subscriptionCheckoutMutation = useSubscriptionCheckoutMutation(workspaceId);
-  const creditPurchaseCheckoutMutation = useCreditPurchaseCheckoutMutation(workspaceId);
+  const subscriptionCheckoutMutation = useSubscriptionCheckoutMutation();
+  const creditPurchaseCheckoutMutation = useCreditPurchaseCheckoutMutation();
   const snapshot = getWorkspaceCreditSnapshot(billingSummaryQuery.data);
   const currentPlanCode = billingSummaryQuery.data?.billingPlan?.code?.toLowerCase() ?? null;
   const currentSubscriptionStatus = billingSummaryQuery.data?.subscription?.status ?? null;
   const checkoutStatus = searchParams.get("checkout");
 
+  const showToast = useCallback((tone: BillingFeedbackToast["tone"], title: string, description: string) => {
+    setFeedbackToast({
+      id: Date.now(),
+      tone,
+      title,
+      description,
+    });
+  }, []);
+
   useEffect(() => {
+    if (!feedbackToast) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setFeedbackToast((currentToast) => (currentToast?.id === feedbackToast.id ? null : currentToast));
+    }, 4200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [feedbackToast]);
+
+  useEffect(() => {
+    if (checkoutStatus !== "success" && checkoutStatus !== "cancel") {
+      return;
+    }
+
     if (checkoutStatus === "success") {
       void billingSummaryQuery.refetch();
+      showToast("success", t("billing.checkoutSuccessTitle"), t("billing.checkoutSuccessDescription"));
+    } else {
+      showToast("info", t("billing.checkoutCanceledTitle"), t("billing.checkoutCanceledDescription"));
     }
-  }, [billingSummaryQuery, checkoutStatus]);
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete("checkout");
+    setSearchParams(nextSearchParams, { replace: true });
+  }, [billingSummaryQuery, checkoutStatus, searchParams, setSearchParams, showToast, t]);
 
   const handlePlanCheckout = async (planCode: string) => {
     setActiveCheckoutKey(`plan:${planCode}`);
@@ -48,6 +89,12 @@ export function BillingPage() {
     try {
       const checkoutSession = await subscriptionCheckoutMutation.mutateAsync({ planCode });
       window.location.assign(checkoutSession.checkoutUrl);
+    } catch (error) {
+      showToast(
+        "error",
+        t("common.labels.somethingWentWrong"),
+        error instanceof Error ? error.message : t("billing.sharedHint"),
+      );
     } finally {
       setActiveCheckoutKey(null);
     }
@@ -59,6 +106,12 @@ export function BillingPage() {
     try {
       const checkoutSession = await creditPurchaseCheckoutMutation.mutateAsync({ creditPackCode });
       window.location.assign(checkoutSession.checkoutUrl);
+    } catch (error) {
+      showToast(
+        "error",
+        t("common.labels.somethingWentWrong"),
+        error instanceof Error ? error.message : t("billing.sharedHint"),
+      );
     } finally {
       setActiveCheckoutKey(null);
     }
@@ -75,6 +128,16 @@ export function BillingPage() {
 
   return (
     <div className="space-y-5">
+      <div className="pointer-events-none fixed inset-x-4 top-4 z-50 flex justify-end sm:inset-x-6">
+        {feedbackToast ? (
+          <FeedbackToast
+            tone={feedbackToast.tone}
+            title={feedbackToast.title}
+            description={feedbackToast.description}
+          />
+        ) : null}
+      </div>
+
       <PageHeader
         title={t("billing.title")}
         description={t("billing.description")}
@@ -89,31 +152,6 @@ export function BillingPage() {
           </>
         )}
       />
-
-      {checkoutStatus === "success" ? (
-        <Card className="border-primary/18 bg-primary/[0.05]">
-          <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <div className="text-sm font-semibold text-foreground">{t("billing.checkoutSuccessTitle")}</div>
-              <p className="text-sm text-muted-foreground">{t("billing.checkoutSuccessDescription")}</p>
-            </div>
-            <Button variant="outline" onClick={() => void billingSummaryQuery.refetch()}>
-              {t("common.actions.tryAgain")}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {checkoutStatus === "cancel" ? (
-        <Card className="border-border/82 bg-card/88">
-          <CardContent className="p-5">
-            <div className="space-y-1">
-              <div className="text-sm font-semibold text-foreground">{t("billing.checkoutCanceledTitle")}</div>
-              <p className="text-sm text-muted-foreground">{t("billing.checkoutCanceledDescription")}</p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
 
       <section className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
         <Card className="border-border/82 bg-card/88">

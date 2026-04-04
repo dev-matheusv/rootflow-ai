@@ -319,6 +319,76 @@ billing.MapGet("/credit-packs", async (
     return Results.Ok(creditPacks.Select(creditPack => creditPack.ToResponse()));
 });
 
+billing.MapPost("/checkout/subscription", async (
+    CreateWorkspaceSubscriptionCheckoutRequest request,
+    ClaimsPrincipal user,
+    WorkspacePaymentService workspacePaymentService,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.PlanCode))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["planCode"] = ["Plan code is required."]
+        });
+    }
+
+    try
+    {
+        var checkoutSession = await workspacePaymentService.CreateSubscriptionCheckoutAsync(
+            new CreateWorkspaceSubscriptionCheckoutCommand(user.GetRequiredWorkspaceId(), request.PlanCode),
+            cancellationToken);
+
+        return Results.Ok(checkoutSession.ToResponse());
+    }
+    catch (BillingCheckoutUnavailableException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [exception.ParamName ?? "request"] = [exception.Message]
+        });
+    }
+});
+
+billing.MapPost("/checkout/credits", async (
+    CreateWorkspaceCreditPurchaseCheckoutRequest request,
+    ClaimsPrincipal user,
+    WorkspacePaymentService workspacePaymentService,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.CreditPackCode))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["creditPackCode"] = ["Credit pack code is required."]
+        });
+    }
+
+    try
+    {
+        var checkoutSession = await workspacePaymentService.CreateCreditPurchaseCheckoutAsync(
+            new CreateWorkspaceCreditPurchaseCheckoutCommand(user.GetRequiredWorkspaceId(), request.CreditPackCode),
+            cancellationToken);
+
+        return Results.Ok(checkoutSession.ToResponse());
+    }
+    catch (BillingCheckoutUnavailableException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [exception.ParamName ?? "request"] = [exception.Message]
+        });
+    }
+});
+
 app.MapPost("/api/billing/webhooks/stripe", async (
     HttpRequest request,
     WorkspacePaymentService workspacePaymentService,
