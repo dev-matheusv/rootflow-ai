@@ -169,12 +169,12 @@ export function ConversationsPage() {
                           <div
                             className={`min-w-0 ${
                               isUser
-                                ? "rounded-[24px] rounded-br-lg border border-[#bad4ff] bg-[linear-gradient(180deg,#eff5ff,#e7f0ff)] px-5 py-4 text-[#16345f] shadow-[0_18px_38px_-28px_rgba(66,116,194,0.34)] dark:border-[#395476] dark:bg-[#22314a] dark:text-[#edf4ff]"
+                                ? "rounded-[24px] rounded-br-lg border border-primary/15 bg-primary/10 px-5 py-4 text-foreground shadow-[0_18px_38px_-28px_rgba(66,116,194,0.22)] dark:border-primary/25 dark:bg-primary/20"
                                 : "rounded-[22px] border border-border/82 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--card)_90%,transparent),color-mix(in_srgb,var(--background)_76%,transparent))] px-5 py-4 shadow-[0_16px_32px_-30px_rgba(16,36,71,0.14)]"
                             }`}
                           >
                             <div className="mb-3 flex flex-wrap items-center gap-2">
-                              <div className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isUser ? "text-[#3f669e] dark:text-[#a9c8ff]" : "text-primary/75"}`}>
+                              <div className={`text-[11px] font-semibold uppercase tracking-[0.18em] ${isUser ? "text-primary/80" : "text-primary/75"}`}>
                                 {isUser ? t("common.labels.you") : "RootFlow"}
                               </div>
                               <span className="text-xs text-muted-foreground">{formatRelativeDate(message.createdAtUtc, locale)}</span>
