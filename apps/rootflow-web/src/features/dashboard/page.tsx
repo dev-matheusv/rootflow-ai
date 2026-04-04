@@ -30,13 +30,14 @@ export function DashboardPage() {
   )[0];
 
   const metrics = [
-    { label: "Documents", value: String(documents.length), note: "Total", icon: BookOpenText },
-    { label: "Ready", value: String(processedCount), note: "Processed", icon: Bot },
-    { label: "Conversations", value: String(conversations.length), note: "Saved", icon: MessagesSquare },
+    { label: "Documents", value: String(documents.length), note: "Total", hint: "Library size", icon: BookOpenText },
+    { label: "Ready", value: String(processedCount), note: "Processed", hint: "Grounded answers", icon: Bot },
+    { label: "Conversations", value: String(conversations.length), note: "Saved", hint: "Reusable sessions", icon: MessagesSquare },
     {
       label: "API",
       value: healthQuery.data?.status === "healthy" ? "Healthy" : "Checking",
       note: "Status",
+      hint: "Search pipeline",
       icon: DatabaseZap,
     },
   ] as const;
@@ -45,6 +46,7 @@ export function DashboardPage() {
     <div className="space-y-5">
       <PageHeader
         title="Overview"
+        description="A live view of workspace readiness, assistant activity, and system health."
         actions={
           <>
             <Button asChild>
@@ -87,7 +89,7 @@ export function DashboardPage() {
                 key={metric.label}
                 className={isPrimaryMetric ? "border-primary/18 bg-primary/[0.06]" : "border-border/80 bg-card/86"}
               >
-                <CardContent className="space-y-2.5 p-4">
+                <CardContent className="space-y-3 p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className={`flex size-9 items-center justify-center rounded-2xl ${isPrimaryMetric ? "bg-primary/14 text-primary" : "bg-primary/10 text-primary"}`}>
                       <Icon className="size-5" />
@@ -114,6 +116,7 @@ export function DashboardPage() {
                               ? "Connected"
                               : "Waiting on check"}
                     </div>
+                    <div className="text-[12px] font-medium text-muted-foreground/90">{metric.hint}</div>
                   </div>
                 </CardContent>
               </Card>
@@ -122,10 +125,20 @@ export function DashboardPage() {
         )}
       </section>
 
+      <div className="flex flex-wrap items-center gap-2 rounded-[20px] border border-border/78 bg-card/70 px-4 py-3 text-sm text-muted-foreground shadow-[0_18px_34px_-30px_rgba(16,36,71,0.12)]">
+        <span className="font-medium text-foreground">Pipeline</span>
+        <Badge variant="secondary">Upload</Badge>
+        <Badge variant="secondary">Ask</Badge>
+        <Badge variant="secondary">Review sources</Badge>
+      </div>
+
       <section className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
         <Card className="border-border/80 bg-card/86">
           <CardHeader>
-            <CardTitle>Workspace</CardTitle>
+            <div className="space-y-1">
+              <CardTitle>Workspace</CardTitle>
+              <p className="text-sm text-muted-foreground/95">Keep the latest documents and sessions close to the team.</p>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -134,7 +147,7 @@ export function DashboardPage() {
               <Badge variant="secondary">{session?.role ?? "Member"}</Badge>
             </div>
 
-            <div className="rounded-[22px] border border-border/75 bg-card/72">
+            <div className="rounded-[22px] border border-border/82 bg-card/76">
               <div className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="text-sm font-semibold text-foreground">Status</div>
                 <Badge variant={failedCount > 0 ? "warning" : healthQuery.data?.status === "healthy" ? "success" : "secondary"}>
@@ -170,7 +183,7 @@ export function DashboardPage() {
             </div>
 
             {documents.length === 0 ? (
-              <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
+              <div className="rounded-[20px] border border-dashed border-border/82 bg-card/60 px-4 py-3 text-sm text-muted-foreground">
                 Upload your first document to turn this workspace into a searchable source of truth.
               </div>
             ) : null}
@@ -179,15 +192,23 @@ export function DashboardPage() {
 
         <Card className="border-border/80 bg-card/86">
           <CardHeader>
-            <CardTitle>Next</CardTitle>
+            <div className="space-y-1">
+              <CardTitle>Next</CardTitle>
+              <p className="text-sm text-muted-foreground/95">Move from raw files to grounded answers without losing momentum.</p>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-[22px] border border-border/75 bg-card/72 p-3.5">
+            <div className="rounded-[22px] border border-border/82 bg-card/76 p-3.5">
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary">{documents.length} docs</Badge>
                 <Badge variant="secondary">{conversations.length} sessions</Badge>
                 <Badge variant="secondary">{processedCount} ready</Badge>
               </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary">Upload fresh docs</Badge>
+              <Badge variant="secondary">Ask specific questions</Badge>
+              <Badge variant="secondary">Share cited answers</Badge>
             </div>
             <Button variant="outline" className="w-full justify-between" asChild>
               <Link to="/knowledge-base">Open documents</Link>

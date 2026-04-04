@@ -70,6 +70,7 @@ export function SettingsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Settings"
+        description="Tune workspace controls, defaults, and collaboration surfaces as the product grows."
         actions={
           <>
             <Button asChild>
@@ -100,10 +101,10 @@ export function SettingsPage() {
                   key={section.id}
                   to={`/settings?section=${section.id}`}
                   className={cn(
-                    "flex items-start gap-3 rounded-[20px] border p-3.5 transition-[border-color,background-color] duration-200",
+                    "flex items-start gap-3 rounded-[20px] border p-3.5 transition-[transform,border-color,background-color,box-shadow] duration-200",
                     isActive
                       ? "border-primary/24 bg-primary/[0.08]"
-                      : "border-border/75 bg-card/74 hover:border-primary/18 hover:bg-card/92",
+                      : "border-border/75 bg-card/74 hover:-translate-y-0.5 hover:border-primary/18 hover:bg-card/92 hover:shadow-[0_18px_32px_-28px_rgba(16,36,71,0.14)]",
                   )}
                 >
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">

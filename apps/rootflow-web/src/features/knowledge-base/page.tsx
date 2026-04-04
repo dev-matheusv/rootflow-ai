@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useDocumentsQuery, useUploadDocumentMutation } from "@/hooks/use-rootflow-data";
 import { formatFileSize, formatRelativeDate, getDocumentTypeLabel } from "@/lib/formatting/formatters";
 import { useRef, useState, type ChangeEvent } from "react";
-import { CheckCircle2, Clock3, FileText, Filter, FolderKanban, UploadCloud } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, FileText, Filter, FolderKanban, UploadCloud } from "lucide-react";
 
 export function KnowledgeBasePage() {
   const [filterProcessedOnly, setFilterProcessedOnly] = useState(false);
@@ -51,6 +51,7 @@ export function KnowledgeBasePage() {
     <div className="space-y-5">
       <PageHeader
         title="Knowledge Base"
+        description="Upload, monitor, and keep the workspace context fresh for grounded answers."
         actions={
           <>
             <input
@@ -74,18 +75,30 @@ export function KnowledgeBasePage() {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Documents", documents.length],
-          ["Ready", processedCount],
-          ["Processing", processingCount],
-          ["Failed", failedCount],
-        ].map(([label, value]) => (
-          <Card key={label} className="border-border/80 bg-card/86">
-            <CardContent className="space-y-1 p-4">
-              <div className="text-sm font-medium text-foreground/82">{label}</div>
-              <div className="font-display text-[1.9rem] font-semibold tracking-[-0.05em] text-foreground">{value}</div>
-            </CardContent>
-          </Card>
-        ))}
+          { label: "Documents", value: documents.length, hint: "Library size", icon: FolderKanban },
+          { label: "Ready", value: processedCount, hint: "Searchable now", icon: CheckCircle2 },
+          { label: "Processing", value: processingCount, hint: "Parsing live", icon: Clock3 },
+          { label: "Failed", value: failedCount, hint: "Needs review", icon: AlertTriangle },
+        ].map((metric) => {
+          const Icon = metric.icon;
+
+          return (
+            <Card key={metric.label} className="border-border/80 bg-card/86">
+              <CardContent className="space-y-3 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <Icon className="size-4.5" />
+                  </div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{metric.hint}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm font-medium text-foreground/82">{metric.label}</div>
+                  <div className="font-display text-[1.9rem] font-semibold tracking-[-0.05em] text-foreground">{metric.value}</div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </section>
 
       <section className="grid gap-3 xl:grid-cols-[1.15fr_0.85fr]">
@@ -127,17 +140,17 @@ export function KnowledgeBasePage() {
                 onRetry={() => documentsQuery.refetch()}
               />
             ) : visibleDocuments.length === 0 ? (
-              <div className="rounded-[18px] border border-dashed border-border/75 bg-card/56 px-4 py-3 text-sm text-muted-foreground">
+              <div className="rounded-[20px] border border-dashed border-border/82 bg-card/60 px-4 py-3 text-sm text-muted-foreground">
                 {filterProcessedOnly
                   ? "No processed documents yet. As soon as processing finishes, they will appear here."
                   : "Upload your first document to start asking grounded questions instantly."}
               </div>
             ) : (
-              <div className="overflow-hidden rounded-[22px] border border-border/75 bg-card/72">
+              <div className="overflow-hidden rounded-[22px] border border-border/80 bg-card/76">
                 {visibleDocuments.map((document) => (
                   <div
                     key={document.id}
-                    className="grid gap-3 px-4 py-3.5 transition-colors duration-200 hover:bg-background/74 md:grid-cols-[minmax(0,1.35fr)_160px_120px_88px] md:items-center [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/70"
+                    className="grid gap-3 px-4 py-3.5 transition-[transform,background-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:bg-background/82 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.28)] md:grid-cols-[minmax(0,1.35fr)_160px_120px_88px] md:items-center [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/72"
                   >
                     <div className="flex items-start gap-3">
                       <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-primary/14 bg-primary/[0.11] text-primary">
@@ -180,7 +193,7 @@ export function KnowledgeBasePage() {
           <CardHeader>
             <div className="space-y-1">
               <CardTitle>Upload</CardTitle>
-              <div className="text-sm text-muted-foreground">PDF, DOCX, DOC, TXT, MD</div>
+              <div className="text-sm text-muted-foreground">Drop in fresh source material for the assistant.</div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -189,6 +202,13 @@ export function KnowledgeBasePage() {
                 {uploadMutation.isPending ? "Uploading..." : "Choose file"}
                 <UploadCloud />
               </Button>
+              <div className="flex flex-wrap gap-2">
+                {["PDF", "DOCX", "DOC", "TXT", "MD"].map((fileType) => (
+                  <Badge key={fileType} variant="secondary">
+                    {fileType}
+                  </Badge>
+                ))}
+              </div>
 
               {uploadMutation.isError ? (
                 <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
@@ -207,8 +227,11 @@ export function KnowledgeBasePage() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3 rounded-[20px] border border-border/75 bg-card/72 p-4">
-                  <div className="text-sm font-semibold text-foreground">Recent activity</div>
+                <div className="space-y-3 rounded-[20px] border border-border/80 bg-card/76 p-4">
+                  <div className="space-y-1">
+                    <div className="text-sm font-semibold text-foreground">Recent activity</div>
+                    <div className="text-sm text-muted-foreground/95">The latest upload activity stays visible here.</div>
+                  </div>
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center justify-between gap-3">
                       <span>Latest file</span>
@@ -243,11 +266,11 @@ export function KnowledgeBasePage() {
                 ) : null}
               </div>
               {processingDocuments.length > 0 ? (
-                <div className="mt-3 overflow-hidden rounded-[20px] border border-border/75 bg-card/72">
+                <div className="mt-3 overflow-hidden rounded-[20px] border border-border/80 bg-card/76">
                   {processingDocuments.map((document) => (
                     <div
                       key={document.id}
-                      className="flex items-center justify-between gap-3 px-3.5 py-3 text-sm [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/70"
+                      className="flex items-center justify-between gap-3 px-3.5 py-3 text-sm transition-colors duration-200 hover:bg-background/80 [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/72"
                     >
                       <span className="truncate text-foreground" title={document.originalFileName}>
                         {document.originalFileName}
@@ -256,7 +279,11 @@ export function KnowledgeBasePage() {
                     </div>
                   ))}
                 </div>
-              ) : null}
+              ) : (
+                <div className="mt-3 rounded-[18px] border border-dashed border-border/80 bg-card/60 px-4 py-3 text-sm text-muted-foreground">
+                  New uploads will appear here while RootFlow processes them.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

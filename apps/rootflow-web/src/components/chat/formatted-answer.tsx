@@ -232,7 +232,7 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
             return (
               <div
                 key={blockKey}
-                className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/78"
+                className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/82"
               >
                 {block.content}
               </div>
@@ -240,14 +240,17 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
 
           case "paragraph":
             return (
-              <p key={blockKey} className="text-[0.98rem] leading-7 text-foreground/94">
+              <p key={blockKey} className="text-[0.98rem] leading-7 text-foreground/95">
                 {block.content}
               </p>
             );
 
           case "list":
             return (
-              <section key={blockKey} className="space-y-2.5 rounded-[18px] border border-border/60 bg-background/60 p-4">
+              <section
+                key={blockKey}
+                className="space-y-2.5 rounded-[20px] border border-border/80 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--card)_88%,transparent),color-mix(in_srgb,var(--background)_78%,transparent))] p-4 shadow-[0_18px_34px_-30px_rgba(16,36,71,0.16)]"
+              >
                 {block.title ? (
                   <div className="text-sm font-semibold tracking-[-0.01em] text-foreground">{block.title}</div>
                 ) : null}
@@ -266,7 +269,7 @@ export function FormattedAnswer({ content, className }: FormattedAnswerProps) {
             return (
               <aside
                 key={blockKey}
-                className="flex gap-3 border-l-2 border-primary/24 pl-4"
+                className="flex gap-3 rounded-[20px] border border-primary/20 bg-primary/[0.06] p-4"
               >
                 <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-2xl bg-primary/8 text-primary">
                   <Info className="size-4" />

@@ -20,11 +20,11 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
-                "group relative flex rounded-[20px] border border-transparent transition-[background-color,border-color,box-shadow,color] duration-200",
+                "group relative flex rounded-[22px] border border-transparent transition-[transform,background-color,border-color,box-shadow,color] duration-200 motion-safe:hover:-translate-y-0.5",
                 collapsed ? "justify-center px-0 py-1.5" : "items-center gap-3 px-3 py-2.5",
                 isActive
-                  ? "border-primary/24 bg-primary/[0.09] text-sidebar-accent-foreground shadow-[0_14px_28px_-22px_rgba(18,72,166,0.18)]"
-                  : "text-sidebar-foreground/82 hover:border-sidebar-border/80 hover:bg-sidebar-accent/78 hover:text-sidebar-foreground",
+                  ? "border-primary/24 bg-primary/[0.1] text-sidebar-accent-foreground shadow-[0_16px_32px_-22px_rgba(18,72,166,0.22)]"
+                  : "text-sidebar-foreground/82 hover:border-sidebar-border/90 hover:bg-sidebar-accent/84 hover:text-sidebar-foreground hover:shadow-[0_18px_34px_-28px_rgba(18,38,74,0.16)]",
               )
             }
           >
@@ -47,7 +47,7 @@ export function SidebarNav({ collapsed = false, onNavigate }: SidebarNavProps) {
                       "flex size-10 shrink-0 items-center justify-center rounded-[16px] border transition-[border-color,background-color,color] duration-200",
                       isActive
                         ? "border-primary/22 bg-primary/[0.12] text-primary"
-                        : "border-sidebar-border/85 bg-background/78 text-muted-foreground group-hover:border-primary/20 group-hover:bg-background/92 group-hover:text-primary",
+                        : "border-sidebar-border/90 bg-background/82 text-muted-foreground group-hover:border-primary/22 group-hover:bg-background/94 group-hover:text-primary",
                     )}
                   >
                     <Icon className="size-[18px]" />

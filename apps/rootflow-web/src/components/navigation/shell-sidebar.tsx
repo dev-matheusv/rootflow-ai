@@ -28,7 +28,7 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
       {showBrand ? (
         <div
           className={cn(
-            "border-b border-sidebar-border/80 pb-4",
+            "border-b border-sidebar-border/85 pb-4",
             collapsed ? "px-1" : "px-2",
           )}
         >
@@ -39,7 +39,7 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
               </div>
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 rounded-[22px] border border-sidebar-border/80 bg-background/62 px-3 py-3 shadow-[0_18px_36px_-30px_rgba(18,38,74,0.16)]">
               <div className="flex h-9 items-center px-0.5">
                 <RootFlowBrand variant="logo" size="sm" className="h-7" />
               </div>
@@ -61,7 +61,7 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
         <SidebarNav collapsed={collapsed} onNavigate={onNavigate} />
       </div>
 
-      <div className={cn("mt-5 border-t border-sidebar-border/80 pt-4", collapsed ? "px-1" : "px-0.5")}>
+      <div className={cn("mt-5 border-t border-sidebar-border/85 pt-4", collapsed ? "px-1" : "px-0.5")}>
         {collapsed ? (
           <div className="flex justify-center">
             <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-sidebar-border/75 bg-background/72 shadow-[0_14px_28px_-24px_rgba(18,38,74,0.18)]">
@@ -71,7 +71,7 @@ export function ShellSidebar({ collapsed = false, onNavigate, showBrand = true }
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3 px-2">
+          <div className="flex items-center gap-3 rounded-[22px] border border-sidebar-border/80 bg-background/62 px-3 py-3 shadow-[0_18px_34px_-30px_rgba(18,38,74,0.14)]">
             <Avatar className="size-10">
               <AvatarFallback>{initials || "RF"}</AvatarFallback>
             </Avatar>

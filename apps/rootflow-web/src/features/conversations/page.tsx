@@ -48,6 +48,7 @@ export function ConversationsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Conversations"
+        description="Review saved exchanges, reopen context, and continue grounded sessions."
       />
 
       <section className="grid gap-3 xl:grid-cols-[0.82fr_1.18fr]">
@@ -81,8 +82,8 @@ export function ConversationsPage() {
                       key={conversation.conversationId}
                       type="button"
                       onClick={() => setSearchParams({ conversationId: conversation.conversationId })}
-                      className={`w-full px-4 py-3.5 text-left transition-[background-color,border-color] duration-200 [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/70 ${
-                        isActive ? "bg-primary/[0.08]" : "hover:bg-secondary/28"
+                      className={`w-full px-4 py-3.5 text-left transition-[transform,background-color,border-color,box-shadow] duration-200 [&:not(:last-child)]:border-b [&:not(:last-child)]:border-border/70 ${
+                        isActive ? "bg-primary/[0.08]" : "hover:-translate-y-0.5 hover:bg-secondary/34 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -155,7 +156,7 @@ export function ConversationsPage() {
 
                     return (
                       <div key={message.id} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-                        <div className={`flex max-w-[76ch] gap-4 ${isUser ? "items-start" : "items-start"}`}>
+                        <div className={`flex max-w-[76ch] gap-4 motion-safe:animate-[rf-fade-up_260ms_cubic-bezier(0.22,1,0.36,1)] ${isUser ? "items-start" : "items-start"}`}>
                           {!isUser ? (
                             <Avatar className="mt-0.5 size-10">
                               <AvatarFallback>AI</AvatarFallback>
@@ -164,8 +165,8 @@ export function ConversationsPage() {
                           <div
                             className={`min-w-0 ${
                               isUser
-                                ? "rounded-[24px] rounded-br-lg border border-[#bad4ff] bg-[#eaf2ff] px-5 py-4 text-[#16345f] shadow-[0_14px_32px_-28px_rgba(66,116,194,0.32)] dark:border-[#395476] dark:bg-[#22314a] dark:text-[#edf4ff]"
-                                : "rounded-[20px] border border-border/75 bg-background/76 px-5 py-4"
+                                ? "rounded-[24px] rounded-br-lg border border-[#bad4ff] bg-[linear-gradient(180deg,#eff5ff,#e7f0ff)] px-5 py-4 text-[#16345f] shadow-[0_18px_38px_-28px_rgba(66,116,194,0.34)] dark:border-[#395476] dark:bg-[#22314a] dark:text-[#edf4ff]"
+                                : "rounded-[22px] border border-border/82 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--card)_90%,transparent),color-mix(in_srgb,var(--background)_76%,transparent))] px-5 py-4 shadow-[0_16px_32px_-30px_rgba(16,36,71,0.14)]"
                             }`}
                           >
                             <div className="mb-3 flex flex-wrap items-center gap-2">

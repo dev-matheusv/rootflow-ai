@@ -26,15 +26,15 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
     .join("");
 
   return (
-    <header className="sticky top-0 z-30 px-4 pt-3 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 px-4 pt-4 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1320px]">
-        <div className="rounded-[22px] border border-border/60 bg-background/78 px-4 py-2.5 shadow-[0_18px_40px_-38px_rgba(16,36,71,0.12)] backdrop-blur-xl sm:px-5">
+        <div className="relative overflow-hidden rounded-[24px] border border-border/75 bg-card/74 px-4 py-2.5 shadow-[0_22px_46px_-36px_rgba(16,36,71,0.16)] backdrop-blur-xl before:pointer-events-none before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.76),transparent)] sm:px-5">
           <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-3">
               <Button
                 variant="ghost"
                 size="icon"
-                className="shrink-0 rounded-[14px] border border-border/60 bg-card/70 text-foreground hover:bg-card"
+                className="shrink-0 rounded-[16px] border border-border/72 bg-background/78 text-foreground hover:bg-background"
                 aria-label={isDesktop ? (isSidebarCollapsed ? "Expand navigation" : "Collapse navigation") : "Open navigation"}
                 onClick={isDesktop ? onToggleSidebar : onOpenNavigation}
               >
@@ -64,10 +64,10 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
             </div>
 
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <Button variant="outline" className="min-w-[148px] flex-1 justify-start gap-3 px-3.5 text-left sm:flex-none" asChild>
+              <Button variant="outline" className="min-w-[168px] flex-1 justify-start gap-3 px-3.5 text-left sm:flex-none" asChild>
                 <Link to="/assistant">
                   <Search className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="truncate text-foreground">Ask</span>
+                  <span className="truncate text-foreground">Ask assistant</span>
                 </Link>
               </Button>
 
@@ -82,7 +82,7 @@ export function Topbar({ isDesktop, isSidebarCollapsed, onOpenNavigation, onTogg
                   <LogOut className="size-4" />
                   <span className="hidden xl:inline">Sign out</span>
                 </Button>
-                <div className="flex items-center gap-2.5 rounded-[16px] border border-border/65 bg-background/72 px-2.5 py-1.5">
+                <div className="flex items-center gap-2.5 rounded-[18px] border border-border/75 bg-background/78 px-2.5 py-1.5 shadow-[0_16px_30px_-28px_rgba(16,36,71,0.18)]">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback>{initials || "RF"}</AvatarFallback>
                   </Avatar>
