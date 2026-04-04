@@ -453,9 +453,9 @@ public sealed class PostgresDatabaseInitializer
                 SET available_credits = b.available_credits + starter_plan.included_credits,
                     updated_at_utc = NOW()
                 FROM billing_plans AS starter_plan
-                INNER JOIN temp_seeded_workspace_subscriptions AS seeded
-                    ON seeded.workspace_id = b.workspace_id
-                WHERE starter_plan.code = 'starter';
+                CROSS JOIN temp_seeded_workspace_subscriptions AS seeded
+                WHERE starter_plan.code = 'starter'
+                  AND seeded.workspace_id = b.workspace_id;
 
                 INSERT INTO workspace_credit_ledger (
                     id,
