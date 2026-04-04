@@ -9,6 +9,7 @@ public sealed record WorkspaceSubscriptionDto(
     WorkspaceSubscriptionStatus Status,
     DateTime CurrentPeriodStartUtc,
     DateTime CurrentPeriodEndUtc,
+    DateTime? TrialEndsAtUtc,
     DateTime? CanceledAtUtc,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);

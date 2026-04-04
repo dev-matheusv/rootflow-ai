@@ -7,6 +7,7 @@ public sealed record WorkspaceSubscriptionResponse(
     string Status,
     DateTime CurrentPeriodStartUtc,
     DateTime CurrentPeriodEndUtc,
+    DateTime? TrialEndsAtUtc,
     DateTime? CanceledAtUtc,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);

@@ -19,6 +19,10 @@ public interface IWorkspaceBillingRepository
         Guid workspaceId,
         CancellationToken cancellationToken = default);
 
+    Task UpdateSubscriptionAsync(
+        WorkspaceSubscription subscription,
+        CancellationToken cancellationToken = default);
+
     Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(
         Guid workspaceId,
         CancellationToken cancellationToken = default);

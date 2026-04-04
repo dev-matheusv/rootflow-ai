@@ -43,12 +43,16 @@ public sealed class ConfiguredAiUsagePricingCalculator : IAiUsagePricingCalculat
             (request.CompletionTokens / 1_000_000m * rate.CompletionCostPerMillionTokens);
 
         estimatedCost = decimal.Round(estimatedCost, 6, MidpointRounding.AwayFromZero);
+        var chargedCost = decimal.Round(
+            estimatedCost * Math.Max(0m, _options.UsageMarkupMultiplier),
+            6,
+            MidpointRounding.AwayFromZero);
 
-        var creditsCharged = estimatedCost <= 0m
+        var creditsCharged = chargedCost <= 0m
             ? 0
-            : (long)Math.Ceiling(estimatedCost * _options.CreditsPerDollar);
+            : (long)Math.Ceiling(chargedCost * _options.CreditsPerDollar);
 
-        return new AiUsageCharge(estimatedCost, creditsCharged);
+        return new AiUsageCharge(estimatedCost, chargedCost, creditsCharged);
     }
 
     private WorkspaceBillingModelRateOptions ResolveRate(string provider, string model)

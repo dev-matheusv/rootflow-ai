@@ -2,7 +2,8 @@ namespace RootFlow.Domain.Billing;
 
 public enum WorkspaceSubscriptionStatus
 {
-    Active = 1,
-    Canceled = 2,
-    Expired = 3
+    Trial = 1,
+    Active = 2,
+    Canceled = 3,
+    Expired = 4
 }

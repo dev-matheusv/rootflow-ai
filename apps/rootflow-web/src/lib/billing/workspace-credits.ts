@@ -27,7 +27,7 @@ export function getWorkspaceCreditSnapshot(summary?: WorkspaceBillingSummary | n
   const subscriptionStatus = summary.subscription?.status ?? null;
 
   let tone: WorkspaceCreditTone;
-  if (subscriptionStatus && subscriptionStatus !== "Active") {
+  if (subscriptionStatus && subscriptionStatus !== "Active" && subscriptionStatus !== "Trial") {
     tone = "inactive";
   } else if (availableCredits <= 0) {
     tone = "empty";

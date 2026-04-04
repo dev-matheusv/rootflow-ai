@@ -15,7 +15,8 @@ public sealed class WorkspaceSubscription
         DateTime currentPeriodEndUtc,
         DateTime createdAtUtc,
         DateTime updatedAtUtc,
-        DateTime? canceledAtUtc = null)
+        DateTime? canceledAtUtc = null,
+        DateTime? trialEndsAtUtc = null)
     {
         if (id == Guid.Empty)
         {
@@ -37,6 +38,16 @@ public sealed class WorkspaceSubscription
             throw new ArgumentException("Current billing period must end after it starts.", nameof(currentPeriodEndUtc));
         }
 
+        if (status == WorkspaceSubscriptionStatus.Trial && trialEndsAtUtc is null)
+        {
+            throw new ArgumentException("Trial subscriptions must include a trial end timestamp.", nameof(trialEndsAtUtc));
+        }
+
+        if (trialEndsAtUtc.HasValue && trialEndsAtUtc.Value <= currentPeriodStartUtc)
+        {
+            throw new ArgumentException("Trial end must be after the current period start.", nameof(trialEndsAtUtc));
+        }
+
         Id = id;
         WorkspaceId = workspaceId;
         BillingPlanId = billingPlanId;
@@ -46,6 +57,7 @@ public sealed class WorkspaceSubscription
         CanceledAtUtc = canceledAtUtc;
         CreatedAtUtc = createdAtUtc;
         UpdatedAtUtc = updatedAtUtc;
+        TrialEndsAtUtc = trialEndsAtUtc;
     }
 
     public Guid Id { get; private set; }
@@ -62,16 +74,40 @@ public sealed class WorkspaceSubscription
 
     public DateTime? CanceledAtUtc { get; private set; }
 
+    public DateTime? TrialEndsAtUtc { get; private set; }
+
     public DateTime CreatedAtUtc { get; private set; }
 
     public DateTime UpdatedAtUtc { get; private set; }
 
     public bool IsActiveAt(DateTime asOfUtc)
     {
-        return Status == WorkspaceSubscriptionStatus.Active
-            && CanceledAtUtc is null
-            && CurrentPeriodStartUtc <= asOfUtc
-            && CurrentPeriodEndUtc > asOfUtc;
+        if (CanceledAtUtc is not null || CurrentPeriodStartUtc > asOfUtc)
+        {
+            return false;
+        }
+
+        return Status switch
+        {
+            WorkspaceSubscriptionStatus.Active => CurrentPeriodEndUtc > asOfUtc,
+            WorkspaceSubscriptionStatus.Trial => TrialEndsAtUtc.HasValue && TrialEndsAtUtc.Value > asOfUtc,
+            _ => false
+        };
+    }
+
+    public bool ShouldExpireAt(DateTime asOfUtc)
+    {
+        if (CanceledAtUtc is not null)
+        {
+            return false;
+        }
+
+        return Status switch
+        {
+            WorkspaceSubscriptionStatus.Active => CurrentPeriodEndUtc <= asOfUtc,
+            WorkspaceSubscriptionStatus.Trial => TrialEndsAtUtc.HasValue && TrialEndsAtUtc.Value <= asOfUtc,
+            _ => false
+        };
     }
 
     public void ChangePlan(
@@ -95,6 +131,7 @@ public sealed class WorkspaceSubscription
         CurrentPeriodEndUtc = currentPeriodEndUtc;
         Status = WorkspaceSubscriptionStatus.Active;
         CanceledAtUtc = null;
+        TrialEndsAtUtc = null;
         UpdatedAtUtc = updatedAtUtc;
     }
 

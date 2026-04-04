@@ -130,8 +130,9 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
         Assert.NotNull(summary!.BillingPlan);
         Assert.Equal("starter", summary.BillingPlan!.Code);
         Assert.NotNull(summary.Subscription);
-        Assert.Equal("Active", summary.Subscription!.Status);
-        Assert.Equal(10_000, summary.Balance.AvailableCredits);
+        Assert.Equal("Trial", summary.Subscription!.Status);
+        Assert.NotNull(summary.Subscription.TrialEndsAtUtc);
+        Assert.Equal(5_000, summary.Balance.AvailableCredits);
         Assert.Equal(0, summary.Balance.ConsumedCredits);
     }
 
@@ -183,6 +184,7 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
         string Status,
         DateTime CurrentPeriodStartUtc,
         DateTime CurrentPeriodEndUtc,
+        DateTime? TrialEndsAtUtc,
         DateTime? CanceledAtUtc,
         DateTime CreatedAtUtc,
         DateTime UpdatedAtUtc);

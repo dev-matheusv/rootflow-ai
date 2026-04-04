@@ -48,20 +48,20 @@ public sealed class WorkspaceBillingService
         return plans.Select(MapPlan).ToArray();
     }
 
+    public Task EnsureTrialProvisionedAsync(
+        Guid workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        return EnsureProvisionedAsync(workspaceId, cancellationToken);
+    }
+
     public async Task<WorkspaceCreditSummaryDto> GetCreditSummaryAsync(
         GetWorkspaceCreditSummaryQuery query,
         CancellationToken cancellationToken = default)
     {
         await EnsureProvisionedAsync(query.WorkspaceId, cancellationToken);
 
-        var subscription = await _workspaceBillingRepository.GetCurrentSubscriptionAsync(
-            query.WorkspaceId,
-            _clock.UtcNow,
-            cancellationToken);
-
-        subscription ??= await _workspaceBillingRepository.GetLatestSubscriptionAsync(
-            query.WorkspaceId,
-            cancellationToken);
+        var subscription = await GetEffectiveSubscriptionAsync(query.WorkspaceId, cancellationToken);
 
         var balance = await RequireBalanceAsync(query.WorkspaceId, cancellationToken);
         var plan = subscription is null
@@ -95,18 +95,17 @@ public sealed class WorkspaceBillingService
     {
         await EnsureProvisionedAsync(workspaceId, cancellationToken);
 
-        var subscription = await _workspaceBillingRepository.GetCurrentSubscriptionAsync(
-            workspaceId,
-            _clock.UtcNow,
-            cancellationToken);
-
-        if (subscription is null)
+        var subscription = await GetEffectiveSubscriptionAsync(workspaceId, cancellationToken);
+        if (subscription is null || !subscription.IsActiveAt(_clock.UtcNow))
         {
             _logger.LogWarning(
-                "Blocked assistant usage for workspace {WorkspaceId} because no active subscription was found.",
-                workspaceId);
+                "Blocked assistant usage for workspace {WorkspaceId} because no current billable subscription was found. Subscription status: {SubscriptionStatus}, trial ends at: {TrialEndsAtUtc}, current period end: {CurrentPeriodEndUtc}.",
+                workspaceId,
+                subscription?.Status,
+                subscription?.TrialEndsAtUtc,
+                subscription?.CurrentPeriodEndUtc);
 
-            throw new WorkspaceSubscriptionInactiveException("Your workspace doesn't have an active subscription.");
+            throw new WorkspaceSubscriptionInactiveException("Your workspace needs an active subscription.");
         }
 
         var balance = await RequireBalanceAsync(workspaceId, cancellationToken);
@@ -220,6 +219,7 @@ public sealed class WorkspaceBillingService
             usageCharge.CreditsCharged,
             createdAtUtc);
 
+        WorkspaceCreditBalance updatedBalance;
         if (usageEvent.CreditsCharged > 0)
         {
             var balance = await RequireBalanceAsync(command.WorkspaceId, cancellationToken);
@@ -240,7 +240,7 @@ public sealed class WorkspaceBillingService
 
             try
             {
-                await _workspaceBillingRepository.RecordUsageAsync(usageEvent, ledgerEntry, cancellationToken);
+                updatedBalance = await _workspaceBillingRepository.RecordUsageAsync(usageEvent, ledgerEntry, cancellationToken);
             }
             catch (InvalidOperationException exception)
             {
@@ -250,17 +250,22 @@ public sealed class WorkspaceBillingService
         else
         {
             await _workspaceBillingRepository.AddUsageEventAsync(usageEvent, cancellationToken);
+            updatedBalance = await RequireBalanceAsync(command.WorkspaceId, cancellationToken);
         }
 
         _logger.LogInformation(
-            "Registered usage event {UsageEventId} for workspace {WorkspaceId}: provider {Provider}, model {Model}, tokens {TotalTokens}, estimated cost {EstimatedCost}, credits charged {CreditsCharged}.",
-            usageEvent.Id,
+            "Recorded assistant usage for workspace {WorkspaceId}: usage event {UsageEventId}, provider {Provider}, model {Model}, prompt tokens {PromptTokens}, completion tokens {CompletionTokens}, total tokens {TotalTokens}, real cost {EstimatedCost}, charged cost {ChargedCost}, credits charged {CreditsCharged}, remaining credits {RemainingCredits}.",
             usageEvent.WorkspaceId,
+            usageEvent.Id,
             usageEvent.Provider,
             usageEvent.Model,
+            usageEvent.PromptTokens,
+            usageEvent.CompletionTokens,
             usageEvent.TotalTokens,
             usageEvent.EstimatedCost,
-            usageEvent.CreditsCharged);
+            usageCharge.ChargedCost,
+            usageEvent.CreditsCharged,
+            updatedBalance.AvailableCredits);
 
         return MapUsage(usageEvent);
     }
@@ -285,24 +290,26 @@ public sealed class WorkspaceBillingService
         }
 
         var utcNow = _clock.UtcNow;
+        var trialEndsAtUtc = utcNow.AddDays(_options.TrialPeriodDays);
         var subscription = new WorkspaceSubscription(
             Guid.NewGuid(),
             workspaceId,
             defaultPlan.Id,
-            WorkspaceSubscriptionStatus.Active,
+            WorkspaceSubscriptionStatus.Trial,
             utcNow,
-            utcNow.AddDays(_options.DefaultSubscriptionPeriodDays),
+            trialEndsAtUtc,
             utcNow,
-            utcNow);
+            utcNow,
+            trialEndsAtUtc: trialEndsAtUtc);
 
         var balance = new WorkspaceCreditBalance(workspaceId, 0, 0, utcNow);
-        WorkspaceCreditLedgerEntry? initialGrantEntry = defaultPlan.IncludedCredits > 0
+        WorkspaceCreditLedgerEntry? initialGrantEntry = _options.TrialIncludedCredits > 0
             ? new WorkspaceCreditLedgerEntry(
                 Guid.NewGuid(),
                 workspaceId,
                 WorkspaceCreditLedgerType.SubscriptionGrant,
-                defaultPlan.IncludedCredits,
-                $"Included credits for the {defaultPlan.Name} plan",
+                _options.TrialIncludedCredits,
+                $"Trial credits for the {defaultPlan.Name} plan",
                 utcNow,
                 "workspace_subscription",
                 subscription.Id.ToString())
@@ -313,6 +320,34 @@ public sealed class WorkspaceBillingService
             balance,
             initialGrantEntry,
             cancellationToken);
+    }
+
+    private async Task<WorkspaceSubscription?> GetEffectiveSubscriptionAsync(
+        Guid workspaceId,
+        CancellationToken cancellationToken)
+    {
+        var utcNow = _clock.UtcNow;
+        var currentSubscription = await _workspaceBillingRepository.GetCurrentSubscriptionAsync(
+            workspaceId,
+            utcNow,
+            cancellationToken);
+
+        if (currentSubscription is not null)
+        {
+            return currentSubscription;
+        }
+
+        var latestSubscription = await _workspaceBillingRepository.GetLatestSubscriptionAsync(
+            workspaceId,
+            cancellationToken);
+
+        if (latestSubscription is not null && latestSubscription.ShouldExpireAt(utcNow))
+        {
+            latestSubscription.MarkExpired(utcNow);
+            await _workspaceBillingRepository.UpdateSubscriptionAsync(latestSubscription, cancellationToken);
+        }
+
+        return latestSubscription;
     }
 
     private async Task<WorkspaceCreditBalance> RequireBalanceAsync(
@@ -350,6 +385,7 @@ public sealed class WorkspaceBillingService
             subscription.Status,
             subscription.CurrentPeriodStartUtc,
             subscription.CurrentPeriodEndUtc,
+            subscription.TrialEndsAtUtc,
             subscription.CanceledAtUtc,
             subscription.CreatedAtUtc,
             subscription.UpdatedAtUtc);

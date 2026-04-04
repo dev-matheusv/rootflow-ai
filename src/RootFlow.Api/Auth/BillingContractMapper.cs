@@ -35,6 +35,7 @@ public static class BillingContractMapper
             subscription.Status.ToString(),
             subscription.CurrentPeriodStartUtc,
             subscription.CurrentPeriodEndUtc,
+            subscription.TrialEndsAtUtc,
             subscription.CanceledAtUtc,
             subscription.CreatedAtUtc,
             subscription.UpdatedAtUtc);

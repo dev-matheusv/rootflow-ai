@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Abstractions.Time;
+using RootFlow.Application.Billing;
 using RootFlow.Application.Auth.Commands;
 using RootFlow.Application.Auth.Dtos;
 using RootFlow.Domain.Users;
@@ -23,17 +24,20 @@ public sealed class AuthService
     private readonly IPasswordHashingService _passwordHashingService;
     private readonly IPasswordResetNotifier _passwordResetNotifier;
     private readonly IClock _clock;
+    private readonly WorkspaceBillingService? _workspaceBillingService;
 
     public AuthService(
         IAuthRepository authRepository,
         IPasswordHashingService passwordHashingService,
         IPasswordResetNotifier passwordResetNotifier,
-        IClock clock)
+        IClock clock,
+        WorkspaceBillingService? workspaceBillingService = null)
     {
         _authRepository = authRepository;
         _passwordHashingService = passwordHashingService;
         _passwordResetNotifier = passwordResetNotifier;
         _clock = clock;
+        _workspaceBillingService = workspaceBillingService;
     }
 
     public async Task<AuthSessionDto> SignupAsync(
@@ -77,6 +81,10 @@ public sealed class AuthService
             createdAtUtc);
 
         await _authRepository.CreateUserWorkspaceAsync(user, workspace, membership, cancellationToken);
+        if (_workspaceBillingService is not null)
+        {
+            await _workspaceBillingService.EnsureTrialProvisionedAsync(workspace.Id, cancellationToken);
+        }
 
         return MapSession(user, workspace, membership.Role);
     }

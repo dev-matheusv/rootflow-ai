@@ -44,6 +44,7 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                                  status,
                                                  current_period_start_utc,
                                                  current_period_end_utc,
+                                                 trial_ends_at_utc,
                                                  canceled_at_utc,
                                                  created_at_utc,
                                                  updated_at_utc
@@ -55,6 +56,7 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                                  @status,
                                                  @currentPeriodStartUtc,
                                                  @currentPeriodEndUtc,
+                                                 @trialEndsAtUtc,
                                                  @canceledAtUtc,
                                                  @createdAtUtc,
                                                  @updatedAtUtc
@@ -142,14 +144,17 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                   status,
                                   current_period_start_utc,
                                   current_period_end_utc,
+                                  trial_ends_at_utc,
                                   canceled_at_utc,
                                   created_at_utc,
                                   updated_at_utc
                            FROM workspace_subscriptions
                            WHERE workspace_id = @workspaceId
-                             AND status = 'Active'
                              AND current_period_start_utc <= @asOfUtc
-                             AND current_period_end_utc > @asOfUtc
+                             AND (
+                                 (status = 'Active' AND current_period_end_utc > @asOfUtc)
+                                 OR (status = 'Trial' AND COALESCE(trial_ends_at_utc, current_period_end_utc) > @asOfUtc)
+                             )
                            ORDER BY current_period_end_utc DESC, created_at_utc DESC, id DESC
                            LIMIT 1;
                            """;
@@ -176,6 +181,7 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                   status,
                                   current_period_start_utc,
                                   current_period_end_utc,
+                                  trial_ends_at_utc,
                                   canceled_at_utc,
                                   created_at_utc,
                                   updated_at_utc
@@ -193,6 +199,28 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         return await reader.ReadAsync(cancellationToken)
             ? MapSubscription(reader)
             : null;
+    }
+
+    public async Task UpdateSubscriptionAsync(
+        WorkspaceSubscription subscription,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE workspace_subscriptions
+                           SET billing_plan_id = @billingPlanId,
+                               status = @status,
+                               current_period_start_utc = @currentPeriodStartUtc,
+                               current_period_end_utc = @currentPeriodEndUtc,
+                               trial_ends_at_utc = @trialEndsAtUtc,
+                               canceled_at_utc = @canceledAtUtc,
+                               updated_at_utc = @updatedAtUtc
+                           WHERE id = @id;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        ConfigureSubscriptionParameters(command, subscription);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(
@@ -547,6 +575,10 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         command.Parameters.AddWithValue("currentPeriodEndUtc", subscription.CurrentPeriodEndUtc);
         command.Parameters.AddWithValue("createdAtUtc", subscription.CreatedAtUtc);
         command.Parameters.AddWithValue("updatedAtUtc", subscription.UpdatedAtUtc);
+        command.Parameters.Add(new NpgsqlParameter("trialEndsAtUtc", NpgsqlDbType.TimestampTz)
+        {
+            Value = (object?)subscription.TrialEndsAtUtc ?? DBNull.Value
+        });
         command.Parameters.Add(new NpgsqlParameter("canceledAtUtc", NpgsqlDbType.TimestampTz)
         {
             Value = (object?)subscription.CanceledAtUtc ?? DBNull.Value
@@ -610,8 +642,9 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
             Enum.Parse<WorkspaceSubscriptionStatus>(reader.GetString(3), ignoreCase: true),
             reader.GetFieldValue<DateTime>(4),
             reader.GetFieldValue<DateTime>(5),
-            reader.GetFieldValue<DateTime>(7),
             reader.GetFieldValue<DateTime>(8),
+            reader.GetFieldValue<DateTime>(9),
+            reader.IsDBNull(7) ? null : reader.GetFieldValue<DateTime>(7),
             reader.IsDBNull(6) ? null : reader.GetFieldValue<DateTime>(6));
     }
 

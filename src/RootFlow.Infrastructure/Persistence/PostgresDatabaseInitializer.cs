@@ -478,6 +478,42 @@ public sealed class PostgresDatabaseInitializer
                 FROM temp_seeded_workspace_subscriptions AS seeded
                 CROSS JOIN billing_plans AS starter_plan
                 WHERE starter_plan.code = 'starter';
+                """),
+            new DatabaseMigration(
+                "202604040002_workspace_billing_trial_support",
+                "Add trial expiry metadata and convert seeded starter subscriptions into trials",
+                """
+                ALTER TABLE workspace_subscriptions
+                ADD COLUMN IF NOT EXISTS trial_ends_at_utc timestamptz NULL;
+
+                UPDATE workspace_subscriptions
+                SET trial_ends_at_utc = current_period_end_utc
+                WHERE status = 'Trial'
+                  AND trial_ends_at_utc IS NULL;
+
+                UPDATE workspace_subscriptions AS subscription
+                SET status = 'Trial',
+                    current_period_end_utc = LEAST(
+                        subscription.current_period_end_utc,
+                        subscription.current_period_start_utc + INTERVAL '7 days'
+                    ),
+                    trial_ends_at_utc = LEAST(
+                        subscription.current_period_end_utc,
+                        subscription.current_period_start_utc + INTERVAL '7 days'
+                    ),
+                    updated_at_utc = NOW()
+                FROM billing_plans AS plan
+                WHERE subscription.billing_plan_id = plan.id
+                  AND plan.code = 'starter'
+                  AND subscription.status = 'Active'
+                  AND subscription.canceled_at_utc IS NULL
+                  AND subscription.trial_ends_at_utc IS NULL;
+
+                DROP INDEX IF EXISTS ix_workspace_subscriptions_workspace_active;
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_subscriptions_workspace_current
+                    ON workspace_subscriptions (workspace_id)
+                    WHERE status IN ('Active', 'Trial');
                 """)
         ];
     }

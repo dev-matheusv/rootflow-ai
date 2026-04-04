@@ -165,7 +165,10 @@ public sealed class ChatServiceTests
             {
                 DefaultPlanCode = billingPlan.Code,
                 DefaultSubscriptionPeriodDays = 30,
-                MinimumAssistantCreditsRequired = minimumAssistantCreditsRequired
+                TrialPeriodDays = 7,
+                TrialIncludedCredits = includedCredits,
+                MinimumAssistantCreditsRequired = minimumAssistantCreditsRequired,
+                UsageMarkupMultiplier = 2.0m
             },
             NullLogger<WorkspaceBillingService>.Instance);
 
@@ -406,6 +409,12 @@ public sealed class ChatServiceTests
             return Task.FromResult<WorkspaceSubscription?>(_subscriptions.GetValueOrDefault(workspaceId));
         }
 
+        public Task UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
+        {
+            _subscriptions[subscription.WorkspaceId] = subscription;
+            return Task.CompletedTask;
+        }
+
         public Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<WorkspaceCreditBalance?>(_balances.GetValueOrDefault(workspaceId));
@@ -462,7 +471,7 @@ public sealed class ChatServiceTests
 
         public StubUsagePricingCalculator(decimal estimatedCost, long creditsCharged)
         {
-            _usageCharge = new AiUsageCharge(estimatedCost, creditsCharged);
+            _usageCharge = new AiUsageCharge(estimatedCost, estimatedCost * 2m, creditsCharged);
         }
 
         public AiUsageCharge Calculate(AiUsagePricingRequest request)

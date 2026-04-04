@@ -13,7 +13,7 @@ namespace RootFlow.UnitTests.Billing;
 public sealed class WorkspaceBillingServiceTests
 {
     [Fact]
-    public async Task GetCreditSummaryAsync_ProvisionsStarterSubscriptionAndIncludedCredits()
+    public async Task GetCreditSummaryAsync_ProvisionsTrialSubscriptionAndTrialCredits()
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = new BillingPlan(
@@ -36,7 +36,10 @@ public sealed class WorkspaceBillingServiceTests
 
         Assert.NotNull(summary.BillingPlan);
         Assert.Equal("starter", summary.BillingPlan!.Code);
-        Assert.Equal(10_000, summary.Balance.AvailableCredits);
+        Assert.NotNull(summary.Subscription);
+        Assert.Equal(WorkspaceSubscriptionStatus.Trial, summary.Subscription!.Status);
+        Assert.Equal(FixedClock.UtcNow.AddDays(7), summary.Subscription.TrialEndsAtUtc);
+        Assert.Equal(5_000, summary.Balance.AvailableCredits);
         Assert.Equal(0, summary.Balance.ConsumedCredits);
         Assert.Single(workspaceBillingRepository.LedgerEntries);
         Assert.Equal(WorkspaceCreditLedgerType.SubscriptionGrant, workspaceBillingRepository.LedgerEntries[0].Type);
@@ -80,7 +83,7 @@ public sealed class WorkspaceBillingServiceTests
         Assert.Equal(0.32m, usageEvent.EstimatedCost);
         Assert.Equal(32, usageEvent.CreditsCharged);
         Assert.NotNull(updatedBalance);
-        Assert.Equal(9_968, updatedBalance!.AvailableCredits);
+        Assert.Equal(4_968, updatedBalance!.AvailableCredits);
         Assert.Equal(32, updatedBalance.ConsumedCredits);
         Assert.Single(workspaceBillingRepository.UsageEvents);
         Assert.Equal(conversationId, workspaceBillingRepository.UsageEvents[0].ConversationId);
@@ -106,7 +109,8 @@ public sealed class WorkspaceBillingServiceTests
             workspaceId,
             starterPlan,
             new StubUsagePricingCalculator(estimatedCost: 0.01m, creditsCharged: 1),
-            out _);
+            out _,
+            trialIncludedCredits: 10);
 
         await service.GetCreditSummaryAsync(new GetWorkspaceCreditSummaryQuery(workspaceId));
 
@@ -121,24 +125,73 @@ public sealed class WorkspaceBillingServiceTests
         Assert.Contains("enough credits", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task EnsureAssistantUsageAllowedAsync_Throws_WhenTrialHasExpired()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = new BillingPlan(
+            Guid.NewGuid(),
+            "starter",
+            "Starter",
+            49m,
+            "USD",
+            10_000,
+            3,
+            FixedClock.UtcNow);
+        var sharedRepository = new InMemoryWorkspaceBillingRepository();
+
+        var provisioningService = CreateService(
+            workspaceId,
+            starterPlan,
+            new StubUsagePricingCalculator(estimatedCost: 0.01m, creditsCharged: 1),
+            out _,
+            existingRepository: sharedRepository);
+
+        await provisioningService.GetCreditSummaryAsync(new GetWorkspaceCreditSummaryQuery(workspaceId));
+
+        var expiredTrialService = CreateService(
+            workspaceId,
+            starterPlan,
+            new StubUsagePricingCalculator(estimatedCost: 0.01m, creditsCharged: 1),
+            out _,
+            clock: new FrozenClock(FixedClock.UtcNow.AddDays(8)),
+            existingRepository: sharedRepository);
+
+        var exception = await Assert.ThrowsAsync<WorkspaceSubscriptionInactiveException>(() =>
+            expiredTrialService.EnsureAssistantUsageAllowedAsync(workspaceId));
+
+        var latestSubscription = await sharedRepository.GetLatestSubscriptionAsync(workspaceId);
+
+        Assert.Contains("active subscription", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(latestSubscription);
+        Assert.Equal(WorkspaceSubscriptionStatus.Expired, latestSubscription!.Status);
+    }
+
     private static WorkspaceBillingService CreateService(
         Guid workspaceId,
         BillingPlan starterPlan,
         IAiUsagePricingCalculator usagePricingCalculator,
-        out InMemoryWorkspaceBillingRepository workspaceBillingRepository)
+        out InMemoryWorkspaceBillingRepository workspaceBillingRepository,
+        long trialIncludedCredits = 5_000,
+        IClock? clock = null,
+        InMemoryWorkspaceBillingRepository? existingRepository = null)
     {
-        workspaceBillingRepository = new InMemoryWorkspaceBillingRepository();
+        workspaceBillingRepository = existingRepository ?? new InMemoryWorkspaceBillingRepository();
+        var effectiveClock = clock ?? new FixedClock();
 
         return new WorkspaceBillingService(
             new AlwaysExistingWorkspaceRepository(workspaceId),
             new InMemoryBillingPlanRepository(starterPlan),
             workspaceBillingRepository,
             usagePricingCalculator,
-            new FixedClock(),
+            effectiveClock,
             new WorkspaceBillingOptions
             {
                 DefaultPlanCode = starterPlan.Code,
-                DefaultSubscriptionPeriodDays = 30
+                DefaultSubscriptionPeriodDays = 30,
+                TrialPeriodDays = 7,
+                TrialIncludedCredits = trialIncludedCredits,
+                UsageMarkupMultiplier = 2.0m
             },
             NullLogger<WorkspaceBillingService>.Instance);
     }
@@ -259,6 +312,12 @@ public sealed class WorkspaceBillingServiceTests
             return Task.FromResult<WorkspaceSubscription?>(_subscriptions.GetValueOrDefault(workspaceId));
         }
 
+        public Task UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
+        {
+            _subscriptions[subscription.WorkspaceId] = subscription;
+            return Task.CompletedTask;
+        }
+
         public Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<WorkspaceCreditBalance?>(_balances.GetValueOrDefault(workspaceId));
@@ -315,7 +374,7 @@ public sealed class WorkspaceBillingServiceTests
 
         public StubUsagePricingCalculator(decimal estimatedCost, long creditsCharged)
         {
-            _usageCharge = new AiUsageCharge(estimatedCost, creditsCharged);
+            _usageCharge = new AiUsageCharge(estimatedCost, estimatedCost * 2m, creditsCharged);
         }
 
         public AiUsageCharge Calculate(AiUsagePricingRequest request)
@@ -329,5 +388,17 @@ public sealed class WorkspaceBillingServiceTests
         public static DateTime UtcNow { get; } = new(2026, 4, 4, 12, 0, 0, DateTimeKind.Utc);
 
         DateTime IClock.UtcNow => UtcNow;
+    }
+
+    private sealed class FrozenClock : IClock
+    {
+        private readonly DateTime _utcNow;
+
+        public FrozenClock(DateTime utcNow)
+        {
+            _utcNow = utcNow;
+        }
+
+        public DateTime UtcNow => _utcNow;
     }
 }
