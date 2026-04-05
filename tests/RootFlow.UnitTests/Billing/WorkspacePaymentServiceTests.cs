@@ -74,7 +74,7 @@ public sealed class WorkspacePaymentServiceTests
             trialIncludedCredits: 100);
 
         await service.CreateCreditPurchaseCheckoutAsync(
-            new CreateWorkspaceCreditPurchaseCheckoutCommand(workspaceId, "credits_10000"));
+            new CreateWorkspaceCreditPurchaseCheckoutCommand(workspaceId, "small"));
 
         gateway.NextWebhookEvent = new StripeCheckoutCompletedEvent(
             "evt_checkout_complete",
@@ -84,7 +84,7 @@ public sealed class WorkspacePaymentServiceTests
             "paid",
             workspaceId,
             null,
-            "credits_10000",
+            "small",
             10_000,
             "cus_credits",
             null,
@@ -253,13 +253,33 @@ public sealed class WorkspacePaymentServiceTests
                 [
                     new StripeCreditPackOptions
                     {
-                        Code = "credits_10000",
-                        Name = "10,000 credits",
-                        Description = "Extra shared credits for the workspace.",
+                        Code = "small",
+                        Name = "Small Credit Pack",
+                        Description = "Extra shared credits for lighter workspace usage.",
                         Credits = 10_000,
-                        Amount = 49.90m,
+                        Amount = 29.90m,
                         CurrencyCode = "BRL",
-                        PriceId = "price_credits_10000"
+                        PriceId = "price_small"
+                    },
+                    new StripeCreditPackOptions
+                    {
+                        Code = "medium",
+                        Name = "Medium Credit Pack",
+                        Description = "Shared credits for teams that need more assistant continuity.",
+                        Credits = 25_000,
+                        Amount = 59.90m,
+                        CurrencyCode = "BRL",
+                        PriceId = "price_medium"
+                    },
+                    new StripeCreditPackOptions
+                    {
+                        Code = "large",
+                        Name = "Large Credit Pack",
+                        Description = "Larger shared credit reserve for higher workspace demand.",
+                        Credits = 50_000,
+                        Amount = 99.90m,
+                        CurrencyCode = "BRL",
+                        PriceId = "price_large"
                     }
                 ]
             },

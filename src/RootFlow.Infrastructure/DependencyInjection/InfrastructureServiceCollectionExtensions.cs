@@ -88,7 +88,7 @@ public static class InfrastructureServiceCollectionExtensions
             ApplyStripePlanPriceOverride(options, "starter", configuration["ROOTFLOW_STRIPE_STARTER_PRICE_ID"]);
             ApplyStripePlanPriceOverride(options, "pro", configuration["ROOTFLOW_STRIPE_PRO_PRICE_ID"]);
             ApplyStripePlanPriceOverride(options, "business", configuration["ROOTFLOW_STRIPE_BUSINESS_PRICE_ID"]);
-            ApplyStripeCreditPackPriceOverride(options, "credits_10000", configuration["ROOTFLOW_STRIPE_CREDITS_10000_PRICE_ID"]);
+            options.CreditPacks = BuildCanonicalStripeCreditPacks(options.CreditPacks, configuration);
         });
         services.PostConfigure<PlatformAdminOptions>(options =>
         {
@@ -426,34 +426,83 @@ public static class InfrastructureServiceCollectionExtensions
         });
     }
 
-    private static void ApplyStripeCreditPackPriceOverride(
-        StripeBillingOptions options,
-        string creditPackCode,
-        string? priceId)
+    private static List<StripeCreditPackOptions> BuildCanonicalStripeCreditPacks(
+        IReadOnlyCollection<StripeCreditPackOptions> configuredPacks,
+        IConfiguration configuration)
     {
-        if (string.IsNullOrWhiteSpace(priceId))
-        {
-            return;
-        }
+        return
+        [
+            CreateCanonicalCreditPack(
+                configuredPacks,
+                configuration,
+                "small",
+                "Small Credit Pack",
+                "Extra shared credits for lighter workspace usage.",
+                10_000,
+                29.90m),
+            CreateCanonicalCreditPack(
+                configuredPacks,
+                configuration,
+                "medium",
+                "Medium Credit Pack",
+                "Shared credits for teams that need more assistant continuity.",
+                25_000,
+                59.90m),
+            CreateCanonicalCreditPack(
+                configuredPacks,
+                configuration,
+                "large",
+                "Large Credit Pack",
+                "Larger shared credit reserve for higher workspace demand.",
+                50_000,
+                99.90m)
+        ];
+    }
 
-        var existing = options.CreditPacks.FirstOrDefault(option =>
+    private static StripeCreditPackOptions CreateCanonicalCreditPack(
+        IReadOnlyCollection<StripeCreditPackOptions> configuredPacks,
+        IConfiguration configuration,
+        string creditPackCode,
+        string name,
+        string description,
+        long credits,
+        decimal amount)
+    {
+        var configuredPack = configuredPacks.FirstOrDefault(option =>
             string.Equals(option.Code, creditPackCode, StringComparison.OrdinalIgnoreCase));
+        var priceId = ResolveCreditPackPriceId(configuration, creditPackCode, configuredPack?.PriceId);
 
-        if (existing is not null)
-        {
-            existing.PriceId = priceId.Trim();
-            return;
-        }
-
-        options.CreditPacks.Add(new StripeCreditPackOptions
+        return new StripeCreditPackOptions
         {
             Code = creditPackCode,
-            Name = "10,000 credits",
-            Description = "Extra shared credits for the workspace.",
-            Credits = 10_000,
-            Amount = 49.90m,
+            Name = name,
+            Description = description,
+            Credits = credits,
+            Amount = amount,
             CurrencyCode = "BRL",
-            PriceId = priceId.Trim()
-        });
+            PriceId = priceId
+        };
+    }
+
+    private static string ResolveCreditPackPriceId(
+        IConfiguration configuration,
+        string creditPackCode,
+        string? configuredPriceId)
+    {
+        var envPriceId = creditPackCode.ToLowerInvariant() switch
+        {
+            "small" => FirstNonEmpty(
+                configuration["ROOTFLOW_STRIPE_SMALL_CREDIT_PACK_PRICE_ID"],
+                configuration["ROOTFLOW_STRIPE_SMALL_PRICE_ID"]),
+            "medium" => FirstNonEmpty(
+                configuration["ROOTFLOW_STRIPE_MEDIUM_CREDIT_PACK_PRICE_ID"],
+                configuration["ROOTFLOW_STRIPE_MEDIUM_PRICE_ID"]),
+            "large" => FirstNonEmpty(
+                configuration["ROOTFLOW_STRIPE_LARGE_CREDIT_PACK_PRICE_ID"],
+                configuration["ROOTFLOW_STRIPE_LARGE_PRICE_ID"]),
+            _ => null
+        };
+
+        return FirstNonEmpty(envPriceId, configuredPriceId) ?? string.Empty;
     }
 }
