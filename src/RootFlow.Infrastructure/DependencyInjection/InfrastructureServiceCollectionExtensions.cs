@@ -84,6 +84,14 @@ public static class InfrastructureServiceCollectionExtensions
                 configuration["ROOTFLOW_STRIPE_WEBHOOK_SECRET"],
                 configuration["Stripe:WebhookSecret"],
                 options.WebhookSecret) ?? string.Empty;
+            options.CheckoutSuccessUrl = FirstNonEmpty(
+                configuration["ROOTFLOW_STRIPE_CHECKOUT_SUCCESS_URL"],
+                configuration["Stripe:CheckoutSuccessUrl"],
+                options.CheckoutSuccessUrl) ?? string.Empty;
+            options.CheckoutCancelUrl = FirstNonEmpty(
+                configuration["ROOTFLOW_STRIPE_CHECKOUT_CANCEL_URL"],
+                configuration["Stripe:CheckoutCancelUrl"],
+                options.CheckoutCancelUrl) ?? string.Empty;
 
             ApplyStripePlanPriceOverride(options, "starter", configuration["ROOTFLOW_STRIPE_STARTER_PRICE_ID"]);
             ApplyStripePlanPriceOverride(options, "pro", configuration["ROOTFLOW_STRIPE_PRO_PRICE_ID"]);

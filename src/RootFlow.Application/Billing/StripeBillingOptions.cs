@@ -2,15 +2,19 @@ namespace RootFlow.Application.Billing;
 
 public sealed class StripeBillingOptions
 {
+    public const string CheckoutSessionIdPlaceholder = "{CHECKOUT_SESSION_ID}";
+
     public string SecretKey { get; set; } = string.Empty;
 
     public string WebhookSecret { get; set; } = string.Empty;
 
     public int WebhookToleranceSeconds { get; set; } = 300;
 
-    public string CheckoutSuccessPath { get; set; } = "/billing?checkout=success";
+    public string CheckoutSuccessUrl { get; set; } =
+        $"https://www.rootflow.com.br/faturamento?checkout=success&session_id={CheckoutSessionIdPlaceholder}";
 
-    public string CheckoutCancelPath { get; set; } = "/billing?checkout=cancel";
+    public string CheckoutCancelUrl { get; set; } =
+        "https://www.rootflow.com.br/faturamento?checkout=cancel";
 
     public List<StripePlanPriceOptions> PlanPrices { get; set; } = [];
 

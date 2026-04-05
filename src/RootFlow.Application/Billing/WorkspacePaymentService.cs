@@ -12,14 +12,11 @@ namespace RootFlow.Application.Billing;
 public sealed class WorkspacePaymentService
 {
     private const string StripeProvider = "stripe";
-    private const string HostedCheckoutSuccessUrl = "https://rootflow.com.br/success";
-    private const string HostedCheckoutCancelUrl = "https://rootflow.com.br/faturamento";
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IBillingPlanRepository _billingPlanRepository;
     private readonly IWorkspaceBillingRepository _workspaceBillingRepository;
     private readonly WorkspaceBillingService _workspaceBillingService;
     private readonly IStripePaymentGateway _stripePaymentGateway;
-    private readonly IAppLinkBuilder _appLinkBuilder;
     private readonly IClock _clock;
     private readonly StripeBillingOptions _stripeOptions;
     private readonly ILogger<WorkspacePaymentService> _logger;
@@ -30,7 +27,6 @@ public sealed class WorkspacePaymentService
         IWorkspaceBillingRepository workspaceBillingRepository,
         WorkspaceBillingService workspaceBillingService,
         IStripePaymentGateway stripePaymentGateway,
-        IAppLinkBuilder appLinkBuilder,
         IClock clock,
         StripeBillingOptions stripeOptions,
         ILogger<WorkspacePaymentService> logger)
@@ -40,7 +36,6 @@ public sealed class WorkspacePaymentService
         _workspaceBillingRepository = workspaceBillingRepository;
         _workspaceBillingService = workspaceBillingService;
         _stripePaymentGateway = stripePaymentGateway;
-        _appLinkBuilder = appLinkBuilder;
         _clock = clock;
         _stripeOptions = stripeOptions;
         _logger = logger;
@@ -80,8 +75,8 @@ public sealed class WorkspacePaymentService
             return await CreateSubscriptionCheckoutInternalAsync(
                 command.WorkspaceId,
                 planCode,
-                HostedCheckoutSuccessUrl,
-                HostedCheckoutCancelUrl,
+                ResolveCheckoutSuccessUrl(),
+                ResolveCheckoutCancelUrl(),
                 cancellationToken);
         }
 
@@ -91,8 +86,8 @@ public sealed class WorkspacePaymentService
             return await CreateCreditPurchaseCheckoutInternalAsync(
                 command.WorkspaceId,
                 creditPack.Code,
-                HostedCheckoutSuccessUrl,
-                HostedCheckoutCancelUrl,
+                ResolveCheckoutSuccessUrl(),
+                ResolveCheckoutCancelUrl(),
                 cancellationToken);
         }
 
@@ -106,8 +101,8 @@ public sealed class WorkspacePaymentService
         return await CreateSubscriptionCheckoutInternalAsync(
             command.WorkspaceId,
             command.PlanCode,
-            BuildCheckoutReturnUrl(_stripeOptions.CheckoutSuccessPath, "subscription"),
-            BuildCheckoutReturnUrl(_stripeOptions.CheckoutCancelPath, "subscription"),
+            ResolveCheckoutSuccessUrl(),
+            ResolveCheckoutCancelUrl(),
             cancellationToken);
     }
 
@@ -118,8 +113,8 @@ public sealed class WorkspacePaymentService
         return await CreateCreditPurchaseCheckoutInternalAsync(
             command.WorkspaceId,
             command.CreditPackCode,
-            BuildCheckoutReturnUrl(_stripeOptions.CheckoutSuccessPath, "credits"),
-            BuildCheckoutReturnUrl(_stripeOptions.CheckoutCancelPath, "credits"),
+            ResolveCheckoutSuccessUrl(),
+            ResolveCheckoutCancelUrl(),
             cancellationToken);
     }
 
@@ -688,11 +683,32 @@ public sealed class WorkspacePaymentService
             ?.PlanCode;
     }
 
-    private string BuildCheckoutReturnUrl(string routePathWithQuery, string flow)
+    private string ResolveCheckoutSuccessUrl()
     {
-        var separator = routePathWithQuery.Contains('?') ? "&" : "?";
-        var route = $"{routePathWithQuery}{separator}flow={Uri.EscapeDataString(flow)}&session_id={{CHECKOUT_SESSION_ID}}";
-        return _appLinkBuilder.BuildAppRouteLink(route, requireAbsoluteUrl: true);
+        var successUrl = _stripeOptions.CheckoutSuccessUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(successUrl))
+        {
+            throw new BillingCheckoutUnavailableException("Stripe checkout success URL is not configured.");
+        }
+
+        if (!successUrl.Contains(StripeBillingOptions.CheckoutSessionIdPlaceholder, StringComparison.Ordinal))
+        {
+            throw new BillingCheckoutUnavailableException(
+                $"Stripe checkout success URL must include {StripeBillingOptions.CheckoutSessionIdPlaceholder}.");
+        }
+
+        return successUrl;
+    }
+
+    private string ResolveCheckoutCancelUrl()
+    {
+        var cancelUrl = _stripeOptions.CheckoutCancelUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(cancelUrl))
+        {
+            throw new BillingCheckoutUnavailableException("Stripe checkout cancel URL is not configured.");
+        }
+
+        return cancelUrl;
     }
 
     private static WorkspaceSubscriptionStatus MapStripeSubscriptionStatus(

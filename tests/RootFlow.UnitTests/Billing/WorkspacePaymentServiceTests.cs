@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging.Abstractions;
-using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Application.Abstractions.Billing;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Abstractions.Time;
@@ -78,8 +77,10 @@ public sealed class WorkspacePaymentServiceTests
 
         Assert.Equal("https://checkout.stripe.com/pay/cs_sub_hosted", checkoutSession.CheckoutUrl);
         Assert.NotNull(gateway.LastSubscriptionCheckoutRequest);
-        Assert.Equal("https://rootflow.com.br/success", gateway.LastSubscriptionCheckoutRequest!.SuccessUrl);
-        Assert.Equal("https://rootflow.com.br/faturamento", gateway.LastSubscriptionCheckoutRequest.CancelUrl);
+        Assert.Equal(
+            "https://www.rootflow.com.br/faturamento?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+            gateway.LastSubscriptionCheckoutRequest!.SuccessUrl);
+        Assert.Equal("https://www.rootflow.com.br/faturamento?checkout=cancel", gateway.LastSubscriptionCheckoutRequest.CancelUrl);
         Assert.Equal("price_pro", gateway.LastSubscriptionCheckoutRequest.PriceId);
     }
 
@@ -269,14 +270,13 @@ public sealed class WorkspacePaymentServiceTests
             repository,
             workspaceBillingService,
             gateway,
-            new FakeAppLinkBuilder(),
             new FixedClock(),
             new StripeBillingOptions
             {
                 SecretKey = "sk_test_123",
                 WebhookSecret = "whsec_123",
-                CheckoutSuccessPath = "/billing?checkout=success",
-                CheckoutCancelPath = "/billing?checkout=cancel",
+                CheckoutSuccessUrl = "https://www.rootflow.com.br/faturamento?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+                CheckoutCancelUrl = "https://www.rootflow.com.br/faturamento?checkout=cancel",
                 PlanPrices =
                 [
                     new StripePlanPriceOptions { PlanCode = "starter", PriceId = "price_starter" },
@@ -351,22 +351,6 @@ public sealed class WorkspacePaymentServiceTests
         public StripeWebhookEvent ParseWebhook(string payload, string signatureHeader)
         {
             return NextWebhookEvent ?? throw new InvalidOperationException("Webhook event was not configured.");
-        }
-    }
-
-    private sealed class FakeAppLinkBuilder : IAppLinkBuilder
-    {
-        public string BuildPasswordResetLink(string token, bool requireAbsoluteUrl = false) => $"https://app.rootflow.local/auth/reset-password?token={token}";
-
-        public string BuildWorkspaceInviteLink(string token, bool requireAbsoluteUrl = false) => $"https://app.rootflow.local/auth/invite?token={token}";
-
-        public string BuildAppRouteLink(string routePathWithQuery, bool requireAbsoluteUrl = false)
-        {
-            var normalizedRoute = routePathWithQuery.StartsWith("/", StringComparison.Ordinal)
-                ? routePathWithQuery
-                : $"/{routePathWithQuery}";
-
-            return $"https://app.rootflow.local{normalizedRoute}";
         }
     }
 
