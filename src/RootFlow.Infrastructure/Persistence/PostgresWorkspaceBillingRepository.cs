@@ -167,7 +167,15 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                  (status = 'Active' AND current_period_end_utc > @asOfUtc)
                                  OR (status = 'Trial' AND COALESCE(trial_ends_at_utc, current_period_end_utc) > @asOfUtc)
                              )
-                           ORDER BY current_period_end_utc DESC, created_at_utc DESC, id DESC
+                           ORDER BY CASE status
+                                        WHEN 'Active' THEN 0
+                                        WHEN 'Trial' THEN 1
+                                        ELSE 2
+                                    END,
+                                    current_period_end_utc DESC,
+                                    updated_at_utc DESC,
+                                    created_at_utc DESC,
+                                    id DESC
                            LIMIT 1;
                            """;
 
@@ -203,7 +211,16 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
                                   updated_at_utc
                            FROM workspace_subscriptions
                            WHERE workspace_id = @workspaceId
-                           ORDER BY updated_at_utc DESC, created_at_utc DESC, id DESC
+                           ORDER BY CASE status
+                                        WHEN 'Active' THEN 0
+                                        WHEN 'Trial' THEN 1
+                                        WHEN 'Canceled' THEN 2
+                                        ELSE 3
+                                    END,
+                                    updated_at_utc DESC,
+                                    current_period_end_utc DESC,
+                                    created_at_utc DESC,
+                                    id DESC
                            LIMIT 1;
                            """;
 
@@ -278,7 +295,12 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         ConfigureSubscriptionParameters(command, subscription);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (rowsAffected == 0)
+        {
+            throw new InvalidOperationException(
+                $"Workspace subscription {subscription.Id} was not found for update.");
+        }
     }
 
     public async Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(
@@ -670,7 +692,12 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         ConfigureBillingTransactionParameters(command, transaction);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (rowsAffected == 0)
+        {
+            throw new InvalidOperationException(
+                $"Workspace billing transaction {transaction.Id} was not found for update.");
+        }
     }
 
     private static async Task<bool> ExistsAsync(

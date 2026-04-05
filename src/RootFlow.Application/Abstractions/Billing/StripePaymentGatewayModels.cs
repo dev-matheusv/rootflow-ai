@@ -24,6 +24,17 @@ public sealed record StripeCheckoutSessionResult(
     string? SubscriptionId,
     string? PaymentIntentId);
 
+public sealed record StripeSubscriptionSnapshot(
+    string SubscriptionId,
+    Guid? WorkspaceId,
+    string? PlanCode,
+    string? CustomerId,
+    string? PriceId,
+    string Status,
+    DateTime CurrentPeriodStartUtc,
+    DateTime CurrentPeriodEndUtc,
+    DateTime? CanceledAtUtc);
+
 public abstract record StripeWebhookEvent(
     string EventId,
     string EventType,
@@ -67,7 +78,9 @@ public sealed record StripeSubscriptionUpdatedEvent(
     string Status,
     DateTime CurrentPeriodStartUtc,
     DateTime CurrentPeriodEndUtc,
-    DateTime? CanceledAtUtc)
+    DateTime? CanceledAtUtc,
+    Guid? WorkspaceId,
+    string? PlanCode)
     : StripeWebhookEvent(EventId, EventType, OccurredAtUtc);
 
 public sealed record StripeUnhandledWebhookEvent(

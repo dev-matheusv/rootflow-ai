@@ -10,5 +10,9 @@ public interface IStripePaymentGateway
         StripeCreditPurchaseCheckoutRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<StripeSubscriptionSnapshot> GetSubscriptionAsync(
+        string subscriptionId,
+        CancellationToken cancellationToken = default);
+
     StripeWebhookEvent ParseWebhook(string payload, string signatureHeader);
 }

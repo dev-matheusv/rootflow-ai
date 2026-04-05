@@ -33,6 +33,7 @@ export function BillingPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeCheckoutKey, setActiveCheckoutKey] = useState<string | null>(null);
   const [feedbackToast, setFeedbackToast] = useState<BillingFeedbackToast | null>(null);
+  const [isCheckoutSyncing, setIsCheckoutSyncing] = useState(false);
   const workspaceId = session?.workspace.id;
   const billingSummaryQuery = useWorkspaceBillingSummaryQuery(workspaceId);
   const billingPlansQuery = useBillingPlansQuery();
@@ -71,6 +72,7 @@ export function BillingPage() {
     }
 
     if (checkoutStatus === "success") {
+      setIsCheckoutSyncing(true);
       void billingSummaryQuery.refetch();
       showToast("success", t("billing.checkoutSuccessTitle"), t("billing.checkoutSuccessDescription"));
     } else {
@@ -79,8 +81,35 @@ export function BillingPage() {
 
     const nextSearchParams = new URLSearchParams(searchParams);
     nextSearchParams.delete("checkout");
+    nextSearchParams.delete("session_id");
     setSearchParams(nextSearchParams, { replace: true });
   }, [billingSummaryQuery, checkoutStatus, searchParams, setSearchParams, showToast, t]);
+
+  useEffect(() => {
+    if (!isCheckoutSyncing || !workspaceId) {
+      return undefined;
+    }
+
+    let attemptsRemaining = 6;
+    const intervalId = window.setInterval(() => {
+      attemptsRemaining -= 1;
+
+      void billingSummaryQuery.refetch().then((result) => {
+        const subscription = result.data?.subscription;
+        const hasPaidSubscription = subscription?.status === "Active" && !subscription.trialEndsAtUtc;
+
+        if (hasPaidSubscription || attemptsRemaining <= 0) {
+          setIsCheckoutSyncing(false);
+        }
+      });
+
+      if (attemptsRemaining <= 0) {
+        window.clearInterval(intervalId);
+      }
+    }, 2500);
+
+    return () => window.clearInterval(intervalId);
+  }, [billingSummaryQuery, isCheckoutSyncing, workspaceId]);
 
   const handlePlanCheckout = async (planCode: string, priceId?: string | null) => {
     setActiveCheckoutKey(`plan:${planCode}`);

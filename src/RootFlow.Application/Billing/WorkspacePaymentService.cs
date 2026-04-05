@@ -259,6 +259,11 @@ public sealed class WorkspacePaymentService
             throw new BillingWebhookValidationException(exception.Message);
         }
 
+        _logger.LogInformation(
+            "Received Stripe webhook event {EventType} ({EventId}).",
+            webhookEvent.EventType,
+            webhookEvent.EventId);
+
         switch (webhookEvent)
         {
             case StripeCheckoutCompletedEvent checkoutCompletedEvent:
@@ -327,6 +332,27 @@ public sealed class WorkspacePaymentService
                 "Marked Stripe subscription checkout {CheckoutSessionId} as completed for workspace {WorkspaceId}.",
                 checkoutCompletedEvent.SessionId,
                 transaction.WorkspaceId);
+
+            if (string.IsNullOrWhiteSpace(checkoutCompletedEvent.SubscriptionId))
+            {
+                _logger.LogWarning(
+                    "Stripe subscription checkout {CheckoutSessionId} for workspace {WorkspaceId} completed without a subscription id.",
+                    checkoutCompletedEvent.SessionId,
+                    transaction.WorkspaceId);
+                return;
+            }
+
+            var stripeSubscription = await _stripePaymentGateway.GetSubscriptionAsync(
+                checkoutCompletedEvent.SubscriptionId,
+                cancellationToken);
+
+            await SyncStripeSubscriptionAsync(
+                stripeSubscription,
+                checkoutCompletedEvent.EventType,
+                checkoutCompletedEvent.OccurredAtUtc,
+                fallbackWorkspaceId: checkoutCompletedEvent.WorkspaceId ?? transaction.WorkspaceId,
+                fallbackBillingPlanId: transaction.BillingPlanId,
+                cancellationToken);
             return;
         }
 
@@ -412,6 +438,7 @@ public sealed class WorkspacePaymentService
             cancellationToken);
 
         WorkspaceBillingTransaction? relatedCheckoutTransaction = null;
+        StripeSubscriptionSyncContext? syncContext = null;
         if (subscription is null)
         {
             relatedCheckoutTransaction = await _workspaceBillingRepository.GetLatestBillingTransactionBySubscriptionIdAsync(
@@ -419,21 +446,30 @@ public sealed class WorkspacePaymentService
                 invoicePaidEvent.SubscriptionId,
                 cancellationToken);
 
-            if (relatedCheckoutTransaction is null)
+            var stripeSubscription = await _stripePaymentGateway.GetSubscriptionAsync(
+                invoicePaidEvent.SubscriptionId,
+                cancellationToken);
+
+            syncContext = await SyncStripeSubscriptionAsync(
+                stripeSubscription,
+                invoicePaidEvent.EventType,
+                invoicePaidEvent.OccurredAtUtc,
+                fallbackWorkspaceId: relatedCheckoutTransaction?.WorkspaceId,
+                fallbackBillingPlanId: relatedCheckoutTransaction?.BillingPlanId,
+                cancellationToken);
+
+            subscription = syncContext?.Subscription;
+
+            if (subscription is null && relatedCheckoutTransaction is not null)
             {
-                _logger.LogWarning(
-                    "Stripe invoice {InvoiceId} could not be matched to a workspace subscription or checkout transaction.",
-                    invoicePaidEvent.InvoiceId);
-                return;
+                await _workspaceBillingService.EnsureTrialProvisionedAsync(
+                    relatedCheckoutTransaction.WorkspaceId,
+                    cancellationToken);
+
+                subscription = await _workspaceBillingRepository.GetLatestSubscriptionAsync(
+                    relatedCheckoutTransaction.WorkspaceId,
+                    cancellationToken);
             }
-
-            await _workspaceBillingService.EnsureTrialProvisionedAsync(
-                relatedCheckoutTransaction.WorkspaceId,
-                cancellationToken);
-
-            subscription = await _workspaceBillingRepository.GetLatestSubscriptionAsync(
-                relatedCheckoutTransaction.WorkspaceId,
-                cancellationToken);
         }
 
         if (subscription is null)
@@ -444,8 +480,9 @@ public sealed class WorkspacePaymentService
             return;
         }
 
-        var plan = await ResolvePlanForInvoiceAsync(
+        var plan = syncContext?.Plan ?? await ResolvePlanForStripeReferenceAsync(
             invoicePaidEvent.PriceId,
+            null,
             subscription.BillingPlanId,
             relatedCheckoutTransaction?.BillingPlanId,
             cancellationToken);
@@ -510,83 +547,34 @@ public sealed class WorkspacePaymentService
         }
 
         _logger.LogInformation(
-            "Applied Stripe invoice {InvoiceId} for workspace {WorkspaceId}, subscription {SubscriptionId}, plan {PlanCode}.",
+            "Applied Stripe invoice {InvoiceId} for workspace {WorkspaceId}, subscription {SubscriptionId}, plan {PlanCode}, price {PriceId}.",
             invoicePaidEvent.InvoiceId,
             subscription.WorkspaceId,
             invoicePaidEvent.SubscriptionId,
-            plan.Code);
+            plan.Code,
+            invoicePaidEvent.PriceId);
     }
 
     private async Task HandleSubscriptionUpdatedAsync(
         StripeSubscriptionUpdatedEvent subscriptionUpdatedEvent,
         CancellationToken cancellationToken)
     {
-        var subscription = await _workspaceBillingRepository.GetSubscriptionByProviderSubscriptionIdAsync(
-            StripeProvider,
-            subscriptionUpdatedEvent.SubscriptionId,
-            cancellationToken);
-
-        WorkspaceBillingTransaction? relatedTransaction = null;
-        if (subscription is null)
-        {
-            relatedTransaction = await _workspaceBillingRepository.GetLatestBillingTransactionBySubscriptionIdAsync(
-                StripeProvider,
+        await SyncStripeSubscriptionAsync(
+            new StripeSubscriptionSnapshot(
                 subscriptionUpdatedEvent.SubscriptionId,
-                cancellationToken);
-
-            if (relatedTransaction is null)
-            {
-                _logger.LogWarning(
-                    "Stripe subscription event {EventType} for {SubscriptionId} could not be matched to a workspace.",
-                    subscriptionUpdatedEvent.EventType,
-                    subscriptionUpdatedEvent.SubscriptionId);
-                return;
-            }
-
-            await _workspaceBillingService.EnsureTrialProvisionedAsync(relatedTransaction.WorkspaceId, cancellationToken);
-            subscription = await _workspaceBillingRepository.GetLatestSubscriptionAsync(
-                relatedTransaction.WorkspaceId,
-                cancellationToken);
-        }
-
-        if (subscription is null)
-        {
-            _logger.LogWarning(
-                "Stripe subscription event {EventType} for {SubscriptionId} could not resolve a subscription row.",
-                subscriptionUpdatedEvent.EventType,
-                subscriptionUpdatedEvent.SubscriptionId);
-            return;
-        }
-
-        var plan = await ResolvePlanForInvoiceAsync(
-            subscriptionUpdatedEvent.PriceId,
-            subscription.BillingPlanId,
-            relatedTransaction?.BillingPlanId,
-            cancellationToken);
-
-        var status = MapStripeSubscriptionStatus(
-            subscriptionUpdatedEvent.Status,
-            subscriptionUpdatedEvent.CanceledAtUtc);
-
-        subscription.SyncProviderSubscription(
-            plan.Id,
-            status,
-            subscriptionUpdatedEvent.CurrentPeriodStartUtc,
-            subscriptionUpdatedEvent.CurrentPeriodEndUtc,
+                subscriptionUpdatedEvent.WorkspaceId,
+                subscriptionUpdatedEvent.PlanCode,
+                subscriptionUpdatedEvent.CustomerId,
+                subscriptionUpdatedEvent.PriceId,
+                subscriptionUpdatedEvent.Status,
+                subscriptionUpdatedEvent.CurrentPeriodStartUtc,
+                subscriptionUpdatedEvent.CurrentPeriodEndUtc,
+                subscriptionUpdatedEvent.CanceledAtUtc),
+            subscriptionUpdatedEvent.EventType,
             subscriptionUpdatedEvent.OccurredAtUtc,
-            StripeProvider,
-            subscriptionUpdatedEvent.CustomerId,
-            subscriptionUpdatedEvent.SubscriptionId,
-            subscriptionUpdatedEvent.PriceId,
-            subscriptionUpdatedEvent.CanceledAtUtc);
-
-        await _workspaceBillingRepository.UpdateSubscriptionAsync(subscription, cancellationToken);
-
-        _logger.LogInformation(
-            "Synced Stripe subscription {SubscriptionId} for workspace {WorkspaceId} to status {SubscriptionStatus}.",
-            subscriptionUpdatedEvent.SubscriptionId,
-            subscription.WorkspaceId,
-            status);
+            fallbackWorkspaceId: subscriptionUpdatedEvent.WorkspaceId,
+            fallbackBillingPlanId: null,
+            cancellationToken);
     }
 
     private async Task EnsureWorkspaceExistsAsync(Guid workspaceId, CancellationToken cancellationToken)
@@ -598,12 +586,22 @@ public sealed class WorkspacePaymentService
         }
     }
 
-    private async Task<BillingPlan> ResolvePlanForInvoiceAsync(
+    private async Task<BillingPlan> ResolvePlanForStripeReferenceAsync(
         string? priceId,
+        string? planCode,
         Guid currentBillingPlanId,
         Guid? fallbackBillingPlanId,
         CancellationToken cancellationToken)
     {
+        if (!string.IsNullOrWhiteSpace(planCode))
+        {
+            var planFromCode = await _billingPlanRepository.GetByCodeAsync(planCode, cancellationToken);
+            if (planFromCode is not null)
+            {
+                return planFromCode;
+            }
+        }
+
         var resolvedPlanCode = TryResolvePlanCodeByPriceId(priceId);
         if (!string.IsNullOrWhiteSpace(resolvedPlanCode))
         {
@@ -630,6 +628,93 @@ public sealed class WorkspacePaymentService
         }
 
         throw new InvalidOperationException("The Stripe payment could not be matched to a configured billing plan.");
+    }
+
+    private async Task<StripeSubscriptionSyncContext?> SyncStripeSubscriptionAsync(
+        StripeSubscriptionSnapshot stripeSubscription,
+        string eventType,
+        DateTime updatedAtUtc,
+        Guid? fallbackWorkspaceId,
+        Guid? fallbackBillingPlanId,
+        CancellationToken cancellationToken)
+    {
+        var subscription = await _workspaceBillingRepository.GetSubscriptionByProviderSubscriptionIdAsync(
+            StripeProvider,
+            stripeSubscription.SubscriptionId,
+            cancellationToken);
+        var relatedTransaction = await _workspaceBillingRepository.GetLatestBillingTransactionBySubscriptionIdAsync(
+            StripeProvider,
+            stripeSubscription.SubscriptionId,
+            cancellationToken);
+
+        var resolvedWorkspaceId = subscription?.WorkspaceId
+            ?? stripeSubscription.WorkspaceId
+            ?? relatedTransaction?.WorkspaceId
+            ?? fallbackWorkspaceId;
+
+        if (!resolvedWorkspaceId.HasValue)
+        {
+            _logger.LogWarning(
+                "Stripe subscription event {EventType} for {SubscriptionId} could not resolve a workspace. Price {PriceId}, plan code {PlanCode}.",
+                eventType,
+                stripeSubscription.SubscriptionId,
+                stripeSubscription.PriceId,
+                stripeSubscription.PlanCode);
+            return null;
+        }
+
+        await _workspaceBillingService.EnsureTrialProvisionedAsync(resolvedWorkspaceId.Value, cancellationToken);
+
+        subscription ??= await _workspaceBillingRepository.GetLatestSubscriptionAsync(
+            resolvedWorkspaceId.Value,
+            cancellationToken);
+
+        if (subscription is null)
+        {
+            _logger.LogWarning(
+                "Stripe subscription event {EventType} for {SubscriptionId} resolved workspace {WorkspaceId} but no subscription row was available.",
+                eventType,
+                stripeSubscription.SubscriptionId,
+                resolvedWorkspaceId.Value);
+            return null;
+        }
+
+        var plan = await ResolvePlanForStripeReferenceAsync(
+            stripeSubscription.PriceId,
+            stripeSubscription.PlanCode,
+            subscription.BillingPlanId,
+            relatedTransaction?.BillingPlanId ?? fallbackBillingPlanId,
+            cancellationToken);
+        var status = MapStripeSubscriptionStatus(
+            stripeSubscription.Status,
+            stripeSubscription.CanceledAtUtc);
+
+        subscription.SyncProviderSubscription(
+            plan.Id,
+            status,
+            stripeSubscription.CurrentPeriodStartUtc,
+            stripeSubscription.CurrentPeriodEndUtc,
+            updatedAtUtc,
+            StripeProvider,
+            stripeSubscription.CustomerId,
+            stripeSubscription.SubscriptionId,
+            stripeSubscription.PriceId,
+            stripeSubscription.CanceledAtUtc);
+
+        await _workspaceBillingRepository.UpdateSubscriptionAsync(subscription, cancellationToken);
+
+        _logger.LogInformation(
+            "Persisted Stripe subscription {SubscriptionId} from event {EventType} for workspace {WorkspaceId}. Plan {PlanCode}, price {PriceId}, status {SubscriptionStatus}, period {PeriodStartUtc} to {PeriodEndUtc}.",
+            stripeSubscription.SubscriptionId,
+            eventType,
+            subscription.WorkspaceId,
+            plan.Code,
+            stripeSubscription.PriceId,
+            status,
+            stripeSubscription.CurrentPeriodStartUtc,
+            stripeSubscription.CurrentPeriodEndUtc);
+
+        return new StripeSubscriptionSyncContext(subscription, plan, relatedTransaction);
     }
 
     private string ResolvePlanPriceId(string planCode)
@@ -727,4 +812,9 @@ public sealed class WorkspacePaymentService
             _ => WorkspaceSubscriptionStatus.Expired
         };
     }
+
+    private sealed record StripeSubscriptionSyncContext(
+        WorkspaceSubscription Subscription,
+        BillingPlan Plan,
+        WorkspaceBillingTransaction? RelatedTransaction);
 }

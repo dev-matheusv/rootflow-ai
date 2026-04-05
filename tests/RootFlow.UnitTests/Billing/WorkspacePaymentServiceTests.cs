@@ -158,6 +158,17 @@ public sealed class WorkspacePaymentServiceTests
                 null)
         };
 
+        gateway.SubscriptionSnapshots["sub_pro"] = new StripeSubscriptionSnapshot(
+            "sub_pro",
+            workspaceId,
+            "pro",
+            "cus_pro",
+            "price_pro",
+            "active",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1),
+            null);
+
         var service = CreateService(
             workspaceId,
             [starterPlan, proPlan],
@@ -217,6 +228,187 @@ public sealed class WorkspacePaymentServiceTests
             entry =>
                 string.Equals(entry.ReferenceType, "stripe_invoice", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(entry.ReferenceId, "in_123", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task HandleStripeWebhookAsync_SyncsPaidSubscriptionFromCheckoutCompleted()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var repository = new InMemoryWorkspaceBillingRepository();
+        var gateway = new FakeStripePaymentGateway
+        {
+            NextSubscriptionCheckout = new StripeCheckoutSessionResult(
+                "cs_sub_sync",
+                "https://checkout.stripe.com/pay/cs_sub_sync",
+                "cus_sync",
+                null,
+                null)
+        };
+
+        gateway.SubscriptionSnapshots["sub_sync"] = new StripeSubscriptionSnapshot(
+            "sub_sync",
+            workspaceId,
+            "pro",
+            "cus_sync",
+            "price_pro",
+            "active",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1),
+            null);
+
+        var service = CreateService(
+            workspaceId,
+            [starterPlan, proPlan],
+            repository,
+            gateway,
+            out _,
+            trialIncludedCredits: 100);
+
+        await service.CreateSubscriptionCheckoutAsync(
+            new CreateWorkspaceSubscriptionCheckoutCommand(workspaceId, "pro"));
+
+        gateway.NextWebhookEvent = new StripeCheckoutCompletedEvent(
+            "evt_subscription_checkout_sync",
+            FixedClock.CurrentUtcNow,
+            "cs_sub_sync",
+            "subscription",
+            "paid",
+            workspaceId,
+            "pro",
+            null,
+            null,
+            "cus_sync",
+            "sub_sync",
+            null);
+
+        await service.HandleStripeWebhookAsync("payload", "signature");
+
+        var latestSubscription = await repository.GetLatestSubscriptionAsync(workspaceId);
+
+        Assert.NotNull(latestSubscription);
+        Assert.Equal(WorkspaceSubscriptionStatus.Active, latestSubscription!.Status);
+        Assert.Equal(proPlan.Id, latestSubscription.BillingPlanId);
+        Assert.Equal("stripe", latestSubscription.Provider);
+        Assert.Equal("sub_sync", latestSubscription.ProviderSubscriptionId);
+        Assert.Null(latestSubscription.TrialEndsAtUtc);
+    }
+
+    [Fact]
+    public async Task HandleStripeWebhookAsync_SyncsSubscriptionCreatedFromMetadataWhenCheckoutTransactionHasNoSubscriptionId()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var repository = new InMemoryWorkspaceBillingRepository();
+        var gateway = new FakeStripePaymentGateway
+        {
+            NextSubscriptionCheckout = new StripeCheckoutSessionResult(
+                "cs_sub_created",
+                "https://checkout.stripe.com/pay/cs_sub_created",
+                null,
+                null,
+                null)
+        };
+
+        var service = CreateService(
+            workspaceId,
+            [starterPlan, proPlan],
+            repository,
+            gateway,
+            out _,
+            trialIncludedCredits: 100);
+
+        await service.CreateSubscriptionCheckoutAsync(
+            new CreateWorkspaceSubscriptionCheckoutCommand(workspaceId, "pro"));
+
+        gateway.NextWebhookEvent = new StripeSubscriptionUpdatedEvent(
+            "evt_subscription_created",
+            "customer.subscription.created",
+            FixedClock.CurrentUtcNow,
+            "sub_created",
+            "cus_created",
+            "price_pro",
+            "active",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1),
+            null,
+            workspaceId,
+            "pro");
+
+        await service.HandleStripeWebhookAsync("payload", "signature");
+
+        var latestSubscription = await repository.GetLatestSubscriptionAsync(workspaceId);
+
+        Assert.NotNull(latestSubscription);
+        Assert.Equal(WorkspaceSubscriptionStatus.Active, latestSubscription!.Status);
+        Assert.Equal(proPlan.Id, latestSubscription.BillingPlanId);
+        Assert.Equal("sub_created", latestSubscription.ProviderSubscriptionId);
+    }
+
+    [Fact]
+    public async Task HandleStripeWebhookAsync_InvoicePaidFetchesStripeSubscriptionWhenCorrelationIsMissing()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var repository = new InMemoryWorkspaceBillingRepository();
+        var gateway = new FakeStripePaymentGateway
+        {
+            NextSubscriptionCheckout = new StripeCheckoutSessionResult(
+                "cs_sub_invoice_fallback",
+                "https://checkout.stripe.com/pay/cs_sub_invoice_fallback",
+                null,
+                null,
+                null)
+        };
+
+        gateway.SubscriptionSnapshots["sub_invoice_fallback"] = new StripeSubscriptionSnapshot(
+            "sub_invoice_fallback",
+            workspaceId,
+            "pro",
+            "cus_invoice_fallback",
+            "price_pro",
+            "active",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1),
+            null);
+
+        var service = CreateService(
+            workspaceId,
+            [starterPlan, proPlan],
+            repository,
+            gateway,
+            out _,
+            trialIncludedCredits: 100);
+
+        await service.CreateSubscriptionCheckoutAsync(
+            new CreateWorkspaceSubscriptionCheckoutCommand(workspaceId, "pro"));
+
+        gateway.NextWebhookEvent = new StripeInvoicePaidEvent(
+            "evt_invoice_paid_fallback",
+            FixedClock.CurrentUtcNow,
+            "in_fallback",
+            "sub_invoice_fallback",
+            "cus_invoice_fallback",
+            "price_pro",
+            99.90m,
+            "BRL",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1));
+
+        await service.HandleStripeWebhookAsync("payload", "signature");
+
+        var latestSubscription = await repository.GetLatestSubscriptionAsync(workspaceId);
+        var balance = await repository.GetCreditBalanceAsync(workspaceId);
+
+        Assert.NotNull(latestSubscription);
+        Assert.Equal(WorkspaceSubscriptionStatus.Active, latestSubscription!.Status);
+        Assert.Equal(proPlan.Id, latestSubscription.BillingPlanId);
+        Assert.Equal("sub_invoice_fallback", latestSubscription.ProviderSubscriptionId);
+        Assert.NotNull(balance);
+        Assert.Equal(50_100, balance!.AvailableCredits);
     }
 
     private static BillingPlan CreatePlan(
@@ -328,6 +520,8 @@ public sealed class WorkspacePaymentServiceTests
 
         public StripeWebhookEvent? NextWebhookEvent { get; set; }
 
+        public Dictionary<string, StripeSubscriptionSnapshot> SubscriptionSnapshots { get; } = [];
+
         public StripeSubscriptionCheckoutRequest? LastSubscriptionCheckoutRequest { get; private set; }
 
         public StripeCreditPurchaseCheckoutRequest? LastCreditCheckoutRequest { get; private set; }
@@ -346,6 +540,18 @@ public sealed class WorkspacePaymentServiceTests
         {
             LastCreditCheckoutRequest = request;
             return Task.FromResult(NextCreditCheckout ?? throw new InvalidOperationException("Credit checkout was not configured."));
+        }
+
+        public Task<StripeSubscriptionSnapshot> GetSubscriptionAsync(
+            string subscriptionId,
+            CancellationToken cancellationToken = default)
+        {
+            if (SubscriptionSnapshots.TryGetValue(subscriptionId, out var subscriptionSnapshot))
+            {
+                return Task.FromResult(subscriptionSnapshot);
+            }
+
+            throw new InvalidOperationException("Stripe subscription snapshot was not configured.");
         }
 
         public StripeWebhookEvent ParseWebhook(string payload, string signatureHeader)

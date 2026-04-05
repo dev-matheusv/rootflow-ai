@@ -78,6 +78,38 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         return CreateCheckoutSessionAsync(values, cancellationToken);
     }
 
+    public async Task<StripeSubscriptionSnapshot> GetSubscriptionAsync(
+        string subscriptionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(subscriptionId))
+        {
+            throw new ArgumentException("Stripe subscription id is required.", nameof(subscriptionId));
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.SecretKey))
+        {
+            throw new BillingCheckoutUnavailableException("Stripe checkout is not configured.");
+        }
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"v1/subscriptions/{Uri.EscapeDataString(subscriptionId.Trim())}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.SecretKey);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"Stripe subscription lookup failed with status {(int)response.StatusCode}.");
+        }
+
+        using var document = JsonDocument.Parse(payload);
+        return ParseSubscriptionSnapshot(document.RootElement);
+    }
+
     public StripeWebhookEvent ParseWebhook(string payload, string signatureHeader)
     {
         if (string.IsNullOrWhiteSpace(signatureHeader))
@@ -103,6 +135,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         {
             "checkout.session.completed" => ParseCheckoutCompletedEvent(eventId, occurredAtUtc, dataObject),
             "invoice.paid" => ParseInvoicePaidEvent(eventId, occurredAtUtc, dataObject),
+            "customer.subscription.created" => ParseSubscriptionUpdatedEvent(eventId, eventType, occurredAtUtc, dataObject),
             "customer.subscription.updated" => ParseSubscriptionUpdatedEvent(eventId, eventType, occurredAtUtc, dataObject),
             "customer.subscription.deleted" => ParseSubscriptionUpdatedEvent(eventId, eventType, occurredAtUtc, dataObject),
             _ => new StripeUnhandledWebhookEvent(eventId, eventType, occurredAtUtc)
@@ -198,6 +231,25 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         DateTime occurredAtUtc,
         JsonElement dataObject)
     {
+        var snapshot = ParseSubscriptionSnapshot(dataObject);
+
+        return new StripeSubscriptionUpdatedEvent(
+            eventId,
+            eventType,
+            occurredAtUtc,
+            snapshot.SubscriptionId,
+            snapshot.CustomerId,
+            snapshot.PriceId,
+            snapshot.Status,
+            snapshot.CurrentPeriodStartUtc,
+            snapshot.CurrentPeriodEndUtc,
+            snapshot.CanceledAtUtc,
+            snapshot.WorkspaceId,
+            snapshot.PlanCode);
+    }
+
+    private static StripeSubscriptionSnapshot ParseSubscriptionSnapshot(JsonElement dataObject)
+    {
         var items = dataObject.GetProperty("items").GetProperty("data");
         var firstItem = items.GetArrayLength() > 0 ? items[0] : default;
         var price = firstItem.ValueKind != JsonValueKind.Undefined && firstItem.TryGetProperty("price", out var priceElement)
@@ -207,12 +259,12 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
                          canceledAtElement.ValueKind != JsonValueKind.Null
             ? DateTimeOffset.FromUnixTimeSeconds(canceledAtElement.GetInt64()).UtcDateTime
             : (DateTime?)null;
+        var metadata = GetOptionalObject(dataObject, "metadata");
 
-        return new StripeSubscriptionUpdatedEvent(
-            eventId,
-            eventType,
-            occurredAtUtc,
+        return new StripeSubscriptionSnapshot(
             dataObject.GetProperty("id").GetString() ?? throw new BillingWebhookValidationException("Stripe subscription id is missing."),
+            TryParseGuid(GetOptionalString(metadata, "workspace_id")),
+            GetOptionalString(metadata, "billing_plan_code"),
             GetOptionalString(dataObject, "customer"),
             GetOptionalString(price, "id"),
             dataObject.GetProperty("status").GetString() ?? string.Empty,
