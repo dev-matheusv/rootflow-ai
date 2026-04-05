@@ -11,10 +11,10 @@ public sealed class StripeBillingOptions
     public int WebhookToleranceSeconds { get; set; } = 300;
 
     public string CheckoutSuccessUrl { get; set; } =
-        $"https://www.rootflow.com.br/faturamento?checkout=success&session_id={CheckoutSessionIdPlaceholder}";
+        $"https://www.rootflow.com.br/billing?checkout=success&session_id={CheckoutSessionIdPlaceholder}";
 
     public string CheckoutCancelUrl { get; set; } =
-        "https://www.rootflow.com.br/faturamento?checkout=cancel";
+        "https://www.rootflow.com.br/billing?checkout=cancel";
 
     public List<StripePlanPriceOptions> PlanPrices { get; set; } = [];
 

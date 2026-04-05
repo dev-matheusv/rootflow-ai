@@ -78,9 +78,9 @@ public sealed class WorkspacePaymentServiceTests
         Assert.Equal("https://checkout.stripe.com/pay/cs_sub_hosted", checkoutSession.CheckoutUrl);
         Assert.NotNull(gateway.LastSubscriptionCheckoutRequest);
         Assert.Equal(
-            "https://www.rootflow.com.br/faturamento?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+            "https://www.rootflow.com.br/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}",
             gateway.LastSubscriptionCheckoutRequest!.SuccessUrl);
-        Assert.Equal("https://www.rootflow.com.br/faturamento?checkout=cancel", gateway.LastSubscriptionCheckoutRequest.CancelUrl);
+        Assert.Equal("https://www.rootflow.com.br/billing?checkout=cancel", gateway.LastSubscriptionCheckoutRequest.CancelUrl);
         Assert.Equal("price_pro", gateway.LastSubscriptionCheckoutRequest.PriceId);
     }
 
@@ -275,8 +275,8 @@ public sealed class WorkspacePaymentServiceTests
             {
                 SecretKey = "sk_test_123",
                 WebhookSecret = "whsec_123",
-                CheckoutSuccessUrl = "https://www.rootflow.com.br/faturamento?checkout=success&session_id={CHECKOUT_SESSION_ID}",
-                CheckoutCancelUrl = "https://www.rootflow.com.br/faturamento?checkout=cancel",
+                CheckoutSuccessUrl = "https://www.rootflow.com.br/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+                CheckoutCancelUrl = "https://www.rootflow.com.br/billing?checkout=cancel",
                 PlanPrices =
                 [
                     new StripePlanPriceOptions { PlanCode = "starter", PriceId = "price_starter" },
