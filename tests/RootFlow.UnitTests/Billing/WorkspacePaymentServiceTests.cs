@@ -411,6 +411,95 @@ public sealed class WorkspacePaymentServiceTests
         Assert.Equal(50_100, balance!.AvailableCredits);
     }
 
+    [Fact]
+    public async Task HandleStripeWebhookAsync_InvoicePaid_OverridesCurrentTrialRow_WhenCustomerMatchesHistoricalStripeSubscription()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var repository = new InMemoryWorkspaceBillingRepository();
+        var gateway = new FakeStripePaymentGateway
+        {
+            NextSubscriptionCheckout = new StripeCheckoutSessionResult(
+                "cs_sub_trial_override",
+                "https://checkout.stripe.com/pay/cs_sub_trial_override",
+                "cus_trial_override",
+                null,
+                null)
+        };
+
+        gateway.SubscriptionSnapshots["sub_trial_override"] = new StripeSubscriptionSnapshot(
+            "sub_trial_override",
+            workspaceId,
+            "pro",
+            "cus_trial_override",
+            "price_pro",
+            "active",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1),
+            null);
+
+        var service = CreateService(
+            workspaceId,
+            [starterPlan, proPlan],
+            repository,
+            gateway,
+            out _,
+            trialIncludedCredits: 100);
+
+        await service.CreateSubscriptionCheckoutAsync(
+            new CreateWorkspaceSubscriptionCheckoutCommand(workspaceId, "pro"));
+
+        var currentTrialSubscription = await repository.GetLatestSubscriptionAsync(workspaceId);
+        Assert.NotNull(currentTrialSubscription);
+        Assert.Equal(WorkspaceSubscriptionStatus.Trial, currentTrialSubscription!.Status);
+
+        var historicalStripeSubscription = new WorkspaceSubscription(
+            Guid.NewGuid(),
+            workspaceId,
+            starterPlan.Id,
+            WorkspaceSubscriptionStatus.Canceled,
+            FixedClock.CurrentUtcNow.AddMonths(-2),
+            FixedClock.CurrentUtcNow.AddMonths(-1),
+            FixedClock.CurrentUtcNow.AddMonths(-2),
+            FixedClock.CurrentUtcNow.AddDays(-10),
+            canceledAtUtc: FixedClock.CurrentUtcNow.AddMonths(-1),
+            provider: "stripe",
+            providerCustomerId: "cus_trial_override",
+            providerSubscriptionId: "sub_old_trial_override",
+            providerPriceId: "price_starter");
+
+        repository.SeedSubscription(historicalStripeSubscription);
+
+        gateway.NextWebhookEvent = new StripeInvoicePaidEvent(
+            "evt_invoice_paid_trial_override",
+            FixedClock.CurrentUtcNow,
+            "in_trial_override",
+            "sub_trial_override",
+            "cus_trial_override",
+            "price_pro",
+            99.90m,
+            "BRL",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1));
+
+        await service.HandleStripeWebhookAsync("payload", "signature");
+
+        var latestSubscription = await repository.GetLatestSubscriptionAsync(workspaceId);
+        var historicalSubscriptionAfterSync = repository.Subscriptions.Single(subscription => subscription.Id == historicalStripeSubscription.Id);
+
+        Assert.NotNull(latestSubscription);
+        Assert.Equal(currentTrialSubscription.Id, latestSubscription!.Id);
+        Assert.Equal(WorkspaceSubscriptionStatus.Active, latestSubscription.Status);
+        Assert.Equal(proPlan.Id, latestSubscription.BillingPlanId);
+        Assert.Equal("stripe", latestSubscription.Provider);
+        Assert.Equal("cus_trial_override", latestSubscription.ProviderCustomerId);
+        Assert.Equal("sub_trial_override", latestSubscription.ProviderSubscriptionId);
+        Assert.Null(latestSubscription.TrialEndsAtUtc);
+        Assert.Equal(WorkspaceSubscriptionStatus.Canceled, historicalSubscriptionAfterSync.Status);
+        Assert.Equal("sub_old_trial_override", historicalSubscriptionAfterSync.ProviderSubscriptionId);
+    }
+
     private static BillingPlan CreatePlan(
         string code,
         string name,
@@ -650,15 +739,27 @@ public sealed class WorkspacePaymentServiceTests
 
         public List<WorkspaceUsageEvent> UsageEvents { get; } = [];
 
+        public IReadOnlyList<WorkspaceSubscription> Subscriptions =>
+            _subscriptions.Values
+                .OrderBy(subscription => subscription.WorkspaceId)
+                .ThenBy(subscription => subscription.CreatedAtUtc)
+                .ThenBy(subscription => subscription.Id)
+                .ToArray();
+
+        public void SeedSubscription(WorkspaceSubscription subscription)
+        {
+            _subscriptions[subscription.Id] = subscription;
+        }
+
         public Task EnsureProvisionedAsync(
             WorkspaceSubscription subscription,
             WorkspaceCreditBalance balance,
             WorkspaceCreditLedgerEntry? initialGrantEntry,
             CancellationToken cancellationToken = default)
         {
-            if (!_subscriptions.ContainsKey(subscription.WorkspaceId))
+            if (!_subscriptions.Values.Any(existing => existing.WorkspaceId == subscription.WorkspaceId))
             {
-                _subscriptions[subscription.WorkspaceId] = subscription;
+                _subscriptions[subscription.Id] = subscription;
             }
 
             if (!_balances.ContainsKey(balance.WorkspaceId))
@@ -673,7 +774,8 @@ public sealed class WorkspacePaymentServiceTests
                 return Task.CompletedTask;
             }
 
-            if (_subscriptions[subscription.WorkspaceId].Id == subscription.Id)
+            if (_subscriptions.TryGetValue(subscription.Id, out var currentSubscription) &&
+                currentSubscription.WorkspaceId == subscription.WorkspaceId)
             {
                 LedgerEntries.Add(initialGrantEntry);
                 _balances[balance.WorkspaceId].GrantCredits(initialGrantEntry.Amount, initialGrantEntry.CreatedAtUtc);
@@ -687,17 +789,40 @@ public sealed class WorkspacePaymentServiceTests
             DateTime asOfUtc,
             CancellationToken cancellationToken = default)
         {
-            if (_subscriptions.TryGetValue(workspaceId, out var subscription) && subscription.IsActiveAt(asOfUtc))
-            {
-                return Task.FromResult<WorkspaceSubscription?>(subscription);
-            }
-
-            return Task.FromResult<WorkspaceSubscription?>(null);
+            return Task.FromResult<WorkspaceSubscription?>(
+                _subscriptions.Values
+                    .Where(subscription =>
+                        subscription.WorkspaceId == workspaceId
+                        && subscription.CurrentPeriodStartUtc <= asOfUtc
+                        && subscription.IsActiveAt(asOfUtc))
+                    .OrderBy(subscription => subscription.Status switch
+                    {
+                        WorkspaceSubscriptionStatus.Active => 0,
+                        WorkspaceSubscriptionStatus.Trial => 1,
+                        _ => 2
+                    })
+                    .ThenByDescending(subscription => subscription.CurrentPeriodEndUtc)
+                    .ThenByDescending(subscription => subscription.UpdatedAtUtc)
+                    .ThenByDescending(subscription => subscription.CreatedAtUtc)
+                    .FirstOrDefault());
         }
 
         public Task<WorkspaceSubscription?> GetLatestSubscriptionAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<WorkspaceSubscription?>(_subscriptions.GetValueOrDefault(workspaceId));
+            return Task.FromResult<WorkspaceSubscription?>(
+                _subscriptions.Values
+                    .Where(subscription => subscription.WorkspaceId == workspaceId)
+                    .OrderBy(subscription => subscription.Status switch
+                    {
+                        WorkspaceSubscriptionStatus.Active => 0,
+                        WorkspaceSubscriptionStatus.Trial => 1,
+                        WorkspaceSubscriptionStatus.Canceled => 2,
+                        _ => 3
+                    })
+                    .ThenByDescending(subscription => subscription.UpdatedAtUtc)
+                    .ThenByDescending(subscription => subscription.CurrentPeriodEndUtc)
+                    .ThenByDescending(subscription => subscription.CreatedAtUtc)
+                    .FirstOrDefault());
         }
 
         public Task<WorkspaceSubscription?> GetSubscriptionByProviderSubscriptionIdAsync(
@@ -721,14 +846,28 @@ public sealed class WorkspacePaymentServiceTests
                     .Where(subscription =>
                         string.Equals(subscription.Provider, provider, StringComparison.OrdinalIgnoreCase)
                         && string.Equals(subscription.ProviderCustomerId, providerCustomerId, StringComparison.Ordinal))
-                    .OrderByDescending(subscription => subscription.UpdatedAtUtc)
+                    .OrderBy(subscription => subscription.Status switch
+                    {
+                        WorkspaceSubscriptionStatus.Active => 0,
+                        WorkspaceSubscriptionStatus.Trial => 1,
+                        WorkspaceSubscriptionStatus.Canceled => 2,
+                        _ => 3
+                    })
+                    .ThenByDescending(subscription => subscription.UpdatedAtUtc)
+                    .ThenByDescending(subscription => subscription.CurrentPeriodEndUtc)
+                    .ThenByDescending(subscription => subscription.CreatedAtUtc)
                     .FirstOrDefault());
         }
 
-        public Task UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
+        public Task<int> UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
         {
-            _subscriptions[subscription.WorkspaceId] = subscription;
-            return Task.CompletedTask;
+            if (!_subscriptions.ContainsKey(subscription.Id))
+            {
+                return Task.FromResult(0);
+            }
+
+            _subscriptions[subscription.Id] = subscription;
+            return Task.FromResult(1);
         }
 
         public Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(Guid workspaceId, CancellationToken cancellationToken = default)

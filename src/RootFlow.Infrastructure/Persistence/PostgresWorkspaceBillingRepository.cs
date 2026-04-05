@@ -319,7 +319,7 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
             : null;
     }
 
-    public async Task UpdateSubscriptionAsync(
+    public async Task<int> UpdateSubscriptionAsync(
         WorkspaceSubscription subscription,
         CancellationToken cancellationToken = default)
     {
@@ -343,11 +343,7 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         await using var command = new NpgsqlCommand(sql, connection);
         ConfigureSubscriptionParameters(command, subscription);
         var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
-        if (rowsAffected == 0)
-        {
-            throw new InvalidOperationException(
-                $"Workspace subscription {subscription.Id} was not found for update.");
-        }
+        return rowsAffected;
     }
 
     public async Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(

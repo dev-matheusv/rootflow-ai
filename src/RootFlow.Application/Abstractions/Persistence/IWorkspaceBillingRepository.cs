@@ -29,7 +29,7 @@ public interface IWorkspaceBillingRepository
         string providerCustomerId,
         CancellationToken cancellationToken = default);
 
-    Task UpdateSubscriptionAsync(
+    Task<int> UpdateSubscriptionAsync(
         WorkspaceSubscription subscription,
         CancellationToken cancellationToken = default);
 

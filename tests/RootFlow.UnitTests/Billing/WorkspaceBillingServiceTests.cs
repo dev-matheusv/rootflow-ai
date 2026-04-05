@@ -167,6 +167,38 @@ public sealed class WorkspaceBillingServiceTests
         Assert.Equal(WorkspaceSubscriptionStatus.Expired, latestSubscription!.Status);
     }
 
+    [Fact]
+    public async Task GetCreditSummaryAsync_ReturnsDegradedSummary_WhenSubscriptionResolutionFails()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = new BillingPlan(
+            Guid.NewGuid(),
+            "starter",
+            "Starter",
+            49m,
+            "USD",
+            10_000,
+            3,
+            FixedClock.UtcNow);
+        var repository = new InMemoryWorkspaceBillingRepository
+        {
+            ThrowOnSubscriptionRead = true
+        };
+
+        var service = CreateService(
+            workspaceId,
+            starterPlan,
+            new StubUsagePricingCalculator(estimatedCost: 0.01m, creditsCharged: 1),
+            out _,
+            existingRepository: repository);
+
+        var summary = await service.GetCreditSummaryAsync(new GetWorkspaceCreditSummaryQuery(workspaceId));
+
+        Assert.Null(summary.BillingPlan);
+        Assert.Null(summary.Subscription);
+        Assert.Equal(5_000, summary.Balance.AvailableCredits);
+    }
+
     private static WorkspaceBillingService CreateService(
         Guid workspaceId,
         BillingPlan starterPlan,
@@ -261,6 +293,8 @@ public sealed class WorkspaceBillingServiceTests
 
         public List<WorkspaceUsageEvent> UsageEvents { get; } = [];
 
+        public bool ThrowOnSubscriptionRead { get; set; }
+
         public Task EnsureProvisionedAsync(
             WorkspaceSubscription subscription,
             WorkspaceCreditBalance balance,
@@ -300,6 +334,11 @@ public sealed class WorkspaceBillingServiceTests
 
         public Task<WorkspaceSubscription?> GetCurrentSubscriptionAsync(Guid workspaceId, DateTime asOfUtc, CancellationToken cancellationToken = default)
         {
+            if (ThrowOnSubscriptionRead)
+            {
+                throw new InvalidOperationException("Simulated subscription lookup failure.");
+            }
+
             if (_subscriptions.TryGetValue(workspaceId, out var subscription) && subscription.IsActiveAt(asOfUtc))
             {
                 return Task.FromResult<WorkspaceSubscription?>(subscription);
@@ -338,10 +377,10 @@ public sealed class WorkspaceBillingServiceTests
                     .FirstOrDefault());
         }
 
-        public Task UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
+        public Task<int> UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
         {
             _subscriptions[subscription.WorkspaceId] = subscription;
-            return Task.CompletedTask;
+            return Task.FromResult(1);
         }
 
         public Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(Guid workspaceId, CancellationToken cancellationToken = default)

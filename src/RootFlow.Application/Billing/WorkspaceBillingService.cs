@@ -59,19 +59,80 @@ public sealed class WorkspaceBillingService
         GetWorkspaceCreditSummaryQuery query,
         CancellationToken cancellationToken = default)
     {
-        await EnsureProvisionedAsync(query.WorkspaceId, cancellationToken);
+        _logger.LogInformation(
+            "Generating workspace billing summary for workspace {WorkspaceId}.",
+            query.WorkspaceId);
 
-        var subscription = await GetEffectiveSubscriptionAsync(query.WorkspaceId, cancellationToken);
+        try
+        {
+            await EnsureProvisionedAsync(query.WorkspaceId, cancellationToken);
 
-        var balance = await RequireBalanceAsync(query.WorkspaceId, cancellationToken);
-        var plan = subscription is null
-            ? null
-            : await _billingPlanRepository.GetByIdAsync(subscription.BillingPlanId, cancellationToken);
+            var balance = await RequireBalanceAsync(query.WorkspaceId, cancellationToken);
 
-        return new WorkspaceCreditSummaryDto(
-            plan is null ? null : MapPlan(plan),
-            subscription is null ? null : MapSubscription(subscription),
-            MapBalance(balance));
+            WorkspaceSubscription? subscription = null;
+            try
+            {
+                subscription = await GetEffectiveSubscriptionAsync(query.WorkspaceId, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Workspace billing summary could not resolve the effective subscription for workspace {WorkspaceId}. Returning a degraded summary.",
+                    query.WorkspaceId);
+            }
+
+            BillingPlan? plan = null;
+            if (subscription is not null)
+            {
+                try
+                {
+                    plan = await _billingPlanRepository.GetByIdAsync(subscription.BillingPlanId, cancellationToken);
+
+                    if (plan is null)
+                    {
+                        _logger.LogWarning(
+                            "Workspace billing summary resolved subscription {SubscriptionId} for workspace {WorkspaceId}, but billing plan {BillingPlanId} was missing.",
+                            subscription.Id,
+                            query.WorkspaceId,
+                            subscription.BillingPlanId);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(
+                        exception,
+                        "Workspace billing summary could not resolve billing plan {BillingPlanId} for workspace {WorkspaceId}. Returning a degraded subscription summary.",
+                        subscription.BillingPlanId,
+                        query.WorkspaceId);
+                    subscription = null;
+                    plan = null;
+                }
+            }
+
+            var summary = new WorkspaceCreditSummaryDto(
+                plan is null ? null : MapPlan(plan),
+                subscription is null ? null : MapSubscription(subscription),
+                MapBalance(balance));
+
+            _logger.LogInformation(
+                "Generated workspace billing summary for workspace {WorkspaceId}. Subscription status: {SubscriptionStatus}. Plan code: {PlanCode}. Available credits: {AvailableCredits}.",
+                query.WorkspaceId,
+                summary.Subscription?.Status,
+                summary.BillingPlan?.Code,
+                summary.Balance.AvailableCredits);
+
+            return summary;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Workspace billing summary generation failed for workspace {WorkspaceId}. Returning a degraded summary.",
+                query.WorkspaceId);
+
+            return await BuildDegradedSummaryAsync(query.WorkspaceId, cancellationToken);
+        }
     }
 
     public async Task<bool> HasEnoughCreditsAsync(
@@ -344,7 +405,12 @@ public sealed class WorkspaceBillingService
         if (latestSubscription is not null && latestSubscription.ShouldExpireAt(utcNow))
         {
             latestSubscription.MarkExpired(utcNow);
-            await _workspaceBillingRepository.UpdateSubscriptionAsync(latestSubscription, cancellationToken);
+            var rowsAffected = await _workspaceBillingRepository.UpdateSubscriptionAsync(latestSubscription, cancellationToken);
+            if (rowsAffected == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Workspace subscription {latestSubscription.Id} could not be updated while expiring the workspace subscription state.");
+            }
         }
 
         return latestSubscription;
@@ -361,6 +427,47 @@ public sealed class WorkspaceBillingService
         }
 
         return balance;
+    }
+
+    private async Task<WorkspaceCreditSummaryDto> BuildDegradedSummaryAsync(
+        Guid workspaceId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await EnsureProvisionedAsync(workspaceId, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Workspace billing degraded summary could not reprovision workspace {WorkspaceId}. Falling back to a zero-balance summary.",
+                workspaceId);
+        }
+
+        try
+        {
+            var balance = await _workspaceBillingRepository.GetCreditBalanceAsync(workspaceId, cancellationToken);
+            if (balance is not null)
+            {
+                return new WorkspaceCreditSummaryDto(
+                    null,
+                    null,
+                    MapBalance(balance));
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Workspace billing degraded summary could not load the credit balance for workspace {WorkspaceId}. Falling back to a zero-balance summary.",
+                workspaceId);
+        }
+
+        return new WorkspaceCreditSummaryDto(
+            null,
+            null,
+            new WorkspaceCreditBalanceDto(workspaceId, 0, 0, _clock.UtcNow));
     }
 
     private static BillingPlanDto MapPlan(BillingPlan plan)

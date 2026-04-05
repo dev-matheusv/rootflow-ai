@@ -16,6 +16,11 @@ interface UseDocumentsQueryOptions {
   autoRefreshProcessing?: boolean;
 }
 
+interface UseWorkspaceBillingSummaryQueryOptions {
+  enabled?: boolean;
+  retry?: boolean | number;
+}
+
 export function useHealthQuery() {
   return useQuery({
     queryKey: queryKeys.health,
@@ -66,11 +71,15 @@ export function useWorkspaceMembersQuery(workspaceId?: string | null) {
   });
 }
 
-export function useWorkspaceBillingSummaryQuery(workspaceId?: string | null) {
+export function useWorkspaceBillingSummaryQuery(
+  workspaceId?: string | null,
+  options?: UseWorkspaceBillingSummaryQueryOptions,
+) {
   return useQuery({
     queryKey: workspaceId ? queryKeys.workspaceBillingSummary(workspaceId) : ["workspace-billing-summary", "none"],
     queryFn: () => rootflowApi.getWorkspaceBillingSummary(workspaceId!),
-    enabled: Boolean(workspaceId),
+    enabled: options?.enabled ?? Boolean(workspaceId),
+    retry: options?.retry,
   });
 }
 

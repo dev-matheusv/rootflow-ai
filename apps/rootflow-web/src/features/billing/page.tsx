@@ -1,6 +1,6 @@
 import { Coins, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 
 import { useI18n } from "@/app/providers/i18n-provider";
 import { WorkspaceCreditProgress } from "@/components/billing/workspace-credit-progress";
@@ -18,6 +18,7 @@ import {
   useBillingPlansQuery,
   useWorkspaceBillingSummaryQuery,
 } from "@/hooks/use-rootflow-data";
+import { ApiError } from "@/lib/api/client";
 import { formatCredits, getWorkspaceCreditSnapshot } from "@/lib/billing/workspace-credits";
 
 interface BillingFeedbackToast {
@@ -30,19 +31,26 @@ interface BillingFeedbackToast {
 export function BillingPage() {
   const { session } = useAuth();
   const { locale, t } = useI18n();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const [, setSearchParams] = useSearchParams();
   const [activeCheckoutKey, setActiveCheckoutKey] = useState<string | null>(null);
   const [feedbackToast, setFeedbackToast] = useState<BillingFeedbackToast | null>(null);
-  const [isCheckoutSyncing, setIsCheckoutSyncing] = useState(false);
+  const handledCheckoutReturnRef = useRef<string | null>(null);
+  const checkoutSyncTimeoutRef = useRef<number | null>(null);
+  const checkoutSyncStateRef = useRef({ attempts: 0, consecutiveErrors: 0 });
   const workspaceId = session?.workspace.id;
-  const billingSummaryQuery = useWorkspaceBillingSummaryQuery(workspaceId);
+  const billingSummaryQuery = useWorkspaceBillingSummaryQuery(workspaceId, { retry: false });
+  const refetchBillingSummary = billingSummaryQuery.refetch;
   const billingPlansQuery = useBillingPlansQuery();
   const creditPacksQuery = useBillingCreditPacksQuery();
   const billingCheckoutMutation = useBillingCheckoutMutation();
   const snapshot = getWorkspaceCreditSnapshot(billingSummaryQuery.data);
   const currentPlanCode = billingSummaryQuery.data?.billingPlan?.code?.toLowerCase() ?? null;
   const currentSubscriptionStatus = billingSummaryQuery.data?.subscription?.status ?? null;
-  const checkoutStatus = searchParams.get("checkout");
+  const checkoutSearchParams = new URLSearchParams(location.search);
+  const checkoutStatus = checkoutSearchParams.get("checkout");
+  const checkoutSessionId = checkoutSearchParams.get("session_id");
+  const checkoutReturnKey = checkoutStatus ? `${checkoutStatus}:${checkoutSessionId ?? ""}` : null;
   const [checkoutError, setCheckoutError] = useState<{ surface: "plans" | "credits"; message: string } | null>(null);
 
   const showToast = useCallback((tone: BillingFeedbackToast["tone"], title: string, description: string) => {
@@ -66,50 +74,94 @@ export function BillingPage() {
     return () => window.clearTimeout(timeoutId);
   }, [feedbackToast]);
 
-  useEffect(() => {
-    if (checkoutStatus !== "success" && checkoutStatus !== "cancel") {
+  const stopCheckoutSync = useCallback(() => {
+    if (checkoutSyncTimeoutRef.current !== null) {
+      window.clearTimeout(checkoutSyncTimeoutRef.current);
+      checkoutSyncTimeoutRef.current = null;
+    }
+
+    checkoutSyncStateRef.current = { attempts: 0, consecutiveErrors: 0 };
+  }, []);
+
+  const hasPaidSubscription = useCallback((subscriptionStatus: string | null | undefined, trialEndsAtUtc?: string | null) => {
+    return subscriptionStatus === "Active" && !trialEndsAtUtc;
+  }, []);
+
+  const runCheckoutSyncAttempt = useCallback(async () => {
+    if (!workspaceId) {
+      stopCheckoutSync();
       return;
     }
 
-    if (checkoutStatus === "success") {
-      setIsCheckoutSyncing(true);
-      void billingSummaryQuery.refetch();
-      showToast("success", t("billing.checkoutSuccessTitle"), t("billing.checkoutSuccessDescription"));
+    checkoutSyncStateRef.current.attempts += 1;
+
+    const result = await refetchBillingSummary();
+    const subscription = result.data?.subscription;
+    if (subscription && hasPaidSubscription(subscription.status, subscription.trialEndsAtUtc)) {
+      stopCheckoutSync();
+      return;
+    }
+
+    if (result.error) {
+      checkoutSyncStateRef.current.consecutiveErrors += 1;
+      const isServerError = result.error instanceof ApiError && result.error.status >= 500;
+
+      if (
+        isServerError ||
+        checkoutSyncStateRef.current.consecutiveErrors >= 2 ||
+        checkoutSyncStateRef.current.attempts >= 6
+      ) {
+        stopCheckoutSync();
+        showToast(
+          "error",
+          t("common.labels.somethingWentWrong"),
+          result.error instanceof Error ? result.error.message : "Billing summary is temporarily unavailable.",
+        );
+        return;
+      }
     } else {
+      checkoutSyncStateRef.current.consecutiveErrors = 0;
+    }
+
+    if (checkoutSyncStateRef.current.attempts >= 6 || checkoutSyncTimeoutRef.current !== null) {
+      stopCheckoutSync();
+      return;
+    }
+
+    checkoutSyncTimeoutRef.current = window.setTimeout(() => {
+      checkoutSyncTimeoutRef.current = null;
+      void runCheckoutSyncAttempt();
+    }, 2500);
+  }, [hasPaidSubscription, refetchBillingSummary, showToast, stopCheckoutSync, t, workspaceId]);
+
+  useEffect(() => {
+    if (!checkoutReturnKey || handledCheckoutReturnRef.current === checkoutReturnKey) {
+      return;
+    }
+
+    handledCheckoutReturnRef.current = checkoutReturnKey;
+
+    if (checkoutStatus === "success") {
+      stopCheckoutSync();
+      checkoutSyncStateRef.current = { attempts: 0, consecutiveErrors: 0 };
+      showToast("success", t("billing.checkoutSuccessTitle"), t("billing.checkoutSuccessDescription"));
+      void runCheckoutSyncAttempt();
+    } else {
+      stopCheckoutSync();
       showToast("info", t("billing.checkoutCanceledTitle"), t("billing.checkoutCanceledDescription"));
     }
 
-    const nextSearchParams = new URLSearchParams(searchParams);
+    const nextSearchParams = new URLSearchParams(location.search);
     nextSearchParams.delete("checkout");
     nextSearchParams.delete("session_id");
     setSearchParams(nextSearchParams, { replace: true });
-  }, [billingSummaryQuery, checkoutStatus, searchParams, setSearchParams, showToast, t]);
+  }, [checkoutReturnKey, checkoutStatus, location.search, runCheckoutSyncAttempt, setSearchParams, showToast, stopCheckoutSync, t]);
 
   useEffect(() => {
-    if (!isCheckoutSyncing || !workspaceId) {
-      return undefined;
-    }
-
-    let attemptsRemaining = 6;
-    const intervalId = window.setInterval(() => {
-      attemptsRemaining -= 1;
-
-      void billingSummaryQuery.refetch().then((result) => {
-        const subscription = result.data?.subscription;
-        const hasPaidSubscription = subscription?.status === "Active" && !subscription.trialEndsAtUtc;
-
-        if (hasPaidSubscription || attemptsRemaining <= 0) {
-          setIsCheckoutSyncing(false);
-        }
-      });
-
-      if (attemptsRemaining <= 0) {
-        window.clearInterval(intervalId);
-      }
-    }, 2500);
-
-    return () => window.clearInterval(intervalId);
-  }, [billingSummaryQuery, isCheckoutSyncing, workspaceId]);
+    return () => {
+      stopCheckoutSync();
+    };
+  }, [stopCheckoutSync]);
 
   const handlePlanCheckout = async (planCode: string, priceId?: string | null) => {
     setActiveCheckoutKey(`plan:${planCode}`);

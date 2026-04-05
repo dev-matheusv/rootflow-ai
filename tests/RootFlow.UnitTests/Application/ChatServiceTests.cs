@@ -435,10 +435,10 @@ public sealed class ChatServiceTests
                     .FirstOrDefault());
         }
 
-        public Task UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
+        public Task<int> UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
         {
             _subscriptions[subscription.WorkspaceId] = subscription;
-            return Task.CompletedTask;
+            return Task.FromResult(1);
         }
 
         public Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(Guid workspaceId, CancellationToken cancellationToken = default)

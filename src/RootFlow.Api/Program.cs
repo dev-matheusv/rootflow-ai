@@ -13,6 +13,7 @@ using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Application.Auth;
 using RootFlow.Application.Billing;
 using RootFlow.Application.Billing.Commands;
+using RootFlow.Application.Billing.Dtos;
 using RootFlow.Application.Billing.Queries;
 using RootFlow.Application.Auth.Commands;
 using RootFlow.Application.Abstractions.Documents;
@@ -474,6 +475,13 @@ app.MapPost("/api/billing/webhooks/stripe", async (
     {
         return Results.BadRequest(new { error = exception.Message });
     }
+    catch (BillingWebhookProcessingException exception)
+    {
+        return Results.Problem(
+            title: "Stripe webhook processing failed.",
+            detail: exception.Message,
+            statusCode: StatusCodes.Status500InternalServerError);
+    }
 });
 
 workspaces.MapPost("/{workspaceId:guid}/invites", async (
@@ -599,6 +607,7 @@ workspaces.MapGet("/{workspaceId:guid}/billing/summary", async (
     Guid workspaceId,
     ClaimsPrincipal user,
     WorkspaceBillingService workspaceBillingService,
+    ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
     if (user.GetRequiredWorkspaceId() != workspaceId)
@@ -606,11 +615,31 @@ workspaces.MapGet("/{workspaceId:guid}/billing/summary", async (
         return Results.Forbid();
     }
 
-    var summary = await workspaceBillingService.GetCreditSummaryAsync(
-        new GetWorkspaceCreditSummaryQuery(workspaceId),
-        cancellationToken);
+    logger.LogInformation(
+        "Received workspace billing summary request for workspace {WorkspaceId} from user {UserId}.",
+        workspaceId,
+        user.GetRequiredUserId());
 
-    return Results.Ok(summary.ToResponse());
+    try
+    {
+        var summary = await workspaceBillingService.GetCreditSummaryAsync(
+            new GetWorkspaceCreditSummaryQuery(workspaceId),
+            cancellationToken);
+
+        return Results.Ok(summary.ToResponse());
+    }
+    catch (Exception exception)
+    {
+        logger.LogError(
+            exception,
+            "Workspace billing summary request failed unexpectedly for workspace {WorkspaceId}. Returning a safe fallback summary.",
+            workspaceId);
+
+        return Results.Ok(new WorkspaceCreditSummaryDto(
+            null,
+            null,
+            new WorkspaceCreditBalanceDto(workspaceId, 0, 0, DateTime.UtcNow)).ToResponse());
+    }
 });
 
 workspaces.MapPost("/{workspaceId:guid}/billing/checkout/subscription", async (
