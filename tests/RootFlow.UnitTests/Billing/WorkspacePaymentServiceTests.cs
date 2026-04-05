@@ -438,7 +438,15 @@ public sealed class WorkspacePaymentServiceTests
         long trialIncludedCredits = 5_000)
     {
         var workspaceRepository = new AlwaysExistingWorkspaceRepository(workspaceId);
+        var workspaceMembershipRepository = new InMemoryWorkspaceMembershipRepository();
         var billingPlanRepository = new InMemoryBillingPlanRepository(plans);
+        var billingNotifier = new FakeWorkspaceBillingNotifier();
+
+        workspaceMembershipRepository.AddMember(
+            workspaceId,
+            "Owner Person",
+            "owner@rootflow.test",
+            WorkspaceRole.Owner);
 
         workspaceBillingService = new WorkspaceBillingService(
             workspaceRepository,
@@ -458,9 +466,11 @@ public sealed class WorkspacePaymentServiceTests
 
         return new WorkspacePaymentService(
             workspaceRepository,
+            workspaceMembershipRepository,
             billingPlanRepository,
             repository,
             workspaceBillingService,
+            billingNotifier,
             gateway,
             new FixedClock(),
             new StripeBillingOptions
@@ -560,25 +570,42 @@ public sealed class WorkspacePaymentServiceTests
         }
     }
 
+    private sealed class FakeWorkspaceBillingNotifier : IWorkspaceBillingNotifier
+    {
+        public List<WorkspacePaymentConfirmationNotification> Notifications { get; } = [];
+
+        public Task SendPaymentConfirmedAsync(
+            WorkspacePaymentConfirmationNotification notification,
+            CancellationToken cancellationToken = default)
+        {
+            Notifications.Add(notification);
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class AlwaysExistingWorkspaceRepository : IWorkspaceRepository
     {
-        private readonly Guid _workspaceId;
+        private readonly Workspace _workspace;
 
         public AlwaysExistingWorkspaceRepository(Guid workspaceId)
         {
-            _workspaceId = workspaceId;
+            _workspace = new Workspace(
+                workspaceId,
+                "RootFlow Workspace",
+                "rootflow-workspace",
+                FixedClock.CurrentUtcNow);
         }
 
         public Task AddAsync(Workspace workspace, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task<bool> ExistsAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(workspaceId == _workspaceId);
+            return Task.FromResult(workspaceId == _workspace.Id);
         }
 
         public Task<Workspace?> GetByIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<Workspace?>(null);
+            return Task.FromResult<Workspace?>(workspaceId == _workspace.Id ? _workspace : null);
         }
     }
 
@@ -682,6 +709,20 @@ public sealed class WorkspacePaymentServiceTests
                 _subscriptions.Values.FirstOrDefault(subscription =>
                     string.Equals(subscription.Provider, provider, StringComparison.OrdinalIgnoreCase)
                     && string.Equals(subscription.ProviderSubscriptionId, providerSubscriptionId, StringComparison.Ordinal)));
+        }
+
+        public Task<WorkspaceSubscription?> GetLatestSubscriptionByProviderCustomerIdAsync(
+            string provider,
+            string providerCustomerId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<WorkspaceSubscription?>(
+                _subscriptions.Values
+                    .Where(subscription =>
+                        string.Equals(subscription.Provider, provider, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(subscription.ProviderCustomerId, providerCustomerId, StringComparison.Ordinal))
+                    .OrderByDescending(subscription => subscription.UpdatedAtUtc)
+                    .FirstOrDefault());
         }
 
         public Task UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
@@ -800,12 +841,68 @@ public sealed class WorkspacePaymentServiceTests
                     .FirstOrDefault());
         }
 
+        public Task<WorkspaceBillingTransaction?> GetLatestPendingBillingTransactionByCustomerIdAsync(
+            string provider,
+            string externalCustomerId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<WorkspaceBillingTransaction?>(
+                _billingTransactions.Values
+                    .Where(transaction =>
+                        string.Equals(transaction.Provider, provider, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(transaction.ExternalCustomerId, externalCustomerId, StringComparison.Ordinal)
+                        && transaction.Status == WorkspaceBillingTransactionStatus.Pending)
+                    .OrderByDescending(transaction => transaction.UpdatedAtUtc)
+                    .FirstOrDefault());
+        }
+
         public Task UpdateBillingTransactionAsync(
             WorkspaceBillingTransaction transaction,
             CancellationToken cancellationToken = default)
         {
             _billingTransactions[transaction.Id] = transaction;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class InMemoryWorkspaceMembershipRepository : IWorkspaceMembershipRepository
+    {
+        private readonly Dictionary<Guid, List<WorkspaceMemberRecord>> _memberships = [];
+
+        public void AddMember(Guid workspaceId, string fullName, string email, WorkspaceRole role)
+        {
+            if (!_memberships.TryGetValue(workspaceId, out var members))
+            {
+                members = [];
+                _memberships[workspaceId] = members;
+            }
+
+            members.Add(new WorkspaceMemberRecord(
+                Guid.NewGuid(),
+                fullName,
+                email,
+                role,
+                FixedClock.CurrentUtcNow,
+                true));
+        }
+
+        public Task<WorkspaceMembership?> GetAsync(Guid workspaceId, Guid userId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<WorkspaceMembership?>(null);
+        }
+
+        public Task AddAsync(WorkspaceMembership membership, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task UpdateAsync(WorkspaceMembership membership, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<WorkspaceMemberRecord>> ListByWorkspaceAsync(
+            Guid workspaceId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<WorkspaceMemberRecord>>(
+                _memberships.TryGetValue(workspaceId, out var members)
+                    ? members.ToArray()
+                    : []);
         }
     }
 

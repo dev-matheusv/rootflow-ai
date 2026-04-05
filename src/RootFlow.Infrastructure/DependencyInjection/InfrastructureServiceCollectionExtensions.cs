@@ -199,6 +199,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<IPasswordHashingService, AspNetPasswordHashingService>();
         services.AddSingleton<IPlatformAdminAccessService, ConfiguredPlatformAdminAccessService>();
+        services.AddScoped<IWorkspaceBillingNotifier, LoggingWorkspaceBillingNotifier>();
         services.AddScoped<IPasswordResetNotifier, LoggingPasswordResetNotifier>();
         services.AddScoped<IWorkspaceInvitationNotifier, LoggingWorkspaceInvitationNotifier>();
         services.AddScoped<IAiUsagePricingCalculator, ConfiguredAiUsagePricingCalculator>();

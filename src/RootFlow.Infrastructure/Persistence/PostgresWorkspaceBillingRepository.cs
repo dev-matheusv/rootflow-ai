@@ -272,6 +272,53 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
             : null;
     }
 
+    public async Task<WorkspaceSubscription?> GetLatestSubscriptionByProviderCustomerIdAsync(
+        string provider,
+        string providerCustomerId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  workspace_id,
+                                  billing_plan_id,
+                                  status,
+                                  current_period_start_utc,
+                                  current_period_end_utc,
+                                  trial_ends_at_utc,
+                                  provider,
+                                  provider_customer_id,
+                                  provider_subscription_id,
+                                  provider_price_id,
+                                  canceled_at_utc,
+                                  created_at_utc,
+                                  updated_at_utc
+                           FROM workspace_subscriptions
+                           WHERE provider = @provider
+                             AND provider_customer_id = @providerCustomerId
+                           ORDER BY CASE status
+                                        WHEN 'Active' THEN 0
+                                        WHEN 'Trial' THEN 1
+                                        WHEN 'Canceled' THEN 2
+                                        ELSE 3
+                                    END,
+                                    updated_at_utc DESC,
+                                    current_period_end_utc DESC,
+                                    created_at_utc DESC,
+                                    id DESC
+                           LIMIT 1;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", provider);
+        command.Parameters.AddWithValue("providerCustomerId", providerCustomerId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? MapSubscription(reader)
+            : null;
+    }
+
     public async Task UpdateSubscriptionAsync(
         WorkspaceSubscription subscription,
         CancellationToken cancellationToken = default)
@@ -661,6 +708,48 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue("provider", provider);
         command.Parameters.AddWithValue("externalSubscriptionId", externalSubscriptionId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? MapBillingTransaction(reader)
+            : null;
+    }
+
+    public async Task<WorkspaceBillingTransaction?> GetLatestPendingBillingTransactionByCustomerIdAsync(
+        string provider,
+        string externalCustomerId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  workspace_id,
+                                  provider,
+                                  type,
+                                  status,
+                                  billing_plan_id,
+                                  credit_amount,
+                                  amount,
+                                  currency_code,
+                                  external_checkout_session_id,
+                                  external_payment_intent_id,
+                                  external_subscription_id,
+                                  external_invoice_id,
+                                  external_customer_id,
+                                  created_at_utc,
+                                  updated_at_utc,
+                                  completed_at_utc
+                           FROM workspace_billing_transactions
+                           WHERE provider = @provider
+                             AND external_customer_id = @externalCustomerId
+                             AND status = 'Pending'
+                           ORDER BY updated_at_utc DESC, created_at_utc DESC, id DESC
+                           LIMIT 1;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", provider);
+        command.Parameters.AddWithValue("externalCustomerId", externalCustomerId);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken)

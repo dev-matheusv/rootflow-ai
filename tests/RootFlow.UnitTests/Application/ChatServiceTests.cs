@@ -421,6 +421,20 @@ public sealed class ChatServiceTests
                     && string.Equals(subscription.ProviderSubscriptionId, providerSubscriptionId, StringComparison.Ordinal)));
         }
 
+        public Task<WorkspaceSubscription?> GetLatestSubscriptionByProviderCustomerIdAsync(
+            string provider,
+            string providerCustomerId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<WorkspaceSubscription?>(
+                _subscriptions.Values
+                    .Where(subscription =>
+                        string.Equals(subscription.Provider, provider, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(subscription.ProviderCustomerId, providerCustomerId, StringComparison.Ordinal))
+                    .OrderByDescending(subscription => subscription.UpdatedAtUtc)
+                    .FirstOrDefault());
+        }
+
         public Task UpdateSubscriptionAsync(WorkspaceSubscription subscription, CancellationToken cancellationToken = default)
         {
             _subscriptions[subscription.WorkspaceId] = subscription;
@@ -527,6 +541,21 @@ public sealed class ChatServiceTests
                     .Where(transaction =>
                         string.Equals(transaction.Provider, provider, StringComparison.OrdinalIgnoreCase)
                         && string.Equals(transaction.ExternalSubscriptionId, externalSubscriptionId, StringComparison.Ordinal))
+                    .OrderByDescending(transaction => transaction.UpdatedAtUtc)
+                    .FirstOrDefault());
+        }
+
+        public Task<WorkspaceBillingTransaction?> GetLatestPendingBillingTransactionByCustomerIdAsync(
+            string provider,
+            string externalCustomerId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<WorkspaceBillingTransaction?>(
+                _billingTransactions.Values
+                    .Where(transaction =>
+                        string.Equals(transaction.Provider, provider, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(transaction.ExternalCustomerId, externalCustomerId, StringComparison.Ordinal)
+                        && transaction.Status == WorkspaceBillingTransactionStatus.Pending)
                     .OrderByDescending(transaction => transaction.UpdatedAtUtc)
                     .FirstOrDefault());
         }

@@ -586,6 +586,20 @@ public sealed class PostgresDatabaseInitializer
                     currency_code = 'BRL',
                     is_active = TRUE
                 WHERE code IN ('starter', 'pro', 'business');
+                """),
+            new DatabaseMigration(
+                "202604050001_workspace_billing_stripe_lookup_indexes",
+                "Add Stripe customer lookup indexes for subscription synchronization",
+                """
+                CREATE INDEX IF NOT EXISTS ix_workspace_subscriptions_provider_customer
+                    ON workspace_subscriptions (provider, provider_customer_id, updated_at_utc DESC, id DESC)
+                    WHERE provider IS NOT NULL
+                      AND provider_customer_id IS NOT NULL;
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_billing_transactions_customer_pending
+                    ON workspace_billing_transactions (provider, external_customer_id, updated_at_utc DESC, id DESC)
+                    WHERE external_customer_id IS NOT NULL
+                      AND status = 'Pending';
                 """)
         ];
     }

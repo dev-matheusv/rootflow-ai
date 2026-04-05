@@ -24,6 +24,11 @@ public interface IWorkspaceBillingRepository
         string providerSubscriptionId,
         CancellationToken cancellationToken = default);
 
+    Task<WorkspaceSubscription?> GetLatestSubscriptionByProviderCustomerIdAsync(
+        string provider,
+        string providerCustomerId,
+        CancellationToken cancellationToken = default);
+
     Task UpdateSubscriptionAsync(
         WorkspaceSubscription subscription,
         CancellationToken cancellationToken = default);
@@ -77,6 +82,11 @@ public interface IWorkspaceBillingRepository
     Task<WorkspaceBillingTransaction?> GetLatestBillingTransactionBySubscriptionIdAsync(
         string provider,
         string externalSubscriptionId,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkspaceBillingTransaction?> GetLatestPendingBillingTransactionByCustomerIdAsync(
+        string provider,
+        string externalCustomerId,
         CancellationToken cancellationToken = default);
 
     Task UpdateBillingTransactionAsync(
