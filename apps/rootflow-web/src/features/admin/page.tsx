@@ -1,4 +1,4 @@
-import { BarChart3, CreditCard, DollarSign, Shield, Sparkles } from "lucide-react";
+import { BarChart3, CreditCard, DollarSign, type LucideIcon, Shield, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { useI18n } from "@/app/providers/i18n-provider";
@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { usePlatformAdminDashboardQuery } from "@/hooks/use-rootflow-data";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 import { formatCredits } from "@/lib/billing/workspace-credits";
+import { cn } from "@/lib/utils";
 import type {
   PlatformAdminBillingTransaction,
   PlatformAdminModelUsage,
@@ -24,69 +25,70 @@ export function AdminPage() {
   const dashboardQuery = usePlatformAdminDashboardQuery();
   const dashboard = dashboardQuery.data;
 
-  const overviewMetrics = dashboard
+  const businessMetrics = dashboard
     ? [
         {
           key: "workspaces",
           label: t("admin.totalWorkspaces"),
           value: formatNumber(dashboard.overview.totalWorkspaces, locale),
-          note: t("admin.platformWide"),
           icon: Shield,
         },
         {
           key: "subscriptions",
           label: t("admin.activeSubscriptions"),
           value: formatNumber(dashboard.overview.totalActiveSubscriptions, locale),
-          note: t("admin.currentlyBillable"),
           icon: CreditCard,
         },
         {
           key: "trials",
           label: t("admin.totalTrials"),
           value: formatNumber(dashboard.overview.totalTrials, locale),
-          note: t("admin.trialMonitor"),
           icon: Sparkles,
         },
         {
           key: "users",
           label: t("admin.totalUsers"),
           value: formatNumber(dashboard.overview.totalUsers, locale),
-          note: t("admin.membersAcrossPlatform"),
           icon: BarChart3,
         },
+      ]
+    : [];
+
+  const usageMetrics = dashboard
+    ? [
         {
           key: "availableCredits",
           label: t("admin.availableCredits"),
           value: formatCredits(dashboard.overview.totalAvailableCredits, locale),
-          note: t("admin.sharedAcrossWorkspaces"),
           icon: CreditCard,
         },
         {
           key: "consumedCredits",
           label: t("admin.consumedCredits"),
           value: formatCredits(dashboard.overview.totalConsumedCredits, locale),
-          note: t("admin.debitedFromUsage"),
           icon: CreditCard,
         },
+      ]
+    : [];
+
+  const financialMetrics = dashboard
+    ? [
         {
           key: "providerCost",
           label: t("admin.providerCost"),
           value: formatUsd(dashboard.overview.estimatedProviderCost, locale),
-          note: t("admin.estimatedFromUsage"),
           icon: DollarSign,
         },
         {
           key: "revenueBasis",
           label: t("admin.revenueBasis"),
           value: formatUsd(dashboard.overview.estimatedRevenueBasis, locale),
-          note: t("admin.creditEquivalent"),
           icon: DollarSign,
         },
         {
           key: "grossMargin",
           label: t("admin.grossMargin"),
           value: formatUsd(dashboard.overview.estimatedGrossMargin, locale),
-          note: t("admin.usageMarginBasis"),
           icon: DollarSign,
         },
       ]
@@ -120,31 +122,23 @@ export function AdminPage() {
         />
       ) : (
         <>
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {overviewMetrics.map((metric) => {
-              const Icon = metric.icon;
-
-              return (
-                <Card key={metric.key} className="border-border/80 bg-card/86">
-                  <CardContent className="space-y-3 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                        <Icon className="size-4.5" />
-                      </div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                        {metric.note}
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="text-sm font-medium text-foreground/82">{metric.label}</div>
-                      <div className="font-display text-[1.75rem] font-semibold tracking-[-0.05em] text-foreground">
-                        {metric.value}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+          <section className="space-y-3">
+            <OverviewMetricSection
+              title={t("admin.businessGroup")}
+              metrics={businessMetrics}
+              gridClassName="sm:grid-cols-2 xl:grid-cols-4"
+            />
+            <OverviewMetricSection
+              title={t("admin.usageGroup")}
+              metrics={usageMetrics}
+              gridClassName="sm:grid-cols-2"
+            />
+            <OverviewMetricSection
+              title={t("admin.financialGroup")}
+              metrics={financialMetrics}
+              gridClassName="md:grid-cols-3"
+              prominent
+            />
           </section>
 
           <section className="grid gap-3 xl:grid-cols-[1.02fr_0.98fr]">
@@ -259,6 +253,96 @@ export function AdminPage() {
         </>
       )}
     </div>
+  );
+}
+
+function OverviewMetricSection({
+  title,
+  metrics,
+  gridClassName,
+  prominent = false,
+}: {
+  title: string;
+  metrics: {
+    key: string;
+    label: string;
+    value: string;
+    icon: LucideIcon;
+  }[];
+  gridClassName: string;
+  prominent?: boolean;
+}) {
+  if (metrics.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+        {title}
+      </div>
+      <div className={cn("grid gap-2.5", gridClassName)}>
+        {metrics.map((metric) => (
+          <CompactMetricCard
+            key={metric.key}
+            label={metric.label}
+            value={metric.value}
+            icon={metric.icon}
+            prominent={prominent}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CompactMetricCard({
+  label,
+  value,
+  icon: Icon,
+  prominent = false,
+}: {
+  label: string;
+  value: string;
+  icon: LucideIcon;
+  prominent?: boolean;
+}) {
+  return (
+    <Card className={cn(
+      "border bg-card/86",
+      prominent ? "border-primary/16 bg-primary/[0.05]" : "border-border/80",
+    )}>
+      <CardContent className="p-3.5">
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-[16px] border",
+              prominent
+                ? "border-primary/18 bg-background/80 text-primary"
+                : "border-primary/14 bg-primary/10 text-primary",
+            )}
+          >
+            <Icon className="size-4" />
+          </div>
+          <div className="min-w-0">
+            <div className={cn(
+              "truncate text-[12px] font-medium",
+              prominent ? "text-foreground/88" : "text-muted-foreground",
+            )}>
+              {label}
+            </div>
+            <div
+              className={cn(
+                "mt-0.5 font-display font-semibold tracking-[-0.05em] text-foreground",
+                prominent ? "text-[1.6rem]" : "text-[1.35rem]",
+              )}
+            >
+              {value}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
