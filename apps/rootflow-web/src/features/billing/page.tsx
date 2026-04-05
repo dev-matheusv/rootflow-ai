@@ -13,10 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from "@/features/auth/auth-provider";
 import {
+  useBillingCheckoutMutation,
   useBillingCreditPacksQuery,
   useBillingPlansQuery,
-  useCreditPurchaseCheckoutMutation,
-  useSubscriptionCheckoutMutation,
   useWorkspaceBillingSummaryQuery,
 } from "@/hooks/use-rootflow-data";
 import { formatCredits, getWorkspaceCreditSnapshot } from "@/lib/billing/workspace-credits";
@@ -38,12 +37,12 @@ export function BillingPage() {
   const billingSummaryQuery = useWorkspaceBillingSummaryQuery(workspaceId);
   const billingPlansQuery = useBillingPlansQuery();
   const creditPacksQuery = useBillingCreditPacksQuery();
-  const subscriptionCheckoutMutation = useSubscriptionCheckoutMutation();
-  const creditPurchaseCheckoutMutation = useCreditPurchaseCheckoutMutation();
+  const billingCheckoutMutation = useBillingCheckoutMutation();
   const snapshot = getWorkspaceCreditSnapshot(billingSummaryQuery.data);
   const currentPlanCode = billingSummaryQuery.data?.billingPlan?.code?.toLowerCase() ?? null;
   const currentSubscriptionStatus = billingSummaryQuery.data?.subscription?.status ?? null;
   const checkoutStatus = searchParams.get("checkout");
+  const [checkoutError, setCheckoutError] = useState<{ surface: "plans" | "credits"; message: string } | null>(null);
 
   const showToast = useCallback((tone: BillingFeedbackToast["tone"], title: string, description: string) => {
     setFeedbackToast({
@@ -83,48 +82,45 @@ export function BillingPage() {
     setSearchParams(nextSearchParams, { replace: true });
   }, [billingSummaryQuery, checkoutStatus, searchParams, setSearchParams, showToast, t]);
 
-  const handlePlanCheckout = async (planCode: string) => {
+  const handlePlanCheckout = async (planCode: string, priceId?: string | null) => {
     setActiveCheckoutKey(`plan:${planCode}`);
+    setCheckoutError(null);
 
     try {
-      const checkoutSession = await subscriptionCheckoutMutation.mutateAsync({ planCode });
-      window.location.assign(checkoutSession.checkoutUrl);
+      const checkoutSession = await billingCheckoutMutation.mutateAsync({ priceId: priceId ?? "" });
+      window.location.assign(checkoutSession.url);
     } catch (error) {
+      const message = error instanceof Error ? error.message : t("billing.sharedHint");
+      setCheckoutError({ surface: "plans", message });
       showToast(
         "error",
         t("common.labels.somethingWentWrong"),
-        error instanceof Error ? error.message : t("billing.sharedHint"),
+        message,
       );
     } finally {
       setActiveCheckoutKey(null);
     }
   };
 
-  const handleCreditCheckout = async (creditPackCode: string) => {
+  const handleCreditCheckout = async (creditPackCode: string, priceId?: string | null) => {
     setActiveCheckoutKey(`credits:${creditPackCode}`);
+    setCheckoutError(null);
 
     try {
-      const checkoutSession = await creditPurchaseCheckoutMutation.mutateAsync({ creditPackCode });
-      window.location.assign(checkoutSession.checkoutUrl);
+      const checkoutSession = await billingCheckoutMutation.mutateAsync({ priceId: priceId ?? "" });
+      window.location.assign(checkoutSession.url);
     } catch (error) {
+      const message = error instanceof Error ? error.message : t("billing.sharedHint");
+      setCheckoutError({ surface: "credits", message });
       showToast(
         "error",
         t("common.labels.somethingWentWrong"),
-        error instanceof Error ? error.message : t("billing.sharedHint"),
+        message,
       );
     } finally {
       setActiveCheckoutKey(null);
     }
   };
-
-  const subscriptionCheckoutError =
-    subscriptionCheckoutMutation.error instanceof Error
-      ? subscriptionCheckoutMutation.error.message
-      : null;
-  const creditCheckoutError =
-    creditPurchaseCheckoutMutation.error instanceof Error
-      ? creditPurchaseCheckoutMutation.error.message
-      : null;
 
   return (
     <div className="space-y-5">
@@ -272,7 +268,7 @@ export function BillingPage() {
                             <Button
                               variant={isCurrentPlan ? "outline" : "default"}
                               disabled={isCurrentPlan || isRedirecting}
-                              onClick={() => void handlePlanCheckout(plan.code)}
+                              onClick={() => void handlePlanCheckout(plan.code, plan.priceId)}
                             >
                               {isRedirecting
                                 ? t("billing.redirecting")
@@ -286,8 +282,8 @@ export function BillingPage() {
                     })}
                   </div>
 
-                  {subscriptionCheckoutError ? (
-                    <p className="text-sm text-rose-600 dark:text-rose-300">{subscriptionCheckoutError}</p>
+                  {checkoutError?.surface === "plans" ? (
+                    <p className="text-sm text-rose-600 dark:text-rose-300">{checkoutError.message}</p>
                   ) : null}
                 </>
               )}
@@ -335,7 +331,7 @@ export function BillingPage() {
                             </div>
                             <Button
                               disabled={!creditPack.isConfigured || isRedirecting}
-                              onClick={() => void handleCreditCheckout(creditPack.code)}
+                              onClick={() => void handleCreditCheckout(creditPack.code, creditPack.priceId)}
                             >
                               {isRedirecting
                                 ? t("billing.redirecting")
@@ -349,8 +345,8 @@ export function BillingPage() {
                     );
                   })}
 
-                  {creditCheckoutError ? (
-                    <p className="text-sm text-rose-600 dark:text-rose-300">{creditCheckoutError}</p>
+                  {checkoutError?.surface === "credits" ? (
+                    <p className="text-sm text-rose-600 dark:text-rose-300">{checkoutError.message}</p>
                   ) : null}
                 </>
               )}

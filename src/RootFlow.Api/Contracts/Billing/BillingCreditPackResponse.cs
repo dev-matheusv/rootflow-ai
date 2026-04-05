@@ -7,4 +7,5 @@ public sealed record BillingCreditPackResponse(
     long Credits,
     decimal Amount,
     string CurrencyCode,
-    bool IsConfigured);
+    bool IsConfigured,
+    string? PriceId);

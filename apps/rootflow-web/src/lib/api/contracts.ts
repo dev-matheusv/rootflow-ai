@@ -110,6 +110,7 @@ export interface BillingPlanSummary {
   includedCredits: number;
   maxUsers: number;
   isActive: boolean;
+  priceId?: string | null;
 }
 
 export interface BillingCreditPackSummary {
@@ -120,11 +121,20 @@ export interface BillingCreditPackSummary {
   amount: number;
   currencyCode: string;
   isConfigured: boolean;
+  priceId?: string | null;
 }
 
 export interface BillingCheckoutSession {
   sessionId: string;
   checkoutUrl: string;
+}
+
+export interface BillingCheckoutRedirect {
+  url: string;
+}
+
+export interface CreateBillingCheckoutPayload {
+  priceId: string;
 }
 
 export interface CreateWorkspaceSubscriptionCheckoutPayload {

@@ -8,4 +8,5 @@ public sealed record BillingPlanResponse(
     string CurrencyCode,
     long IncludedCredits,
     int MaxUsers,
-    bool IsActive);
+    bool IsActive,
+    string? PriceId);

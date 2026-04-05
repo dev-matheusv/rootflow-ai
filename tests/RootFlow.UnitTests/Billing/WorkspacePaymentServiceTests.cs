@@ -50,6 +50,40 @@ public sealed class WorkspacePaymentServiceTests
     }
 
     [Fact]
+    public async Task CreateCheckoutAsync_WithPlanPriceId_UsesHostedUrls()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var repository = new InMemoryWorkspaceBillingRepository();
+        var gateway = new FakeStripePaymentGateway
+        {
+            NextSubscriptionCheckout = new StripeCheckoutSessionResult(
+                "cs_sub_hosted",
+                "https://checkout.stripe.com/pay/cs_sub_hosted",
+                "cus_hosted",
+                "sub_hosted",
+                null)
+        };
+
+        var service = CreateService(
+            workspaceId,
+            [starterPlan, proPlan],
+            repository,
+            gateway,
+            out _);
+
+        var checkoutSession = await service.CreateCheckoutAsync(
+            new CreateWorkspaceBillingCheckoutCommand(workspaceId, "price_pro"));
+
+        Assert.Equal("https://checkout.stripe.com/pay/cs_sub_hosted", checkoutSession.CheckoutUrl);
+        Assert.NotNull(gateway.LastSubscriptionCheckoutRequest);
+        Assert.Equal("https://rootflow.com.br/success", gateway.LastSubscriptionCheckoutRequest!.SuccessUrl);
+        Assert.Equal("https://rootflow.com.br/faturamento", gateway.LastSubscriptionCheckoutRequest.CancelUrl);
+        Assert.Equal("price_pro", gateway.LastSubscriptionCheckoutRequest.PriceId);
+    }
+
+    [Fact]
     public async Task HandleStripeWebhookAsync_GrantsPurchasedCreditsOnlyOnce()
     {
         var workspaceId = Guid.NewGuid();
@@ -294,10 +328,15 @@ public sealed class WorkspacePaymentServiceTests
 
         public StripeWebhookEvent? NextWebhookEvent { get; set; }
 
+        public StripeSubscriptionCheckoutRequest? LastSubscriptionCheckoutRequest { get; private set; }
+
+        public StripeCreditPurchaseCheckoutRequest? LastCreditCheckoutRequest { get; private set; }
+
         public Task<StripeCheckoutSessionResult> CreateSubscriptionCheckoutSessionAsync(
             StripeSubscriptionCheckoutRequest request,
             CancellationToken cancellationToken = default)
         {
+            LastSubscriptionCheckoutRequest = request;
             return Task.FromResult(NextSubscriptionCheckout ?? throw new InvalidOperationException("Subscription checkout was not configured."));
         }
 
@@ -305,6 +344,7 @@ public sealed class WorkspacePaymentServiceTests
             StripeCreditPurchaseCheckoutRequest request,
             CancellationToken cancellationToken = default)
         {
+            LastCreditCheckoutRequest = request;
             return Task.FromResult(NextCreditCheckout ?? throw new InvalidOperationException("Credit checkout was not configured."));
         }
 

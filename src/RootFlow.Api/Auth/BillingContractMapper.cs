@@ -5,7 +5,7 @@ namespace RootFlow.Api.Auth;
 
 public static class BillingContractMapper
 {
-    public static BillingPlanResponse ToResponse(this BillingPlanDto plan)
+    public static BillingPlanResponse ToResponse(this BillingPlanDto plan, string? priceId = null)
     {
         return new BillingPlanResponse(
             plan.Id,
@@ -15,7 +15,8 @@ public static class BillingContractMapper
             plan.CurrencyCode,
             plan.IncludedCredits,
             plan.MaxUsers,
-            plan.IsActive);
+            plan.IsActive,
+            priceId);
     }
 
     public static BillingCreditPackResponse ToResponse(this BillingCreditPackDto creditPack)
@@ -27,7 +28,8 @@ public static class BillingContractMapper
             creditPack.Credits,
             creditPack.Amount,
             creditPack.CurrencyCode,
-            creditPack.IsConfigured);
+            creditPack.IsConfigured,
+            creditPack.PriceId);
     }
 
     public static WorkspaceBillingSummaryResponse ToResponse(this WorkspaceCreditSummaryDto summary)

@@ -2,12 +2,14 @@ import type {
   AskQuestionPayload,
   AcceptWorkspaceInvitePayload,
   AuthResponse,
+  BillingCheckoutRedirect,
   BillingCheckoutSession,
   BillingCreditPackSummary,
   BillingPlanSummary,
   PlatformAdminDashboard,
   WorkspaceBillingSummary,
   ChatAnswer,
+  CreateBillingCheckoutPayload,
   CreateWorkspaceCreditPurchaseCheckoutPayload,
   CreateWorkspaceSubscriptionCheckoutPayload,
   ConversationHistory,
@@ -93,6 +95,14 @@ export const rootflowApi = {
     }),
   createCreditPurchaseCheckout: (payload: CreateWorkspaceCreditPurchaseCheckoutPayload) =>
     apiRequest<BillingCheckoutSession>("/api/billing/checkout/credits", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
+  createBillingCheckout: (payload: CreateBillingCheckoutPayload) =>
+    apiRequest<BillingCheckoutRedirect>("/api/billing/checkout", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

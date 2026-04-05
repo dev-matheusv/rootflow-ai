@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
   AskQuestionPayload,
+  CreateBillingCheckoutPayload,
   CreateWorkspaceCreditPurchaseCheckoutPayload,
   CreateWorkspaceSubscriptionCheckoutPayload,
   DocumentSummary,
@@ -129,5 +130,11 @@ export function useSubscriptionCheckoutMutation() {
 export function useCreditPurchaseCheckoutMutation() {
   return useMutation({
     mutationFn: (payload: CreateWorkspaceCreditPurchaseCheckoutPayload) => rootflowApi.createCreditPurchaseCheckout(payload),
+  });
+}
+
+export function useBillingCheckoutMutation() {
+  return useMutation({
+    mutationFn: (payload: CreateBillingCheckoutPayload) => rootflowApi.createBillingCheckout(payload),
   });
 }

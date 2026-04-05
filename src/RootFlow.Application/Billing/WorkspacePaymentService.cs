@@ -12,6 +12,8 @@ namespace RootFlow.Application.Billing;
 public sealed class WorkspacePaymentService
 {
     private const string StripeProvider = "stripe";
+    private const string HostedCheckoutSuccessUrl = "https://rootflow.com.br/success";
+    private const string HostedCheckoutCancelUrl = "https://rootflow.com.br/faturamento";
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IBillingPlanRepository _billingPlanRepository;
     private readonly IWorkspaceBillingRepository _workspaceBillingRepository;
@@ -55,28 +57,91 @@ public sealed class WorkspacePaymentService
                 pack.Credits,
                 decimal.Round(pack.Amount, 2, MidpointRounding.AwayFromZero),
                 pack.CurrencyCode.Trim().ToUpperInvariant(),
-                !string.IsNullOrWhiteSpace(pack.PriceId)))
+                !string.IsNullOrWhiteSpace(pack.PriceId),
+                string.IsNullOrWhiteSpace(pack.PriceId) ? null : pack.PriceId.Trim()))
             .ToArray();
 
         return Task.FromResult(creditPacks);
+    }
+
+    public async Task<BillingCheckoutSessionDto> CreateCheckoutAsync(
+        CreateWorkspaceBillingCheckoutCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var priceId = command.PriceId?.Trim();
+        if (string.IsNullOrWhiteSpace(priceId))
+        {
+            throw new ArgumentException("Price id is required.", nameof(command.PriceId));
+        }
+
+        var planCode = TryResolvePlanCodeByPriceId(priceId);
+        if (!string.IsNullOrWhiteSpace(planCode))
+        {
+            return await CreateSubscriptionCheckoutInternalAsync(
+                command.WorkspaceId,
+                planCode,
+                HostedCheckoutSuccessUrl,
+                HostedCheckoutCancelUrl,
+                cancellationToken);
+        }
+
+        var creditPack = ResolveCreditPackByPriceId(priceId);
+        if (creditPack is not null)
+        {
+            return await CreateCreditPurchaseCheckoutInternalAsync(
+                command.WorkspaceId,
+                creditPack.Code,
+                HostedCheckoutSuccessUrl,
+                HostedCheckoutCancelUrl,
+                cancellationToken);
+        }
+
+        throw new ArgumentException("The selected checkout price is not available.", nameof(command.PriceId));
     }
 
     public async Task<BillingCheckoutSessionDto> CreateSubscriptionCheckoutAsync(
         CreateWorkspaceSubscriptionCheckoutCommand command,
         CancellationToken cancellationToken = default)
     {
-        await EnsureWorkspaceExistsAsync(command.WorkspaceId, cancellationToken);
-        await _workspaceBillingService.EnsureTrialProvisionedAsync(command.WorkspaceId, cancellationToken);
+        return await CreateSubscriptionCheckoutInternalAsync(
+            command.WorkspaceId,
+            command.PlanCode,
+            BuildCheckoutReturnUrl(_stripeOptions.CheckoutSuccessPath, "subscription"),
+            BuildCheckoutReturnUrl(_stripeOptions.CheckoutCancelPath, "subscription"),
+            cancellationToken);
+    }
 
-        var plan = await _billingPlanRepository.GetByCodeAsync(command.PlanCode, cancellationToken);
+    public async Task<BillingCheckoutSessionDto> CreateCreditPurchaseCheckoutAsync(
+        CreateWorkspaceCreditPurchaseCheckoutCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        return await CreateCreditPurchaseCheckoutInternalAsync(
+            command.WorkspaceId,
+            command.CreditPackCode,
+            BuildCheckoutReturnUrl(_stripeOptions.CheckoutSuccessPath, "credits"),
+            BuildCheckoutReturnUrl(_stripeOptions.CheckoutCancelPath, "credits"),
+            cancellationToken);
+    }
+
+    private async Task<BillingCheckoutSessionDto> CreateSubscriptionCheckoutInternalAsync(
+        Guid workspaceId,
+        string planCode,
+        string successUrl,
+        string cancelUrl,
+        CancellationToken cancellationToken)
+    {
+        await EnsureWorkspaceExistsAsync(workspaceId, cancellationToken);
+        await _workspaceBillingService.EnsureTrialProvisionedAsync(workspaceId, cancellationToken);
+
+        var plan = await _billingPlanRepository.GetByCodeAsync(planCode, cancellationToken);
         if (plan is null || !plan.IsActive)
         {
-            throw new ArgumentException("The selected billing plan is not available.", nameof(command.PlanCode));
+            throw new ArgumentException("The selected billing plan is not available.", nameof(planCode));
         }
 
         var priceId = ResolvePlanPriceId(plan.Code);
         var existingSubscription = await _workspaceBillingRepository.GetLatestSubscriptionAsync(
-            command.WorkspaceId,
+            workspaceId,
             cancellationToken);
 
         if (existingSubscription is not null &&
@@ -89,11 +154,11 @@ public sealed class WorkspacePaymentService
         var now = _clock.UtcNow;
         var checkoutSession = await _stripePaymentGateway.CreateSubscriptionCheckoutSessionAsync(
             new StripeSubscriptionCheckoutRequest(
-                command.WorkspaceId,
+                workspaceId,
                 plan.Code,
                 priceId,
-                BuildCheckoutReturnUrl(_stripeOptions.CheckoutSuccessPath, "subscription"),
-                BuildCheckoutReturnUrl(_stripeOptions.CheckoutCancelPath, "subscription"),
+                successUrl,
+                cancelUrl,
                 existingSubscription?.Provider == StripeProvider
                     ? existingSubscription.ProviderCustomerId
                     : null),
@@ -101,7 +166,7 @@ public sealed class WorkspacePaymentService
 
         var transaction = new WorkspaceBillingTransaction(
             Guid.NewGuid(),
-            command.WorkspaceId,
+            workspaceId,
             StripeProvider,
             WorkspaceBillingTransactionType.SubscriptionCheckout,
             WorkspaceBillingTransactionStatus.Pending,
@@ -120,32 +185,35 @@ public sealed class WorkspacePaymentService
         _logger.LogInformation(
             "Created Stripe subscription checkout session {CheckoutSessionId} for workspace {WorkspaceId} and plan {PlanCode}.",
             checkoutSession.SessionId,
-            command.WorkspaceId,
+            workspaceId,
             plan.Code);
 
         return new BillingCheckoutSessionDto(checkoutSession.SessionId, checkoutSession.Url);
     }
 
-    public async Task<BillingCheckoutSessionDto> CreateCreditPurchaseCheckoutAsync(
-        CreateWorkspaceCreditPurchaseCheckoutCommand command,
-        CancellationToken cancellationToken = default)
+    private async Task<BillingCheckoutSessionDto> CreateCreditPurchaseCheckoutInternalAsync(
+        Guid workspaceId,
+        string creditPackCode,
+        string successUrl,
+        string cancelUrl,
+        CancellationToken cancellationToken)
     {
-        await EnsureWorkspaceExistsAsync(command.WorkspaceId, cancellationToken);
-        await _workspaceBillingService.EnsureTrialProvisionedAsync(command.WorkspaceId, cancellationToken);
+        await EnsureWorkspaceExistsAsync(workspaceId, cancellationToken);
+        await _workspaceBillingService.EnsureTrialProvisionedAsync(workspaceId, cancellationToken);
 
-        var creditPack = ResolveCreditPack(command.CreditPackCode);
+        var creditPack = ResolveCreditPack(creditPackCode);
         var existingSubscription = await _workspaceBillingRepository.GetLatestSubscriptionAsync(
-            command.WorkspaceId,
+            workspaceId,
             cancellationToken);
         var now = _clock.UtcNow;
         var checkoutSession = await _stripePaymentGateway.CreateCreditPurchaseCheckoutSessionAsync(
             new StripeCreditPurchaseCheckoutRequest(
-                command.WorkspaceId,
+                workspaceId,
                 creditPack.Code,
                 creditPack.Credits,
                 creditPack.PriceId,
-                BuildCheckoutReturnUrl(_stripeOptions.CheckoutSuccessPath, "credits"),
-                BuildCheckoutReturnUrl(_stripeOptions.CheckoutCancelPath, "credits"),
+                successUrl,
+                cancelUrl,
                 existingSubscription?.Provider == StripeProvider
                     ? existingSubscription.ProviderCustomerId
                     : null),
@@ -153,7 +221,7 @@ public sealed class WorkspacePaymentService
 
         var transaction = new WorkspaceBillingTransaction(
             Guid.NewGuid(),
-            command.WorkspaceId,
+            workspaceId,
             StripeProvider,
             WorkspaceBillingTransactionType.CreditPurchase,
             WorkspaceBillingTransactionStatus.Pending,
@@ -171,7 +239,7 @@ public sealed class WorkspacePaymentService
         _logger.LogInformation(
             "Created Stripe credit purchase checkout session {CheckoutSessionId} for workspace {WorkspaceId} and pack {CreditPackCode}.",
             checkoutSession.SessionId,
-            command.WorkspaceId,
+            workspaceId,
             creditPack.Code);
 
         return new BillingCheckoutSessionDto(checkoutSession.SessionId, checkoutSession.Url);
@@ -600,6 +668,12 @@ public sealed class WorkspacePaymentService
         }
 
         return creditPack;
+    }
+
+    private StripeCreditPackOptions? ResolveCreditPackByPriceId(string priceId)
+    {
+        return _stripeOptions.CreditPacks.FirstOrDefault(option =>
+            string.Equals(option.PriceId, priceId.Trim(), StringComparison.Ordinal));
     }
 
     private string? TryResolvePlanCodeByPriceId(string? priceId)

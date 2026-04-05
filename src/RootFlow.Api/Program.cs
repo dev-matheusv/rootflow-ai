@@ -309,13 +309,15 @@ auth.MapPost("/reset-password", async (
 
 billing.MapGet("/plans", async (
     WorkspaceBillingService workspaceBillingService,
+    StripeBillingOptions stripeBillingOptions,
     CancellationToken cancellationToken) =>
 {
     var plans = await workspaceBillingService.ListPlansAsync(
         new ListBillingPlansQuery(),
         cancellationToken);
 
-    return Results.Ok(plans.Select(plan => plan.ToResponse()));
+    return Results.Ok(plans.Select(plan => plan.ToResponse(
+        ResolveStripePlanPriceId(stripeBillingOptions, plan.Code))));
 });
 
 billing.MapGet("/credit-packs", async (
@@ -400,6 +402,41 @@ billing.MapPost("/checkout/credits", async (
             cancellationToken);
 
         return Results.Ok(checkoutSession.ToResponse());
+    }
+    catch (BillingCheckoutUnavailableException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [exception.ParamName ?? "request"] = [exception.Message]
+        });
+    }
+});
+
+billing.MapPost("/checkout", async (
+    CreateBillingCheckoutRequest request,
+    ClaimsPrincipal user,
+    WorkspacePaymentService workspacePaymentService,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.PriceId))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["priceId"] = ["Price id is required."]
+        });
+    }
+
+    try
+    {
+        var checkoutSession = await workspacePaymentService.CreateCheckoutAsync(
+            new CreateWorkspaceBillingCheckoutCommand(user.GetRequiredWorkspaceId(), request.PriceId),
+            cancellationToken);
+
+        return Results.Ok(new BillingCheckoutRedirectResponse(checkoutSession.CheckoutUrl));
     }
     catch (BillingCheckoutUnavailableException exception)
     {
@@ -890,6 +927,14 @@ static bool TryParseWorkspaceRole(string? rawRole, out WorkspaceRole role)
     }
 
     return Enum.TryParse(rawRole.Trim(), ignoreCase: true, out role);
+}
+
+static string? ResolveStripePlanPriceId(StripeBillingOptions stripeBillingOptions, string planCode)
+{
+    return stripeBillingOptions.PlanPrices
+        .FirstOrDefault(option => string.Equals(option.PlanCode, planCode, StringComparison.OrdinalIgnoreCase))
+        ?.PriceId
+        ?.Trim();
 }
 
 static void ConfigurePlatformUrlsFromPort()
