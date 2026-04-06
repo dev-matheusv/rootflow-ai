@@ -405,6 +405,56 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         return result is true;
     }
 
+    public async Task<long> EnsureCreditGrantTargetAsync(
+        Guid workspaceId,
+        WorkspaceCreditLedgerType type,
+        long targetAmount,
+        string description,
+        DateTime createdAtUtc,
+        string referenceType,
+        string referenceId,
+        CancellationToken cancellationToken = default)
+    {
+        if (targetAmount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(targetAmount), "Target credits must be greater than zero.");
+        }
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        await GetBalanceForUpdateAsync(connection, transaction, workspaceId, cancellationToken);
+
+        var grantedAmount = await GetLedgerReferenceAmountAsync(
+            connection,
+            transaction,
+            workspaceId,
+            referenceType,
+            referenceId,
+            cancellationToken);
+        var amountToGrant = Math.Max(0, targetAmount - grantedAmount);
+
+        if (amountToGrant <= 0)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return 0;
+        }
+
+        var entry = new WorkspaceCreditLedgerEntry(
+            Guid.NewGuid(),
+            workspaceId,
+            type,
+            amountToGrant,
+            description,
+            createdAtUtc,
+            referenceType,
+            referenceId);
+
+        await ApplyLedgerEntryAsync(connection, transaction, entry, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return amountToGrant;
+    }
+
     public async Task AddUsageEventAsync(
         WorkspaceUsageEvent usageEvent,
         CancellationToken cancellationToken = default)
@@ -785,6 +835,266 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         }
     }
 
+    public async Task<WorkspaceBillingWebhookEvent> UpsertBillingWebhookEventAsync(
+        WorkspaceBillingWebhookEvent webhookEvent,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           INSERT INTO workspace_billing_webhook_events (
+                               id,
+                               provider,
+                               provider_event_id,
+                               event_type,
+                               status,
+                               attempt_count,
+                               payload,
+                               signature_header,
+                               first_received_at_utc,
+                               last_received_at_utc,
+                               updated_at_utc,
+                               processing_started_at_utc,
+                               processed_at_utc,
+                               last_error
+                           )
+                           VALUES (
+                               @id,
+                               @provider,
+                               @providerEventId,
+                               @eventType,
+                               @status,
+                               @attemptCount,
+                               @payload,
+                               @signatureHeader,
+                               @firstReceivedAtUtc,
+                               @lastReceivedAtUtc,
+                               @updatedAtUtc,
+                               @processingStartedAtUtc,
+                               @processedAtUtc,
+                               @lastError
+                           )
+                           ON CONFLICT (provider, provider_event_id)
+                           DO UPDATE
+                           SET event_type = EXCLUDED.event_type,
+                               payload = EXCLUDED.payload,
+                               signature_header = EXCLUDED.signature_header,
+                               last_received_at_utc = EXCLUDED.last_received_at_utc,
+                               updated_at_utc = EXCLUDED.updated_at_utc
+                           RETURNING id,
+                                     provider,
+                                     provider_event_id,
+                                     event_type,
+                                     status,
+                                     attempt_count,
+                                     payload,
+                                     signature_header,
+                                     first_received_at_utc,
+                                     last_received_at_utc,
+                                     updated_at_utc,
+                                     processing_started_at_utc,
+                                     processed_at_utc,
+                                     last_error;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        ConfigureBillingWebhookEventParameters(command, webhookEvent);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            throw new InvalidOperationException(
+                $"Workspace billing webhook event {webhookEvent.ProviderEventId} could not be persisted.");
+        }
+
+        return MapBillingWebhookEvent(reader);
+    }
+
+    public async Task<WorkspaceBillingWebhookEvent?> GetBillingWebhookEventByProviderEventIdAsync(
+        string provider,
+        string providerEventId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  provider,
+                                  provider_event_id,
+                                  event_type,
+                                  status,
+                                  attempt_count,
+                                  payload,
+                                  signature_header,
+                                  first_received_at_utc,
+                                  last_received_at_utc,
+                                  updated_at_utc,
+                                  processing_started_at_utc,
+                                  processed_at_utc,
+                                  last_error
+                           FROM workspace_billing_webhook_events
+                           WHERE provider = @provider
+                             AND provider_event_id = @providerEventId
+                           LIMIT 1;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", provider);
+        command.Parameters.AddWithValue("providerEventId", providerEventId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? MapBillingWebhookEvent(reader)
+            : null;
+    }
+
+    public async Task<bool> TryStartBillingWebhookEventProcessingAsync(
+        Guid webhookEventId,
+        DateTime startedAtUtc,
+        DateTime? staleProcessingBeforeUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE workspace_billing_webhook_events
+                           SET status = 'Processing',
+                               attempt_count = attempt_count + 1,
+                               processing_started_at_utc = @startedAtUtc,
+                               updated_at_utc = @startedAtUtc,
+                               last_error = NULL
+                           WHERE id = @id
+                             AND (
+                                 status = 'Pending'
+                                 OR status = 'Failed'
+                                 OR (
+                                     @staleProcessingBeforeUtc IS NOT NULL
+                                     AND status = 'Processing'
+                                     AND COALESCE(processing_started_at_utc, updated_at_utc) <= @staleProcessingBeforeUtc
+                                 )
+                             );
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("id", webhookEventId);
+        command.Parameters.AddWithValue("startedAtUtc", startedAtUtc);
+        command.Parameters.Add(new NpgsqlParameter("staleProcessingBeforeUtc", NpgsqlDbType.TimestampTz)
+        {
+            Value = (object?)staleProcessingBeforeUtc ?? DBNull.Value
+        });
+
+        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+        return rowsAffected > 0;
+    }
+
+    public async Task MarkBillingWebhookEventProcessedAsync(
+        Guid webhookEventId,
+        DateTime processedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE workspace_billing_webhook_events
+                           SET status = 'Processed',
+                               processing_started_at_utc = NULL,
+                               processed_at_utc = @processedAtUtc,
+                               updated_at_utc = @processedAtUtc,
+                               last_error = NULL
+                           WHERE id = @id;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("id", webhookEventId);
+        command.Parameters.AddWithValue("processedAtUtc", processedAtUtc);
+
+        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (rowsAffected == 0)
+        {
+            throw new InvalidOperationException(
+                $"Workspace billing webhook event {webhookEventId} was not found for completion.");
+        }
+    }
+
+    public async Task MarkBillingWebhookEventFailedAsync(
+        Guid webhookEventId,
+        string error,
+        DateTime failedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE workspace_billing_webhook_events
+                           SET status = 'Failed',
+                               processing_started_at_utc = NULL,
+                               updated_at_utc = @failedAtUtc,
+                               last_error = @lastError
+                           WHERE id = @id;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("id", webhookEventId);
+        command.Parameters.AddWithValue("failedAtUtc", failedAtUtc);
+        command.Parameters.AddWithValue("lastError", error);
+
+        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+        if (rowsAffected == 0)
+        {
+            throw new InvalidOperationException(
+                $"Workspace billing webhook event {webhookEventId} was not found for failure tracking.");
+        }
+    }
+
+    public async Task<IReadOnlyList<WorkspaceBillingWebhookEvent>> ListReplayableBillingWebhookEventsAsync(
+        string provider,
+        int take,
+        DateTime failedBeforeUtc,
+        DateTime staleProcessingBeforeUtc,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  provider,
+                                  provider_event_id,
+                                  event_type,
+                                  status,
+                                  attempt_count,
+                                  payload,
+                                  signature_header,
+                                  first_received_at_utc,
+                                  last_received_at_utc,
+                                  updated_at_utc,
+                                  processing_started_at_utc,
+                                  processed_at_utc,
+                                  last_error
+                           FROM workspace_billing_webhook_events
+                           WHERE provider = @provider
+                             AND (
+                                 status = 'Pending'
+                                 OR (status = 'Failed' AND updated_at_utc <= @failedBeforeUtc)
+                                 OR (
+                                     status = 'Processing'
+                                     AND COALESCE(processing_started_at_utc, updated_at_utc) <= @staleProcessingBeforeUtc
+                                 )
+                             )
+                           ORDER BY last_received_at_utc ASC, updated_at_utc ASC, id ASC
+                           LIMIT @take;
+                           """;
+
+        var webhookEvents = new List<WorkspaceBillingWebhookEvent>();
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("provider", provider);
+        command.Parameters.AddWithValue("failedBeforeUtc", failedBeforeUtc);
+        command.Parameters.AddWithValue("staleProcessingBeforeUtc", staleProcessingBeforeUtc);
+        command.Parameters.AddWithValue("take", Math.Max(1, take));
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            webhookEvents.Add(MapBillingWebhookEvent(reader));
+        }
+
+        return webhookEvents;
+    }
+
     private static async Task<bool> ExistsAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -855,6 +1165,35 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         }
 
         return MapBalance(reader);
+    }
+
+    private static async Task<long> GetLedgerReferenceAmountAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        Guid workspaceId,
+        string referenceType,
+        string referenceId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT COALESCE(SUM(amount), 0)
+            FROM workspace_credit_ledger
+            WHERE workspace_id = @workspaceId
+              AND reference_type = @referenceType
+              AND reference_id = @referenceId;
+            """,
+            connection,
+            transaction);
+
+        command.Parameters.AddWithValue("workspaceId", workspaceId);
+        command.Parameters.AddWithValue("referenceType", referenceType);
+        command.Parameters.AddWithValue("referenceId", referenceId);
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is long amount
+            ? amount
+            : Convert.ToInt64(result ?? 0L);
     }
 
     private static async Task UpdateBalanceAsync(
@@ -1089,6 +1428,35 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         });
     }
 
+    private static void ConfigureBillingWebhookEventParameters(
+        NpgsqlCommand command,
+        WorkspaceBillingWebhookEvent webhookEvent)
+    {
+        command.Parameters.AddWithValue("id", webhookEvent.Id);
+        command.Parameters.AddWithValue("provider", webhookEvent.Provider);
+        command.Parameters.AddWithValue("providerEventId", webhookEvent.ProviderEventId);
+        command.Parameters.AddWithValue("eventType", webhookEvent.EventType);
+        command.Parameters.AddWithValue("status", webhookEvent.Status.ToString());
+        command.Parameters.AddWithValue("attemptCount", webhookEvent.AttemptCount);
+        command.Parameters.AddWithValue("payload", webhookEvent.Payload);
+        command.Parameters.AddWithValue("signatureHeader", webhookEvent.SignatureHeader);
+        command.Parameters.AddWithValue("firstReceivedAtUtc", webhookEvent.FirstReceivedAtUtc);
+        command.Parameters.AddWithValue("lastReceivedAtUtc", webhookEvent.LastReceivedAtUtc);
+        command.Parameters.AddWithValue("updatedAtUtc", webhookEvent.UpdatedAtUtc);
+        command.Parameters.Add(new NpgsqlParameter("processingStartedAtUtc", NpgsqlDbType.TimestampTz)
+        {
+            Value = (object?)webhookEvent.ProcessingStartedAtUtc ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("processedAtUtc", NpgsqlDbType.TimestampTz)
+        {
+            Value = (object?)webhookEvent.ProcessedAtUtc ?? DBNull.Value
+        });
+        command.Parameters.Add(new NpgsqlParameter("lastError", NpgsqlDbType.Text)
+        {
+            Value = (object?)webhookEvent.LastError ?? DBNull.Value
+        });
+    }
+
     private static WorkspaceSubscription MapSubscription(NpgsqlDataReader reader)
     {
         return new WorkspaceSubscription(
@@ -1167,5 +1535,24 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
             reader.IsDBNull(12) ? null : reader.GetString(12),
             reader.IsDBNull(13) ? null : reader.GetString(13),
             reader.IsDBNull(16) ? null : reader.GetFieldValue<DateTime>(16));
+    }
+
+    private static WorkspaceBillingWebhookEvent MapBillingWebhookEvent(NpgsqlDataReader reader)
+    {
+        return new WorkspaceBillingWebhookEvent(
+            reader.GetGuid(0),
+            reader.GetString(1),
+            reader.GetString(2),
+            reader.GetString(3),
+            reader.GetString(6),
+            reader.GetString(7),
+            Enum.Parse<WorkspaceBillingWebhookEventStatus>(reader.GetString(4), ignoreCase: true),
+            reader.GetInt32(5),
+            reader.GetFieldValue<DateTime>(8),
+            reader.GetFieldValue<DateTime>(9),
+            reader.GetFieldValue<DateTime>(10),
+            reader.IsDBNull(11) ? null : reader.GetFieldValue<DateTime>(11),
+            reader.IsDBNull(12) ? null : reader.GetFieldValue<DateTime>(12),
+            reader.IsDBNull(13) ? null : reader.GetString(13));
     }
 }

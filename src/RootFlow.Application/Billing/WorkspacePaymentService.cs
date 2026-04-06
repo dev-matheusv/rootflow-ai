@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using RootFlow.Application.Abstractions.Billing;
 using RootFlow.Application.Abstractions.Persistence;
@@ -11,6 +12,8 @@ namespace RootFlow.Application.Billing;
 public sealed class WorkspacePaymentService
 {
     private const string StripeProvider = "stripe";
+    private static readonly TimeSpan StripeWebhookRetryDelay = TimeSpan.Zero;
+    private static readonly TimeSpan StripeWebhookProcessingTimeout = TimeSpan.FromMinutes(5);
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IWorkspaceMembershipRepository _workspaceMembershipRepository;
     private readonly IBillingPlanRepository _billingPlanRepository;
@@ -267,34 +270,39 @@ public sealed class WorkspacePaymentService
             throw new BillingWebhookValidationException(exception.Message);
         }
 
-        LogWebhookReceipt(webhookEvent);
+        var persistedWebhookEvent = await PersistStripeWebhookEventAsync(
+            webhookEvent,
+            payload,
+            signatureHeader,
+            cancellationToken);
+
+        if (persistedWebhookEvent.Status == WorkspaceBillingWebhookEventStatus.Processed)
+        {
+            _logger.LogInformation(
+                "Ignoring duplicate Stripe webhook event {EventType} ({EventId}) because it was already processed successfully.",
+                webhookEvent.EventType,
+                webhookEvent.EventId);
+            return;
+        }
+
+        if (!await _workspaceBillingRepository.TryStartBillingWebhookEventProcessingAsync(
+                persistedWebhookEvent.Id,
+                _clock.UtcNow,
+                cancellationToken: cancellationToken))
+        {
+            _logger.LogInformation(
+                "Skipping immediate processing for Stripe webhook event {EventType} ({EventId}) because it is already being processed by another worker.",
+                webhookEvent.EventType,
+                webhookEvent.EventId);
+            return;
+        }
 
         try
         {
-            switch (webhookEvent)
-            {
-                case StripeCheckoutCompletedEvent checkoutCompletedEvent:
-                    await HandleCheckoutCompletedAsync(checkoutCompletedEvent, cancellationToken);
-                    break;
-                case StripeInvoicePaidEvent invoicePaidEvent:
-                    await HandleInvoicePaidAsync(invoicePaidEvent, cancellationToken);
-                    break;
-                case StripeSubscriptionUpdatedEvent subscriptionUpdatedEvent:
-                    await HandleSubscriptionUpdatedAsync(subscriptionUpdatedEvent, cancellationToken);
-                    break;
-                case StripeUnhandledWebhookEvent unhandledWebhookEvent:
-                    _logger.LogDebug(
-                        "Ignoring unsupported Stripe webhook event {EventType} ({EventId}).",
-                        unhandledWebhookEvent.EventType,
-                        unhandledWebhookEvent.EventId);
-                    break;
-                default:
-                    _logger.LogDebug(
-                        "Ignoring Stripe webhook event {EventType} ({EventId}) because no handler is registered.",
-                        webhookEvent.EventType,
-                        webhookEvent.EventId);
-                    break;
-            }
+            await ProcessStripeWebhookEventAsync(
+                webhookEvent,
+                persistedWebhookEvent,
+                cancellationToken);
         }
         catch (Exception exception)
         {
@@ -303,10 +311,84 @@ public sealed class WorkspacePaymentService
                 "Stripe webhook event {EventType} ({EventId}) failed during RootFlow billing synchronization.",
                 webhookEvent.EventType,
                 webhookEvent.EventId);
+
+            await SafeMarkStripeWebhookFailedAsync(
+                persistedWebhookEvent.Id,
+                exception,
+                cancellationToken);
+
             throw new BillingWebhookProcessingException(
                 $"Stripe webhook event {webhookEvent.EventType} failed during billing synchronization.",
                 exception);
         }
+    }
+
+    public async Task<int> ReplayPendingStripeWebhooksAsync(
+        int take = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var utcNow = _clock.UtcNow;
+        var webhookEvents = await _workspaceBillingRepository.ListReplayableBillingWebhookEventsAsync(
+            StripeProvider,
+            Math.Max(1, take),
+            utcNow - StripeWebhookRetryDelay,
+            utcNow - StripeWebhookProcessingTimeout,
+            cancellationToken);
+
+        var processedCount = 0;
+        foreach (var persistedWebhookEvent in webhookEvents)
+        {
+            if (!await _workspaceBillingRepository.TryStartBillingWebhookEventProcessingAsync(
+                    persistedWebhookEvent.Id,
+                    _clock.UtcNow,
+                    utcNow - StripeWebhookProcessingTimeout,
+                    cancellationToken))
+            {
+                continue;
+            }
+
+            try
+            {
+                var webhookEvent = _stripePaymentGateway.ParseWebhook(
+                    persistedWebhookEvent.Payload,
+                    persistedWebhookEvent.SignatureHeader);
+
+                await ProcessStripeWebhookEventAsync(
+                    webhookEvent,
+                    persistedWebhookEvent,
+                    cancellationToken);
+
+                processedCount += 1;
+            }
+            catch (BillingWebhookValidationException exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Stored Stripe webhook event {EventType} ({EventId}) became invalid during replay and will remain marked as failed.",
+                    persistedWebhookEvent.EventType,
+                    persistedWebhookEvent.ProviderEventId);
+
+                await SafeMarkStripeWebhookFailedAsync(
+                    persistedWebhookEvent.Id,
+                    exception,
+                    cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Replay of stored Stripe webhook event {EventType} ({EventId}) failed during billing synchronization.",
+                    persistedWebhookEvent.EventType,
+                    persistedWebhookEvent.ProviderEventId);
+
+                await SafeMarkStripeWebhookFailedAsync(
+                    persistedWebhookEvent.Id,
+                    exception,
+                    cancellationToken);
+            }
+        }
+
+        return processedCount;
     }
 
     private async Task HandleCheckoutCompletedAsync(
@@ -374,13 +456,24 @@ public sealed class WorkspacePaymentService
                 checkoutCompletedEvent.SubscriptionId,
                 cancellationToken);
 
-            await SyncStripeSubscriptionAsync(
+            var syncContext = await SyncStripeSubscriptionAsync(
                 stripeSubscription,
                 checkoutCompletedEvent.EventType,
                 checkoutCompletedEvent.OccurredAtUtc,
                 fallbackWorkspaceId: checkoutCompletedEvent.WorkspaceId ?? transaction.WorkspaceId,
                 fallbackBillingPlanId: transaction.BillingPlanId,
                 cancellationToken);
+
+            if (syncContext is not null)
+            {
+                await EnsureIncludedCreditsGrantedForCurrentPeriodAsync(
+                    syncContext,
+                    checkoutCompletedEvent.OccurredAtUtc,
+                    "stripe_checkout_session",
+                    checkoutCompletedEvent.SessionId,
+                    cancellationToken);
+            }
+
             return;
         }
 
@@ -483,14 +576,6 @@ public sealed class WorkspacePaymentService
             stripeSubscription.PriceId,
             stripeSubscription.Status);
 
-        if (existingInvoiceTransaction?.IsCompleted == true)
-        {
-            _logger.LogInformation(
-                "Ignoring duplicate Stripe invoice.paid event for invoice {InvoiceId}.",
-                invoicePaidEvent.InvoiceId);
-            return;
-        }
-
         var syncContext = await SyncStripeSubscriptionAsync(
             stripeSubscription,
             invoicePaidEvent.EventType,
@@ -511,20 +596,20 @@ public sealed class WorkspacePaymentService
 
         var plan = syncContext!.Plan;
 
-        if (!await _workspaceBillingRepository.LedgerReferenceExistsAsync(
-                "stripe_invoice",
-                invoicePaidEvent.InvoiceId,
-                cancellationToken))
+        await EnsureIncludedCreditsGrantedForCurrentPeriodAsync(
+            syncContext,
+            invoicePaidEvent.OccurredAtUtc,
+            "stripe_invoice",
+            invoicePaidEvent.InvoiceId,
+            cancellationToken);
+
+        if (existingInvoiceTransaction?.IsCompleted == true)
         {
-            await _workspaceBillingService.GrantCreditsAsync(
-                new GrantWorkspaceCreditsCommand(
-                    subscription.WorkspaceId,
-                    plan.IncludedCredits,
-                    WorkspaceCreditLedgerType.SubscriptionGrant,
-                    $"Included credits for the {plan.Name} plan",
-                    "stripe_invoice",
-                    invoicePaidEvent.InvoiceId),
-                cancellationToken);
+            _logger.LogInformation(
+                "Ignoring duplicate Stripe invoice.paid event for invoice {InvoiceId} after confirming credits for workspace {WorkspaceId}.",
+                invoicePaidEvent.InvoiceId,
+                subscription.WorkspaceId);
+            return;
         }
 
         var invoiceTransaction = existingInvoiceTransaction ?? new WorkspaceBillingTransaction(
@@ -973,6 +1058,166 @@ public sealed class WorkspacePaymentService
         };
     }
 
+    private async Task<WorkspaceBillingWebhookEvent> PersistStripeWebhookEventAsync(
+        StripeWebhookEvent webhookEvent,
+        string payload,
+        string signatureHeader,
+        CancellationToken cancellationToken)
+    {
+        var existingEvent = await _workspaceBillingRepository.GetBillingWebhookEventByProviderEventIdAsync(
+            StripeProvider,
+            webhookEvent.EventId,
+            cancellationToken);
+
+        if (existingEvent is not null)
+        {
+            existingEvent.RecordReceipt(payload, signatureHeader, _clock.UtcNow);
+            return await _workspaceBillingRepository.UpsertBillingWebhookEventAsync(existingEvent, cancellationToken);
+        }
+
+        var persistedWebhookEvent = new WorkspaceBillingWebhookEvent(
+            Guid.NewGuid(),
+            StripeProvider,
+            webhookEvent.EventId,
+            webhookEvent.EventType,
+            payload,
+            signatureHeader,
+            WorkspaceBillingWebhookEventStatus.Pending,
+            0,
+            _clock.UtcNow,
+            _clock.UtcNow,
+            _clock.UtcNow);
+
+        return await _workspaceBillingRepository.UpsertBillingWebhookEventAsync(
+            persistedWebhookEvent,
+            cancellationToken);
+    }
+
+    private async Task EnsureIncludedCreditsGrantedForCurrentPeriodAsync(
+        StripeSubscriptionSyncContext syncContext,
+        DateTime grantedAtUtc,
+        string sourceReferenceType,
+        string sourceReferenceId,
+        CancellationToken cancellationToken)
+    {
+        var subscription = syncContext.Subscription;
+        var plan = syncContext.Plan;
+
+        if (subscription.Status != WorkspaceSubscriptionStatus.Active)
+        {
+            _logger.LogInformation(
+                "Skipping included credit grant for workspace {WorkspaceId} because subscription {SubscriptionId} is {SubscriptionStatus}.",
+                subscription.WorkspaceId,
+                subscription.Id,
+                subscription.Status);
+            return;
+        }
+
+        if (plan.IncludedCredits <= 0)
+        {
+            _logger.LogInformation(
+                "Skipping included credit grant for workspace {WorkspaceId} because plan {PlanCode} does not include credits.",
+                subscription.WorkspaceId,
+                plan.Code);
+            return;
+        }
+
+        var periodReferenceId = BuildStripeWorkspacePeriodReferenceId(subscription.CurrentPeriodStartUtc);
+        var creditsGranted = await _workspaceBillingRepository.EnsureCreditGrantTargetAsync(
+            subscription.WorkspaceId,
+            WorkspaceCreditLedgerType.SubscriptionGrant,
+            plan.IncludedCredits,
+            $"Included credits for the {plan.Name} plan",
+            grantedAtUtc,
+            "stripe_subscription_period",
+            periodReferenceId,
+            cancellationToken);
+
+        if (creditsGranted > 0)
+        {
+            _logger.LogInformation(
+                "Granted {CreditsGranted} included credits for workspace {WorkspaceId}, plan {PlanCode}, subscription {ProviderSubscriptionId}, billing period {CurrentPeriodStartUtc} to {CurrentPeriodEndUtc}, source {SourceReferenceType}/{SourceReferenceId}.",
+                creditsGranted,
+                subscription.WorkspaceId,
+                plan.Code,
+                subscription.ProviderSubscriptionId,
+                subscription.CurrentPeriodStartUtc,
+                subscription.CurrentPeriodEndUtc,
+                sourceReferenceType,
+                sourceReferenceId);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Workspace {WorkspaceId} already has the full included credits target for plan {PlanCode} in billing period {CurrentPeriodStartUtc}. Source {SourceReferenceType}/{SourceReferenceId}.",
+                subscription.WorkspaceId,
+                plan.Code,
+                subscription.CurrentPeriodStartUtc,
+                sourceReferenceType,
+                sourceReferenceId);
+        }
+    }
+
+    private async Task ProcessStripeWebhookEventAsync(
+        StripeWebhookEvent webhookEvent,
+        WorkspaceBillingWebhookEvent persistedWebhookEvent,
+        CancellationToken cancellationToken)
+    {
+        LogWebhookReceipt(webhookEvent);
+
+        switch (webhookEvent)
+        {
+            case StripeCheckoutCompletedEvent checkoutCompletedEvent:
+                await HandleCheckoutCompletedAsync(checkoutCompletedEvent, cancellationToken);
+                break;
+            case StripeInvoicePaidEvent invoicePaidEvent:
+                await HandleInvoicePaidAsync(invoicePaidEvent, cancellationToken);
+                break;
+            case StripeSubscriptionUpdatedEvent subscriptionUpdatedEvent:
+                await HandleSubscriptionUpdatedAsync(subscriptionUpdatedEvent, cancellationToken);
+                break;
+            case StripeUnhandledWebhookEvent unhandledWebhookEvent:
+                _logger.LogDebug(
+                    "Ignoring unsupported Stripe webhook event {EventType} ({EventId}).",
+                    unhandledWebhookEvent.EventType,
+                    unhandledWebhookEvent.EventId);
+                break;
+            default:
+                _logger.LogDebug(
+                    "Ignoring Stripe webhook event {EventType} ({EventId}) because no handler is registered.",
+                    webhookEvent.EventType,
+                    webhookEvent.EventId);
+                break;
+        }
+
+        await _workspaceBillingRepository.MarkBillingWebhookEventProcessedAsync(
+            persistedWebhookEvent.Id,
+            _clock.UtcNow,
+            cancellationToken);
+    }
+
+    private async Task SafeMarkStripeWebhookFailedAsync(
+        Guid persistedWebhookEventId,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _workspaceBillingRepository.MarkBillingWebhookEventFailedAsync(
+                persistedWebhookEventId,
+                exception.Message,
+                _clock.UtcNow,
+                cancellationToken);
+        }
+        catch (Exception markFailedException)
+        {
+            _logger.LogError(
+                markFailedException,
+                "Failed to persist Stripe webhook failure state for stored event {StoredWebhookEventId}.",
+                persistedWebhookEventId);
+        }
+    }
+
     private void LogWebhookReceipt(StripeWebhookEvent webhookEvent)
     {
         switch (webhookEvent)
@@ -1177,6 +1422,11 @@ public sealed class WorkspacePaymentService
             _ when canceledAtUtc.HasValue => WorkspaceSubscriptionStatus.Canceled,
             _ => WorkspaceSubscriptionStatus.Expired
         };
+    }
+
+    private static string BuildStripeWorkspacePeriodReferenceId(DateTime currentPeriodStartUtc)
+    {
+        return currentPeriodStartUtc.Ticks.ToString(CultureInfo.InvariantCulture);
     }
 
     private sealed record StripeSubscriptionSyncContext(

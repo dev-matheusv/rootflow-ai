@@ -68,6 +68,7 @@ public sealed class WorkspaceBillingService
             await EnsureProvisionedAsync(query.WorkspaceId, cancellationToken);
 
             var balance = await RequireBalanceAsync(query.WorkspaceId, cancellationToken);
+            var isDegraded = false;
 
             WorkspaceSubscription? subscription = null;
             try
@@ -80,6 +81,7 @@ public sealed class WorkspaceBillingService
                     exception,
                     "Workspace billing summary could not resolve the effective subscription for workspace {WorkspaceId}. Returning a degraded summary.",
                     query.WorkspaceId);
+                isDegraded = true;
             }
 
             BillingPlan? plan = null;
@@ -96,6 +98,7 @@ public sealed class WorkspaceBillingService
                             subscription.Id,
                             query.WorkspaceId,
                             subscription.BillingPlanId);
+                        isDegraded = true;
                     }
                 }
                 catch (Exception exception)
@@ -105,6 +108,7 @@ public sealed class WorkspaceBillingService
                         "Workspace billing summary could not resolve billing plan {BillingPlanId} for workspace {WorkspaceId}. Returning a degraded subscription summary.",
                         subscription.BillingPlanId,
                         query.WorkspaceId);
+                    isDegraded = true;
                     subscription = null;
                     plan = null;
                 }
@@ -113,7 +117,8 @@ public sealed class WorkspaceBillingService
             var summary = new WorkspaceCreditSummaryDto(
                 plan is null ? null : MapPlan(plan),
                 subscription is null ? null : MapSubscription(subscription),
-                MapBalance(balance));
+                MapBalance(balance),
+                isDegraded);
 
             _logger.LogInformation(
                 "Generated workspace billing summary for workspace {WorkspaceId}. Subscription status: {SubscriptionStatus}. Plan code: {PlanCode}. Available credits: {AvailableCredits}.",
@@ -453,7 +458,8 @@ public sealed class WorkspaceBillingService
                 return new WorkspaceCreditSummaryDto(
                     null,
                     null,
-                    MapBalance(balance));
+                    MapBalance(balance),
+                    true);
             }
         }
         catch (Exception exception)
@@ -467,7 +473,8 @@ public sealed class WorkspaceBillingService
         return new WorkspaceCreditSummaryDto(
             null,
             null,
-            new WorkspaceCreditBalanceDto(workspaceId, 0, 0, _clock.UtcNow));
+            new WorkspaceCreditBalanceDto(workspaceId, 0, 0, _clock.UtcNow),
+            true);
     }
 
     private static BillingPlanDto MapPlan(BillingPlan plan)

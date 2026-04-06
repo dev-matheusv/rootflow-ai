@@ -298,6 +298,9 @@ export function DashboardPage() {
                       <span>{creditPlanLabel ?? t("billing.currentPlan")}</span>
                     </div>
                     <WorkspaceCreditProgress className="mt-2.5" ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
+                    {creditSnapshot.isDegraded ? (
+                      <p className="mt-3 text-sm font-medium text-amber-700 dark:text-amber-300">{t("billing.billingDegradedDescription")}</p>
+                    ) : null}
                     {trialStatusText ? <p className="mt-3 text-sm font-medium text-primary">{trialStatusText}</p> : null}
                     <p className="mt-3 text-sm text-muted-foreground">
                       {creditSnapshot.tone === "low"

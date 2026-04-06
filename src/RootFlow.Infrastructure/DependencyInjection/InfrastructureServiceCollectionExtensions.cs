@@ -236,6 +236,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();
         services.AddScoped<WorkspaceCollaborationService>();
+        services.AddHostedService<StripeWebhookReplayBackgroundService>();
 
         return services;
     }

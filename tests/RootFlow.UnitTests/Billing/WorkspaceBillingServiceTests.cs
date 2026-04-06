@@ -194,6 +194,7 @@ public sealed class WorkspaceBillingServiceTests
 
         var summary = await service.GetCreditSummaryAsync(new GetWorkspaceCreditSummaryQuery(workspaceId));
 
+        Assert.True(summary.IsDegraded);
         Assert.Null(summary.BillingPlan);
         Assert.Null(summary.Subscription);
         Assert.Equal(5_000, summary.Balance.AvailableCredits);
@@ -288,6 +289,7 @@ public sealed class WorkspaceBillingServiceTests
         private readonly Dictionary<Guid, WorkspaceSubscription> _subscriptions = [];
         private readonly Dictionary<Guid, WorkspaceCreditBalance> _balances = [];
         private readonly Dictionary<Guid, WorkspaceBillingTransaction> _billingTransactions = [];
+        private readonly Dictionary<string, WorkspaceBillingWebhookEvent> _webhookEvents = [];
 
         public List<WorkspaceCreditLedgerEntry> LedgerEntries { get; } = [];
 
@@ -415,6 +417,44 @@ public sealed class WorkspaceBillingServiceTests
                     && string.Equals(entry.ReferenceId, referenceId, StringComparison.Ordinal)));
         }
 
+        public async Task<long> EnsureCreditGrantTargetAsync(
+            Guid workspaceId,
+            WorkspaceCreditLedgerType type,
+            long targetAmount,
+            string description,
+            DateTime createdAtUtc,
+            string referenceType,
+            string referenceId,
+            CancellationToken cancellationToken = default)
+        {
+            var currentAmount = LedgerEntries
+                .Where(entry =>
+                    entry.WorkspaceId == workspaceId
+                    && string.Equals(entry.ReferenceType, referenceType, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(entry.ReferenceId, referenceId, StringComparison.Ordinal))
+                .Sum(entry => entry.Amount);
+            var amountToGrant = Math.Max(0, targetAmount - currentAmount);
+
+            if (amountToGrant <= 0)
+            {
+                return 0;
+            }
+
+            await AppendLedgerEntryAsync(
+                new WorkspaceCreditLedgerEntry(
+                    Guid.NewGuid(),
+                    workspaceId,
+                    type,
+                    amountToGrant,
+                    description,
+                    createdAtUtc,
+                    referenceType,
+                    referenceId),
+                cancellationToken);
+
+            return amountToGrant;
+        }
+
         public Task AddUsageEventAsync(WorkspaceUsageEvent usageEvent, CancellationToken cancellationToken = default)
         {
             UsageEvents.Add(usageEvent);
@@ -508,6 +548,97 @@ public sealed class WorkspaceBillingServiceTests
         {
             _billingTransactions[transaction.Id] = transaction;
             return Task.CompletedTask;
+        }
+
+        public Task<WorkspaceBillingWebhookEvent> UpsertBillingWebhookEventAsync(
+            WorkspaceBillingWebhookEvent webhookEvent,
+            CancellationToken cancellationToken = default)
+        {
+            var key = GetWebhookKey(webhookEvent.Provider, webhookEvent.ProviderEventId);
+            if (_webhookEvents.TryGetValue(key, out var existing))
+            {
+                existing.RecordReceipt(webhookEvent.Payload, webhookEvent.SignatureHeader, webhookEvent.LastReceivedAtUtc);
+                return Task.FromResult(existing);
+            }
+
+            _webhookEvents[key] = webhookEvent;
+            return Task.FromResult(webhookEvent);
+        }
+
+        public Task<WorkspaceBillingWebhookEvent?> GetBillingWebhookEventByProviderEventIdAsync(
+            string provider,
+            string providerEventId,
+            CancellationToken cancellationToken = default)
+        {
+            _webhookEvents.TryGetValue(GetWebhookKey(provider, providerEventId), out var webhookEvent);
+            return Task.FromResult<WorkspaceBillingWebhookEvent?>(webhookEvent);
+        }
+
+        public Task<bool> TryStartBillingWebhookEventProcessingAsync(
+            Guid webhookEventId,
+            DateTime startedAtUtc,
+            DateTime? staleProcessingBeforeUtc = null,
+            CancellationToken cancellationToken = default)
+        {
+            var webhookEvent = _webhookEvents.Values.FirstOrDefault(entry => entry.Id == webhookEventId);
+            if (webhookEvent is null)
+            {
+                return Task.FromResult(false);
+            }
+
+            if (webhookEvent.Status == WorkspaceBillingWebhookEventStatus.Processing &&
+                staleProcessingBeforeUtc.HasValue &&
+                webhookEvent.ProcessingStartedAtUtc <= staleProcessingBeforeUtc.Value)
+            {
+                webhookEvent.MarkFailed("Stale processing reclaimed for replay.", startedAtUtc);
+            }
+
+            return Task.FromResult(webhookEvent.TryMarkProcessing(startedAtUtc));
+        }
+
+        public Task MarkBillingWebhookEventProcessedAsync(
+            Guid webhookEventId,
+            DateTime processedAtUtc,
+            CancellationToken cancellationToken = default)
+        {
+            _webhookEvents.Values.First(entry => entry.Id == webhookEventId).MarkProcessed(processedAtUtc);
+            return Task.CompletedTask;
+        }
+
+        public Task MarkBillingWebhookEventFailedAsync(
+            Guid webhookEventId,
+            string error,
+            DateTime failedAtUtc,
+            CancellationToken cancellationToken = default)
+        {
+            _webhookEvents.Values.First(entry => entry.Id == webhookEventId).MarkFailed(error, failedAtUtc);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<WorkspaceBillingWebhookEvent>> ListReplayableBillingWebhookEventsAsync(
+            string provider,
+            int take,
+            DateTime failedBeforeUtc,
+            DateTime staleProcessingBeforeUtc,
+            CancellationToken cancellationToken = default)
+        {
+            var results = _webhookEvents.Values
+                .Where(entry =>
+                    string.Equals(entry.Provider, provider, StringComparison.OrdinalIgnoreCase) &&
+                    (entry.Status == WorkspaceBillingWebhookEventStatus.Pending
+                     || (entry.Status == WorkspaceBillingWebhookEventStatus.Failed && entry.UpdatedAtUtc <= failedBeforeUtc)
+                     || (entry.Status == WorkspaceBillingWebhookEventStatus.Processing
+                         && entry.ProcessingStartedAtUtc <= staleProcessingBeforeUtc)))
+                .OrderBy(entry => entry.LastReceivedAtUtc)
+                .Take(Math.Max(1, take))
+                .ToArray();
+
+            return Task.FromResult<IReadOnlyList<WorkspaceBillingWebhookEvent>>(results);
+        }
+
+        private static string GetWebhookKey(string provider, string providerEventId)
+        {
+            return $"{provider.Trim().ToLowerInvariant()}::{providerEventId.Trim()}";
         }
     }
 

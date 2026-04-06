@@ -38,6 +38,7 @@ public static class BillingContractMapper
             summary.BillingPlan?.Name,
             summary.Subscription?.Status.ToString(),
             summary.Subscription?.TrialEndsAtUtc,
+            summary.IsDegraded,
             summary.BillingPlan?.ToResponse(),
             summary.Subscription?.ToResponse(),
             summary.Balance.ToResponse());

@@ -54,6 +54,7 @@ export function BillingPage() {
   const creditPacksQuery = useBillingCreditPacksQuery();
   const billingCheckoutMutation = useBillingCheckoutMutation();
   const snapshot = getWorkspaceCreditSnapshot(billingSummaryQuery.data);
+  const isBillingSummaryDegraded = Boolean(billingSummaryQuery.data?.isDegraded);
   const currentPlanCode = billingSummaryQuery.data?.billingPlan?.code?.toLowerCase() ?? null;
   const currentSubscriptionStatus =
     billingSummaryQuery.data?.subscriptionStatus ?? billingSummaryQuery.data?.subscription?.status ?? null;
@@ -329,6 +330,20 @@ export function BillingPage() {
               <p className="text-sm text-muted-foreground">
                 {checkoutSyncStatus === "syncing" ? t("billing.checkoutSyncDescription") : t("billing.checkoutPendingDescription")}
               </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isBillingSummaryDegraded ? (
+        <Card className="border-amber-500/20 bg-amber-500/[0.06]">
+          <CardContent className="flex items-start gap-3 p-4">
+            <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-[18px] border border-amber-500/18 bg-background/82 text-amber-700 dark:text-amber-300">
+              <Sparkles className="size-4" />
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-semibold text-foreground">{t("billing.billingDegradedTitle")}</div>
+              <p className="text-sm text-muted-foreground">{t("billing.billingDegradedDescription")}</p>
             </div>
           </CardContent>
         </Card>
@@ -626,14 +641,14 @@ function getSubscriptionStatusLabel(
   status: string | null | undefined,
   t: ReturnType<typeof useI18n>["t"],
 ) {
-  switch (status) {
-    case "Trial":
+  switch (status?.trim().toLowerCase()) {
+    case "trial":
       return t("billing.trialBadge");
-    case "Active":
-      return t("common.labels.active");
-    case "Canceled":
+    case "active":
+      return t("billing.activeState");
+    case "canceled":
       return t("billing.canceledState");
-    case "Expired":
+    case "expired":
       return t("billing.expiredState");
     default:
       return status ?? t("common.helper.none");

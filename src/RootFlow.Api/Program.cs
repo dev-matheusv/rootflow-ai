@@ -670,7 +670,8 @@ workspaces.MapGet("/{workspaceId:guid}/billing/summary", async (
         return Results.Ok(new WorkspaceCreditSummaryDto(
             null,
             null,
-            new WorkspaceCreditBalanceDto(workspaceId, 0, 0, DateTime.UtcNow)).ToResponse());
+            new WorkspaceCreditBalanceDto(workspaceId, 0, 0, DateTime.UtcNow),
+            true).ToResponse());
     }
 });
 

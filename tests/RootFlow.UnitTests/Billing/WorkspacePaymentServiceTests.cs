@@ -193,6 +193,78 @@ public sealed class WorkspacePaymentServiceTests
     }
 
     [Fact]
+    public async Task ReplayPendingStripeWebhooksAsync_ReprocessesFailedSubscriptionCheckout()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var repository = new InMemoryWorkspaceBillingRepository();
+        var gateway = new FakeStripePaymentGateway
+        {
+            NextSubscriptionCheckout = new StripeCheckoutSessionResult(
+                "cs_sub_replay",
+                "https://checkout.stripe.com/pay/cs_sub_replay",
+                "cus_replay",
+                null,
+                null)
+        };
+
+        var service = CreateService(
+            workspaceId,
+            [starterPlan, proPlan],
+            repository,
+            gateway,
+            out _,
+            trialIncludedCredits: 100);
+
+        await service.CreateSubscriptionCheckoutAsync(
+            new CreateWorkspaceSubscriptionCheckoutCommand(workspaceId, "pro"));
+
+        gateway.NextWebhookEvent = new StripeCheckoutCompletedEvent(
+            "evt_subscription_replay",
+            FixedClock.CurrentUtcNow,
+            "cs_sub_replay",
+            "subscription",
+            "paid",
+            workspaceId,
+            "pro",
+            null,
+            null,
+            "cus_replay",
+            "sub_replay",
+            null);
+
+        await Assert.ThrowsAsync<BillingWebhookProcessingException>(() =>
+            service.HandleStripeWebhookAsync("payload", "signature"));
+
+        var failedWebhookEvent = Assert.Single(repository.WebhookEvents);
+        Assert.Equal(WorkspaceBillingWebhookEventStatus.Failed, failedWebhookEvent.Status);
+
+        gateway.SubscriptionSnapshots["sub_replay"] = new StripeSubscriptionSnapshot(
+            "sub_replay",
+            workspaceId,
+            "pro",
+            "cus_replay",
+            "price_pro",
+            "active",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1),
+            null);
+
+        var replayedCount = await service.ReplayPendingStripeWebhooksAsync();
+
+        var latestSubscription = await repository.GetLatestSubscriptionAsync(workspaceId);
+        var persistedWebhookEvent = Assert.Single(repository.WebhookEvents);
+
+        Assert.Equal(1, replayedCount);
+        Assert.NotNull(latestSubscription);
+        Assert.Equal(WorkspaceSubscriptionStatus.Active, latestSubscription!.Status);
+        Assert.Equal(proPlan.Id, latestSubscription.BillingPlanId);
+        Assert.Equal(WorkspaceBillingWebhookEventStatus.Processed, persistedWebhookEvent.Status);
+        Assert.Equal(2, persistedWebhookEvent.AttemptCount);
+    }
+
+    [Fact]
     public async Task HandleStripeWebhookAsync_AppliesInvoiceAndDoesNotDoubleGrantPlanCredits()
     {
         var workspaceId = Guid.NewGuid();
@@ -278,11 +350,135 @@ public sealed class WorkspacePaymentServiceTests
         Assert.Single(
             repository.LedgerEntries,
             entry =>
-                string.Equals(entry.ReferenceType, "stripe_invoice", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(entry.ReferenceId, "in_123", StringComparison.Ordinal));
+                string.Equals(entry.ReferenceType, "stripe_subscription_period", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(entry.ReferenceId, FixedClock.CurrentUtcNow.Ticks.ToString(), StringComparison.Ordinal));
         var notification = Assert.Single(billingNotifier.Notifications);
         Assert.Equal(WorkspacePaymentConfirmationKind.Subscription, notification.Kind);
         Assert.Equal("Pro", notification.ItemName);
+    }
+
+    [Fact]
+    public async Task HandleStripeWebhookAsync_UpgradeCheckoutTopUpsIncludedCreditsWithoutDoubleGrantingInvoice()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var businessPlan = CreatePlan("business", "Business", 199.90m, 200_000, 50);
+        var repository = new InMemoryWorkspaceBillingRepository();
+        var gateway = new FakeStripePaymentGateway
+        {
+            NextSubscriptionCheckout = new StripeCheckoutSessionResult(
+                "cs_sub_pro",
+                "https://checkout.stripe.com/pay/cs_sub_pro",
+                "cus_upgrade",
+                "sub_pro",
+                null)
+        };
+
+        gateway.SubscriptionSnapshots["sub_pro"] = new StripeSubscriptionSnapshot(
+            "sub_pro",
+            workspaceId,
+            "pro",
+            "cus_upgrade",
+            "price_pro",
+            "active",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1),
+            null);
+
+        var service = CreateService(
+            workspaceId,
+            [starterPlan, proPlan, businessPlan],
+            repository,
+            gateway,
+            out _,
+            trialIncludedCredits: 100);
+
+        await service.CreateSubscriptionCheckoutAsync(
+            new CreateWorkspaceSubscriptionCheckoutCommand(workspaceId, "pro"));
+
+        gateway.NextWebhookEvent = new StripeCheckoutCompletedEvent(
+            "evt_subscription_checkout_pro",
+            FixedClock.CurrentUtcNow,
+            "cs_sub_pro",
+            "subscription",
+            "paid",
+            workspaceId,
+            "pro",
+            null,
+            null,
+            "cus_upgrade",
+            "sub_pro",
+            null);
+
+        await service.HandleStripeWebhookAsync("payload", "signature");
+
+        gateway.NextSubscriptionCheckout = new StripeCheckoutSessionResult(
+            "cs_sub_business",
+            "https://checkout.stripe.com/pay/cs_sub_business",
+            "cus_upgrade",
+            "sub_business",
+            null);
+        gateway.SubscriptionSnapshots["sub_business"] = new StripeSubscriptionSnapshot(
+            "sub_business",
+            workspaceId,
+            "business",
+            "cus_upgrade",
+            "price_business",
+            "active",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1),
+            null);
+
+        await service.CreateSubscriptionCheckoutAsync(
+            new CreateWorkspaceSubscriptionCheckoutCommand(workspaceId, "business"));
+
+        gateway.NextWebhookEvent = new StripeCheckoutCompletedEvent(
+            "evt_subscription_checkout_business",
+            FixedClock.CurrentUtcNow,
+            "cs_sub_business",
+            "subscription",
+            "paid",
+            workspaceId,
+            "business",
+            null,
+            null,
+            "cus_upgrade",
+            "sub_business",
+            null);
+
+        await service.HandleStripeWebhookAsync("payload", "signature");
+
+        gateway.NextWebhookEvent = new StripeInvoicePaidEvent(
+            "evt_invoice_business",
+            FixedClock.CurrentUtcNow,
+            "in_business",
+            "sub_business",
+            "cus_upgrade",
+            "price_business",
+            199.90m,
+            "BRL",
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1));
+
+        await service.HandleStripeWebhookAsync("payload", "signature");
+
+        var latestSubscription = await repository.GetLatestSubscriptionAsync(workspaceId);
+        var balance = await repository.GetCreditBalanceAsync(workspaceId);
+
+        Assert.NotNull(latestSubscription);
+        Assert.Equal(WorkspaceSubscriptionStatus.Active, latestSubscription!.Status);
+        Assert.Equal(businessPlan.Id, latestSubscription.BillingPlanId);
+        Assert.NotNull(balance);
+        Assert.Equal(200_100, balance!.AvailableCredits);
+        Assert.Equal(
+            200_000,
+            repository.LedgerEntries
+                .Where(entry =>
+                    entry.WorkspaceId == workspaceId
+                    && string.Equals(entry.ReferenceType, "stripe_subscription_period", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(entry.ReferenceId, FixedClock.CurrentUtcNow.Ticks.ToString(), StringComparison.Ordinal))
+                .Sum(entry => entry.Amount));
     }
 
     [Fact]
@@ -808,10 +1004,13 @@ public sealed class WorkspacePaymentServiceTests
         private readonly Dictionary<Guid, WorkspaceSubscription> _subscriptions = [];
         private readonly Dictionary<Guid, WorkspaceCreditBalance> _balances = [];
         private readonly Dictionary<Guid, WorkspaceBillingTransaction> _billingTransactions = [];
+        private readonly Dictionary<string, WorkspaceBillingWebhookEvent> _webhookEvents = [];
 
         public List<WorkspaceCreditLedgerEntry> LedgerEntries { get; } = [];
 
         public List<WorkspaceUsageEvent> UsageEvents { get; } = [];
+
+        public IReadOnlyList<WorkspaceBillingWebhookEvent> WebhookEvents => _webhookEvents.Values.ToArray();
 
         public IReadOnlyList<WorkspaceSubscription> Subscriptions =>
             _subscriptions.Values
@@ -976,6 +1175,44 @@ public sealed class WorkspacePaymentServiceTests
                     && string.Equals(entry.ReferenceId, referenceId, StringComparison.Ordinal)));
         }
 
+        public async Task<long> EnsureCreditGrantTargetAsync(
+            Guid workspaceId,
+            WorkspaceCreditLedgerType type,
+            long targetAmount,
+            string description,
+            DateTime createdAtUtc,
+            string referenceType,
+            string referenceId,
+            CancellationToken cancellationToken = default)
+        {
+            var currentAmount = LedgerEntries
+                .Where(entry =>
+                    entry.WorkspaceId == workspaceId
+                    && string.Equals(entry.ReferenceType, referenceType, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(entry.ReferenceId, referenceId, StringComparison.Ordinal))
+                .Sum(entry => entry.Amount);
+            var amountToGrant = Math.Max(0, targetAmount - currentAmount);
+
+            if (amountToGrant <= 0)
+            {
+                return 0;
+            }
+
+            await AppendLedgerEntryAsync(
+                new WorkspaceCreditLedgerEntry(
+                    Guid.NewGuid(),
+                    workspaceId,
+                    type,
+                    amountToGrant,
+                    description,
+                    createdAtUtc,
+                    referenceType,
+                    referenceId),
+                cancellationToken);
+
+            return amountToGrant;
+        }
+
         public Task AddUsageEventAsync(WorkspaceUsageEvent usageEvent, CancellationToken cancellationToken = default)
         {
             UsageEvents.Add(usageEvent);
@@ -1075,6 +1312,97 @@ public sealed class WorkspacePaymentServiceTests
         {
             _billingTransactions[transaction.Id] = transaction;
             return Task.CompletedTask;
+        }
+
+        public Task<WorkspaceBillingWebhookEvent> UpsertBillingWebhookEventAsync(
+            WorkspaceBillingWebhookEvent webhookEvent,
+            CancellationToken cancellationToken = default)
+        {
+            var key = GetWebhookKey(webhookEvent.Provider, webhookEvent.ProviderEventId);
+            if (_webhookEvents.TryGetValue(key, out var existing))
+            {
+                existing.RecordReceipt(webhookEvent.Payload, webhookEvent.SignatureHeader, webhookEvent.LastReceivedAtUtc);
+                return Task.FromResult(existing);
+            }
+
+            _webhookEvents[key] = webhookEvent;
+            return Task.FromResult(webhookEvent);
+        }
+
+        public Task<WorkspaceBillingWebhookEvent?> GetBillingWebhookEventByProviderEventIdAsync(
+            string provider,
+            string providerEventId,
+            CancellationToken cancellationToken = default)
+        {
+            _webhookEvents.TryGetValue(GetWebhookKey(provider, providerEventId), out var webhookEvent);
+            return Task.FromResult<WorkspaceBillingWebhookEvent?>(webhookEvent);
+        }
+
+        public Task<bool> TryStartBillingWebhookEventProcessingAsync(
+            Guid webhookEventId,
+            DateTime startedAtUtc,
+            DateTime? staleProcessingBeforeUtc = null,
+            CancellationToken cancellationToken = default)
+        {
+            var webhookEvent = _webhookEvents.Values.FirstOrDefault(entry => entry.Id == webhookEventId);
+            if (webhookEvent is null)
+            {
+                return Task.FromResult(false);
+            }
+
+            if (webhookEvent.Status == WorkspaceBillingWebhookEventStatus.Processing &&
+                staleProcessingBeforeUtc.HasValue &&
+                webhookEvent.ProcessingStartedAtUtc <= staleProcessingBeforeUtc.Value)
+            {
+                webhookEvent.MarkFailed("Stale processing reclaimed for replay.", startedAtUtc);
+            }
+
+            return Task.FromResult(webhookEvent.TryMarkProcessing(startedAtUtc));
+        }
+
+        public Task MarkBillingWebhookEventProcessedAsync(
+            Guid webhookEventId,
+            DateTime processedAtUtc,
+            CancellationToken cancellationToken = default)
+        {
+            _webhookEvents.Values.First(entry => entry.Id == webhookEventId).MarkProcessed(processedAtUtc);
+            return Task.CompletedTask;
+        }
+
+        public Task MarkBillingWebhookEventFailedAsync(
+            Guid webhookEventId,
+            string error,
+            DateTime failedAtUtc,
+            CancellationToken cancellationToken = default)
+        {
+            _webhookEvents.Values.First(entry => entry.Id == webhookEventId).MarkFailed(error, failedAtUtc);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<WorkspaceBillingWebhookEvent>> ListReplayableBillingWebhookEventsAsync(
+            string provider,
+            int take,
+            DateTime failedBeforeUtc,
+            DateTime staleProcessingBeforeUtc,
+            CancellationToken cancellationToken = default)
+        {
+            var results = _webhookEvents.Values
+                .Where(entry =>
+                    string.Equals(entry.Provider, provider, StringComparison.OrdinalIgnoreCase) &&
+                    (entry.Status == WorkspaceBillingWebhookEventStatus.Pending
+                     || (entry.Status == WorkspaceBillingWebhookEventStatus.Failed && entry.UpdatedAtUtc <= failedBeforeUtc)
+                     || (entry.Status == WorkspaceBillingWebhookEventStatus.Processing
+                         && entry.ProcessingStartedAtUtc <= staleProcessingBeforeUtc)))
+                .OrderBy(entry => entry.LastReceivedAtUtc)
+                .Take(Math.Max(1, take))
+                .ToArray();
+
+            return Task.FromResult<IReadOnlyList<WorkspaceBillingWebhookEvent>>(results);
+        }
+
+        private static string GetWebhookKey(string provider, string providerEventId)
+        {
+            return $"{provider.Trim().ToLowerInvariant()}::{providerEventId.Trim()}";
         }
     }
 

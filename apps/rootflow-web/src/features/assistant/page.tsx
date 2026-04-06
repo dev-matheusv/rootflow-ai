@@ -102,13 +102,15 @@ export function AssistantPage() {
     [billingSummaryQuery.data],
   );
   const billingErrorCode = getApiErrorCode(askQuestionMutation.error);
-  const isInactiveSubscription = billingErrorCode === "inactive_subscription" || creditSnapshot?.tone === "inactive";
-  const isOutOfCredits = billingErrorCode === "insufficient_credits" || creditSnapshot?.tone === "empty";
+  const isInactiveSubscription =
+    billingErrorCode === "inactive_subscription" || (!creditSnapshot?.isDegraded && creditSnapshot?.tone === "inactive");
+  const isOutOfCredits =
+    billingErrorCode === "insufficient_credits" || (!creditSnapshot?.isDegraded && creditSnapshot?.tone === "empty");
   const isBillingBlocked = isInactiveSubscription || isOutOfCredits;
   const inlineCreditWarning =
-    !isBillingBlocked && creditSnapshot?.tone === "critical"
+    !creditSnapshot?.isDegraded && !isBillingBlocked && creditSnapshot?.tone === "critical"
       ? t("billing.assistantCriticalHint")
-      : !isBillingBlocked && creditSnapshot?.tone === "low"
+      : !creditSnapshot?.isDegraded && !isBillingBlocked && creditSnapshot?.tone === "low"
         ? t("billing.assistantLowHint")
         : null;
   const creditPlanLabel = creditSnapshot?.isTrial
@@ -323,6 +325,20 @@ export function AssistantPage() {
               )}
 
               <div className="space-y-3 border-t border-border/75 pt-4">
+                {creditSnapshot?.isDegraded ? (
+                  <div className="rounded-[22px] border border-amber-500/18 bg-amber-500/[0.08] px-4 py-3 text-sm shadow-[0_18px_34px_-28px_rgba(245,158,11,0.24)]">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-2xl border border-amber-500/18 bg-background/80 text-amber-700 dark:text-amber-300">
+                        <TriangleAlert className="size-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-foreground">{t("billing.billingDegradedTitle")}</div>
+                        <div className="mt-1 text-sm text-muted-foreground">{t("billing.billingDegradedDescription")}</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
                 {inlineCreditWarning && creditSnapshot ? (
                   <div className="rounded-[22px] border border-amber-500/18 bg-amber-500/[0.08] px-4 py-3 text-sm shadow-[0_18px_34px_-28px_rgba(245,158,11,0.24)]">
                     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

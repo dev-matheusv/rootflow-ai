@@ -600,6 +600,37 @@ public sealed class PostgresDatabaseInitializer
                     ON workspace_billing_transactions (provider, external_customer_id, updated_at_utc DESC, id DESC)
                     WHERE external_customer_id IS NOT NULL
                       AND status = 'Pending';
+                """),
+            new DatabaseMigration(
+                "202604050002_workspace_billing_webhook_events",
+                "Persist Stripe webhook deliveries for durable replay and diagnostics",
+                """
+                CREATE TABLE IF NOT EXISTS workspace_billing_webhook_events (
+                    id uuid PRIMARY KEY,
+                    provider text NOT NULL,
+                    provider_event_id text NOT NULL,
+                    event_type text NOT NULL,
+                    status text NOT NULL,
+                    attempt_count integer NOT NULL,
+                    payload text NOT NULL,
+                    signature_header text NOT NULL,
+                    first_received_at_utc timestamptz NOT NULL,
+                    last_received_at_utc timestamptz NOT NULL,
+                    updated_at_utc timestamptz NOT NULL,
+                    processing_started_at_utc timestamptz NULL,
+                    processed_at_utc timestamptz NULL,
+                    last_error text NULL
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_billing_webhook_events_provider_event
+                    ON workspace_billing_webhook_events (provider, provider_event_id);
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_billing_webhook_events_provider_status_updated
+                    ON workspace_billing_webhook_events (provider, status, updated_at_utc ASC, id ASC);
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_billing_webhook_events_provider_processing
+                    ON workspace_billing_webhook_events (provider, processing_started_at_utc ASC, id ASC)
+                    WHERE status = 'Processing';
                 """)
         ];
     }

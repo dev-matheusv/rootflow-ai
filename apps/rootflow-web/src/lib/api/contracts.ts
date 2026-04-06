@@ -170,6 +170,7 @@ export interface WorkspaceBillingSummary {
   currentPlanName?: string | null;
   subscriptionStatus?: string | null;
   trialEndsAtUtc?: string | null;
+  isDegraded?: boolean;
   billingPlan?: BillingPlanSummary | null;
   subscription?: WorkspaceSubscriptionSummary | null;
   balance: WorkspaceCreditBalanceSummary;

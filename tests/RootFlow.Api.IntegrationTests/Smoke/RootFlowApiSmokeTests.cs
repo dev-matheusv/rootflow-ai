@@ -127,7 +127,8 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
 
         var summary = await summaryResponse.Content.ReadFromJsonAsync<WorkspaceBillingSummaryResponse>();
         Assert.NotNull(summary);
-        Assert.NotNull(summary!.BillingPlan);
+        Assert.False(summary!.IsDegraded);
+        Assert.NotNull(summary.BillingPlan);
         Assert.Equal("starter", summary.BillingPlan!.Code);
         Assert.NotNull(summary.Subscription);
         Assert.Equal("Trial", summary.Subscription!.Status);
@@ -173,6 +174,10 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
         bool IsActive);
 
     private sealed record WorkspaceBillingSummaryResponse(
+        string? CurrentPlanName,
+        string? SubscriptionStatus,
+        DateTime? TrialEndsAtUtc,
+        bool IsDegraded,
         BillingPlanResponse? BillingPlan,
         WorkspaceSubscriptionResponse? Subscription,
         WorkspaceCreditBalanceResponse Balance);

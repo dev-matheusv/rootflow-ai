@@ -8,6 +8,7 @@ export interface WorkspaceCreditSnapshot {
   trialEndsAtUtc: string | null;
   trialDaysRemaining: number | null;
   isTrial: boolean;
+  isDegraded: boolean;
   availableCredits: number;
   consumedCredits: number;
   totalTrackedCredits: number;
@@ -31,6 +32,7 @@ export function getWorkspaceCreditSnapshot(summary?: WorkspaceBillingSummary | n
   const planName = summary.currentPlanName ?? summary.billingPlan?.name ?? null;
   const trialEndsAtUtc = summary.trialEndsAtUtc ?? summary.subscription?.trialEndsAtUtc ?? null;
   const isTrial = subscriptionStatus === "Trial";
+  const isDegraded = Boolean(summary.isDegraded);
   const trialDaysRemaining = isTrial ? getDaysRemaining(trialEndsAtUtc) : null;
 
   let tone: WorkspaceCreditTone;
@@ -52,6 +54,7 @@ export function getWorkspaceCreditSnapshot(summary?: WorkspaceBillingSummary | n
     trialEndsAtUtc,
     trialDaysRemaining,
     isTrial,
+    isDegraded,
     availableCredits,
     consumedCredits,
     totalTrackedCredits,

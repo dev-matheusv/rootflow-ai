@@ -46,6 +46,16 @@ public interface IWorkspaceBillingRepository
         string referenceId,
         CancellationToken cancellationToken = default);
 
+    Task<long> EnsureCreditGrantTargetAsync(
+        Guid workspaceId,
+        WorkspaceCreditLedgerType type,
+        long targetAmount,
+        string description,
+        DateTime createdAtUtc,
+        string referenceType,
+        string referenceId,
+        CancellationToken cancellationToken = default);
+
     Task AddUsageEventAsync(
         WorkspaceUsageEvent usageEvent,
         CancellationToken cancellationToken = default);
@@ -91,5 +101,38 @@ public interface IWorkspaceBillingRepository
 
     Task UpdateBillingTransactionAsync(
         WorkspaceBillingTransaction transaction,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkspaceBillingWebhookEvent> UpsertBillingWebhookEventAsync(
+        WorkspaceBillingWebhookEvent webhookEvent,
+        CancellationToken cancellationToken = default);
+
+    Task<WorkspaceBillingWebhookEvent?> GetBillingWebhookEventByProviderEventIdAsync(
+        string provider,
+        string providerEventId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> TryStartBillingWebhookEventProcessingAsync(
+        Guid webhookEventId,
+        DateTime startedAtUtc,
+        DateTime? staleProcessingBeforeUtc = null,
+        CancellationToken cancellationToken = default);
+
+    Task MarkBillingWebhookEventProcessedAsync(
+        Guid webhookEventId,
+        DateTime processedAtUtc,
+        CancellationToken cancellationToken = default);
+
+    Task MarkBillingWebhookEventFailedAsync(
+        Guid webhookEventId,
+        string error,
+        DateTime failedAtUtc,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<WorkspaceBillingWebhookEvent>> ListReplayableBillingWebhookEventsAsync(
+        string provider,
+        int take,
+        DateTime failedBeforeUtc,
+        DateTime staleProcessingBeforeUtc,
         CancellationToken cancellationToken = default);
 }
