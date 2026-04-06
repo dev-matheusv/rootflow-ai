@@ -193,6 +193,7 @@ export interface PlatformAdminAlertCounts {
   noCreditWorkspaces: number;
   trialsExpiringSoon: number;
   paymentIssues: number;
+  stripeWebhookIssues: number;
 }
 
 export interface PlatformAdminUsageWindow {
@@ -280,6 +281,18 @@ export interface PlatformAdminPaymentIssue {
   updatedAtUtc: string;
 }
 
+export interface PlatformAdminStripeWebhookIssue {
+  webhookEventId: string;
+  providerEventId: string;
+  eventType: string;
+  status: string;
+  attemptCount: number;
+  firstReceivedAtUtc: string;
+  lastReceivedAtUtc: string;
+  updatedAtUtc: string;
+  lastError?: string | null;
+}
+
 export interface PlatformAdminDashboard {
   overview: PlatformAdminOverview;
   alerts: PlatformAdminAlertCounts;
@@ -288,12 +301,26 @@ export interface PlatformAdminDashboard {
   noCreditWorkspaces: PlatformAdminWorkspaceSummary[];
   trialsExpiringSoon: PlatformAdminWorkspaceSummary[];
   paymentIssues: PlatformAdminPaymentIssue[];
+  stripeWebhookIssues: PlatformAdminStripeWebhookIssue[];
   recentCreditPurchases: PlatformAdminBillingTransaction[];
   recentSubscriptionChanges: PlatformAdminSubscriptionActivity[];
   topCreditConsumers: PlatformAdminWorkspaceSummary[];
   topProviderCostWorkspaces: PlatformAdminWorkspaceSummary[];
   topRevenueBasisWorkspaces: PlatformAdminWorkspaceSummary[];
   modelBreakdown: PlatformAdminModelUsage[];
+}
+
+export interface PlatformAdminReplayStripeWebhooksResult {
+  replayedCount: number;
+  message: string;
+}
+
+export interface PlatformAdminBillingMonitoringRunResult {
+  adminAlertsSent: number;
+  workspaceNotificationsSent: number;
+  paymentIssueCount: number;
+  replayableWebhookCount: number;
+  message: string;
 }
 
 export interface ChatSource {

@@ -5,6 +5,14 @@ public interface IWorkspaceBillingNotifier
     Task SendPaymentConfirmedAsync(
         WorkspacePaymentConfirmationNotification notification,
         CancellationToken cancellationToken = default);
+
+    Task SendLifecycleNotificationAsync(
+        WorkspaceBillingLifecycleNotification notification,
+        CancellationToken cancellationToken = default);
+
+    Task SendPlatformAlertAsync(
+        PlatformBillingAlertNotification notification,
+        CancellationToken cancellationToken = default);
 }
 
 public enum WorkspacePaymentConfirmationKind
@@ -23,3 +31,29 @@ public sealed record WorkspacePaymentConfirmationNotification(
     string CurrencyCode,
     string ConfirmationMessage,
     long? CreditsGranted = null);
+
+public enum WorkspaceBillingLifecycleNotificationKind
+{
+    TrialExpiring = 1,
+    LowCredits = 2,
+    CriticalCredits = 3,
+    NoCredits = 4
+}
+
+public sealed record WorkspaceBillingLifecycleNotification(
+    string Email,
+    string? FullName,
+    string WorkspaceName,
+    WorkspaceBillingLifecycleNotificationKind Kind,
+    string? PlanName,
+    long AvailableCredits,
+    int? RemainingPercent = null,
+    DateTime? TrialEndsAtUtc = null,
+    int? TrialDaysRemaining = null);
+
+public sealed record PlatformBillingAlertNotification(
+    string Email,
+    string? FullName,
+    int PaymentIssueCount,
+    int ReplayableWebhookCount,
+    IReadOnlyList<string> DetailLines);

@@ -135,4 +135,14 @@ public interface IWorkspaceBillingRepository
         DateTime failedBeforeUtc,
         DateTime staleProcessingBeforeUtc,
         CancellationToken cancellationToken = default);
+
+    Task<bool> BillingNotificationDeliveryExistsAsync(
+        string notificationKind,
+        string dedupeKey,
+        string recipientEmail,
+        CancellationToken cancellationToken = default);
+
+    Task RecordBillingNotificationDeliveryAsync(
+        WorkspaceBillingNotificationDelivery delivery,
+        CancellationToken cancellationToken = default);
 }

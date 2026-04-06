@@ -7,6 +7,8 @@ import type {
   BillingCreditPackSummary,
   BillingPlanSummary,
   PlatformAdminDashboard,
+  PlatformAdminBillingMonitoringRunResult,
+  PlatformAdminReplayStripeWebhooksResult,
   WorkspaceBillingSummary,
   ChatAnswer,
   CreateBillingCheckoutPayload,
@@ -34,6 +36,14 @@ export const rootflowApi = {
   listBillingPlans: () => apiRequest<BillingPlanSummary[]>("/api/billing/plans"),
   listBillingCreditPacks: () => apiRequest<BillingCreditPackSummary[]>("/api/billing/credit-packs"),
   getPlatformAdminDashboard: () => apiRequest<PlatformAdminDashboard>("/api/admin/dashboard"),
+  replayStripeWebhooks: () =>
+    apiRequest<PlatformAdminReplayStripeWebhooksResult>("/api/admin/billing/replay-webhooks", {
+      method: "POST",
+    }),
+  runBillingMonitoring: () =>
+    apiRequest<PlatformAdminBillingMonitoringRunResult>("/api/admin/billing/run-monitoring", {
+      method: "POST",
+    }),
   signup: (payload: SignupPayload) =>
     apiRequest<AuthResponse>("/api/auth/signup", {
       method: "POST",

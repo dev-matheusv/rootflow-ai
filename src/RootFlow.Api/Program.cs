@@ -333,9 +333,23 @@ admin.MapGet("/dashboard", async (
     ClaimsPrincipal user,
     IPlatformAdminAccessService platformAdminAccessService,
     PlatformAdminDashboardService platformAdminDashboardService,
+    ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
-    if (!platformAdminAccessService.HasAccess(user.GetRequiredUserEmail()))
+    string adminEmail;
+    try
+    {
+        adminEmail = user.GetRequiredUserEmail();
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogWarning(
+            exception,
+            "Rejected admin dashboard request because the authenticated admin email claim was missing or invalid.");
+        return Results.Unauthorized();
+    }
+
+    if (!platformAdminAccessService.HasAccess(adminEmail))
     {
         return Results.Forbid();
     }
@@ -345,6 +359,90 @@ admin.MapGet("/dashboard", async (
         cancellationToken);
 
     return Results.Ok(dashboard.ToResponse());
+});
+
+admin.MapPost("/billing/replay-webhooks", async (
+    ClaimsPrincipal user,
+    IPlatformAdminAccessService platformAdminAccessService,
+    WorkspacePaymentService workspacePaymentService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    string adminEmail;
+    try
+    {
+        adminEmail = user.GetRequiredUserEmail();
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogWarning(
+            exception,
+            "Rejected manual Stripe webhook replay request because the authenticated admin email claim was missing or invalid.");
+        return Results.Unauthorized();
+    }
+
+    if (!platformAdminAccessService.HasAccess(adminEmail))
+    {
+        return Results.Forbid();
+    }
+
+    var replayedCount = await workspacePaymentService.ReplayPendingStripeWebhooksAsync(
+        take: 50,
+        cancellationToken);
+
+    logger.LogInformation(
+        "Platform admin {AdminEmail} triggered manual Stripe webhook replay. Replayed {ReplayCount} event(s).",
+        adminEmail,
+        replayedCount);
+
+    return Results.Ok(new PlatformAdminReplayStripeWebhooksResponse(
+        replayedCount,
+        replayedCount == 0
+            ? "No replayable Stripe webhook events were found."
+            : $"Replayed {replayedCount} Stripe webhook event(s)."));
+});
+
+admin.MapPost("/billing/run-monitoring", async (
+    ClaimsPrincipal user,
+    IPlatformAdminAccessService platformAdminAccessService,
+    BillingMonitoringService billingMonitoringService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    string adminEmail;
+    try
+    {
+        adminEmail = user.GetRequiredUserEmail();
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogWarning(
+            exception,
+            "Rejected manual billing monitoring request because the authenticated admin email claim was missing or invalid.");
+        return Results.Unauthorized();
+    }
+
+    if (!platformAdminAccessService.HasAccess(adminEmail))
+    {
+        return Results.Forbid();
+    }
+
+    var result = await billingMonitoringService.RunAsync(cancellationToken);
+
+    logger.LogInformation(
+        "Platform admin {AdminEmail} triggered manual billing monitoring run. Admin alerts sent {AdminAlertsSent}. Workspace notifications sent {WorkspaceNotificationsSent}. Payment issues {PaymentIssueCount}. Replayable webhooks {ReplayableWebhookCount}.",
+        adminEmail,
+        result.AdminAlertsSent,
+        result.WorkspaceNotificationsSent,
+        result.PaymentIssueCount,
+        result.ReplayableWebhookCount);
+
+    return Results.Ok(new PlatformAdminBillingMonitoringRunResponse(
+        result.AdminAlertsSent,
+        result.WorkspaceNotificationsSent,
+        result.PaymentIssueCount,
+        result.ReplayableWebhookCount,
+        $"Monitoring completed with {result.PaymentIssueCount} payment issue(s) and {result.ReplayableWebhookCount} replayable webhook(s)."));
 });
 
 billing.MapPost("/checkout/subscription", async (

@@ -137,6 +137,34 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
         Assert.Equal(0, summary.Balance.ConsumedCredits);
     }
 
+    [Fact]
+    public async Task AdminBillingOperations_AreAvailableToConfiguredPlatformAdmin()
+    {
+        await _factory.ResetStateAsync();
+        using var client = await _factory.CreateAuthenticatedClientAsync(email: "admin@rootflow.test");
+
+        var dashboardResponse = await client.GetAsync("/api/admin/dashboard");
+        dashboardResponse.EnsureSuccessStatusCode();
+
+        var dashboard = await dashboardResponse.Content.ReadFromJsonAsync<PlatformAdminDashboardResponse>();
+        Assert.NotNull(dashboard);
+        Assert.NotNull(dashboard!.StripeWebhookIssues);
+
+        var replayResponse = await client.PostAsync("/api/admin/billing/replay-webhooks", new StringContent(string.Empty));
+        replayResponse.EnsureSuccessStatusCode();
+
+        var replayResult = await replayResponse.Content.ReadFromJsonAsync<PlatformAdminReplayStripeWebhooksResponse>();
+        Assert.NotNull(replayResult);
+        Assert.Equal(0, replayResult!.ReplayedCount);
+
+        var monitoringResponse = await client.PostAsync("/api/admin/billing/run-monitoring", new StringContent(string.Empty));
+        monitoringResponse.EnsureSuccessStatusCode();
+
+        var monitoringResult = await monitoringResponse.Content.ReadFromJsonAsync<PlatformAdminBillingMonitoringRunResponse>();
+        Assert.NotNull(monitoringResult);
+        Assert.Equal(0, monitoringResult!.PaymentIssueCount);
+    }
+
     private sealed record HealthResponse(string Status);
 
     private sealed record DocumentResponse(Guid Id, Guid WorkspaceId, string OriginalFileName);
@@ -199,4 +227,37 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
         long AvailableCredits,
         long ConsumedCredits,
         DateTime UpdatedAtUtc);
+
+    private sealed record PlatformAdminDashboardResponse(
+        PlatformAdminAlertCountsResponse Alerts,
+        List<PlatformAdminStripeWebhookIssueResponse> StripeWebhookIssues);
+
+    private sealed record PlatformAdminAlertCountsResponse(
+        int LowCreditWorkspaces,
+        int NoCreditWorkspaces,
+        int TrialsExpiringSoon,
+        int PaymentIssues,
+        int StripeWebhookIssues);
+
+    private sealed record PlatformAdminStripeWebhookIssueResponse(
+        Guid WebhookEventId,
+        string ProviderEventId,
+        string EventType,
+        string Status,
+        int AttemptCount,
+        DateTime FirstReceivedAtUtc,
+        DateTime LastReceivedAtUtc,
+        DateTime UpdatedAtUtc,
+        string? LastError);
+
+    private sealed record PlatformAdminReplayStripeWebhooksResponse(
+        int ReplayedCount,
+        string Message);
+
+    private sealed record PlatformAdminBillingMonitoringRunResponse(
+        int AdminAlertsSent,
+        int WorkspaceNotificationsSent,
+        int PaymentIssueCount,
+        int ReplayableWebhookCount,
+        string Message);
 }

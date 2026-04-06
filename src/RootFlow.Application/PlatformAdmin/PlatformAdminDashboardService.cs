@@ -3,23 +3,27 @@ using RootFlow.Application.Abstractions.Time;
 using RootFlow.Application.Billing;
 using RootFlow.Application.PlatformAdmin.Dtos;
 using RootFlow.Application.PlatformAdmin.Queries;
+using RootFlow.Domain.Billing;
 
 namespace RootFlow.Application.PlatformAdmin;
 
 public sealed class PlatformAdminDashboardService
 {
     private readonly IPlatformAdminRepository _platformAdminRepository;
+    private readonly IWorkspaceBillingRepository _workspaceBillingRepository;
     private readonly WorkspaceBillingOptions _billingOptions;
     private readonly PlatformAdminOptions _platformAdminOptions;
     private readonly IClock _clock;
 
     public PlatformAdminDashboardService(
         IPlatformAdminRepository platformAdminRepository,
+        IWorkspaceBillingRepository workspaceBillingRepository,
         WorkspaceBillingOptions billingOptions,
         PlatformAdminOptions platformAdminOptions,
         IClock clock)
     {
         _platformAdminRepository = platformAdminRepository;
+        _workspaceBillingRepository = workspaceBillingRepository;
         _billingOptions = billingOptions;
         _platformAdminOptions = platformAdminOptions;
         _clock = clock;
@@ -49,6 +53,12 @@ public sealed class PlatformAdminDashboardService
         var lowCreditThresholdRatio = ClampRatio(_platformAdminOptions.LowCreditThresholdRatio);
         var utcNow = _clock.UtcNow;
         var trialsExpiringThresholdUtc = utcNow.AddDays(Math.Max(1, _platformAdminOptions.TrialExpiringWithinDays));
+        var stripeWebhookIssues = await _workspaceBillingRepository.ListReplayableBillingWebhookEventsAsync(
+            "stripe",
+            listSize,
+            utcNow,
+            utcNow,
+            cancellationToken);
 
         var lowCreditWorkspaces = workspaceSummaries
             .Where(workspace => workspace.AvailableCredits > 0 && workspace.TotalTrackedCredits > 0 && workspace.RemainingRatio <= lowCreditThresholdRatio)
@@ -101,18 +111,34 @@ public sealed class PlatformAdminDashboardService
                 lowCreditWorkspaces.Length,
                 noCreditWorkspaces.Length,
                 trialsExpiringSoon.Length,
-                paymentIssues.Count),
+                paymentIssues.Count,
+                stripeWebhookIssues.Count),
             usageWindows,
             lowCreditWorkspaces,
             noCreditWorkspaces,
             trialsExpiringSoon,
             paymentIssues,
+            stripeWebhookIssues.Select(MapStripeWebhookIssue).ToArray(),
             recentCreditPurchases,
             recentSubscriptionChanges,
             topCreditConsumers,
             topProviderCostWorkspaces,
             topRevenueBasisWorkspaces,
             modelBreakdown);
+    }
+
+    private static PlatformAdminStripeWebhookIssueDto MapStripeWebhookIssue(WorkspaceBillingWebhookEvent webhookIssue)
+    {
+        return new PlatformAdminStripeWebhookIssueDto(
+            webhookIssue.Id,
+            webhookIssue.ProviderEventId,
+            webhookIssue.EventType,
+            webhookIssue.Status.ToString(),
+            webhookIssue.AttemptCount,
+            webhookIssue.FirstReceivedAtUtc,
+            webhookIssue.LastReceivedAtUtc,
+            webhookIssue.UpdatedAtUtc,
+            webhookIssue.LastError);
     }
 
     private decimal ResolveCreditsPerCurrencyUnit()

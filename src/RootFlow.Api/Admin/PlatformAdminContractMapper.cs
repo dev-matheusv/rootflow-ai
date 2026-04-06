@@ -15,6 +15,7 @@ public static class PlatformAdminContractMapper
             dashboard.NoCreditWorkspaces.Select(ToResponse).ToArray(),
             dashboard.TrialsExpiringSoon.Select(ToResponse).ToArray(),
             dashboard.PaymentIssues.Select(ToResponse).ToArray(),
+            dashboard.StripeWebhookIssues.Select(ToResponse).ToArray(),
             dashboard.RecentCreditPurchases.Select(ToResponse).ToArray(),
             dashboard.RecentSubscriptionChanges.Select(ToResponse).ToArray(),
             dashboard.TopCreditConsumers.Select(ToResponse).ToArray(),
@@ -43,7 +44,8 @@ public static class PlatformAdminContractMapper
             alerts.LowCreditWorkspaces,
             alerts.NoCreditWorkspaces,
             alerts.TrialsExpiringSoon,
-            alerts.PaymentIssues);
+            alerts.PaymentIssues,
+            alerts.StripeWebhookIssues);
     }
 
     private static PlatformAdminUsageWindowResponse ToResponse(this PlatformAdminUsageWindowDto usageWindow)
@@ -141,5 +143,19 @@ public static class PlatformAdminContractMapper
             paymentIssue.CurrencyCode,
             paymentIssue.CreatedAtUtc,
             paymentIssue.UpdatedAtUtc);
+    }
+
+    private static PlatformAdminStripeWebhookIssueResponse ToResponse(this PlatformAdminStripeWebhookIssueDto webhookIssue)
+    {
+        return new PlatformAdminStripeWebhookIssueResponse(
+            webhookIssue.WebhookEventId,
+            webhookIssue.ProviderEventId,
+            webhookIssue.EventType,
+            webhookIssue.Status,
+            webhookIssue.AttemptCount,
+            webhookIssue.FirstReceivedAtUtc,
+            webhookIssue.LastReceivedAtUtc,
+            webhookIssue.UpdatedAtUtc,
+            webhookIssue.LastError);
     }
 }

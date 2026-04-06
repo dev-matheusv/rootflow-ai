@@ -933,11 +933,31 @@ public sealed class WorkspacePaymentServiceTests
     {
         public List<WorkspacePaymentConfirmationNotification> Notifications { get; } = [];
 
+        public List<WorkspaceBillingLifecycleNotification> LifecycleNotifications { get; } = [];
+
+        public List<PlatformBillingAlertNotification> PlatformAlerts { get; } = [];
+
         public Task SendPaymentConfirmedAsync(
             WorkspacePaymentConfirmationNotification notification,
             CancellationToken cancellationToken = default)
         {
             Notifications.Add(notification);
+            return Task.CompletedTask;
+        }
+
+        public Task SendLifecycleNotificationAsync(
+            WorkspaceBillingLifecycleNotification notification,
+            CancellationToken cancellationToken = default)
+        {
+            LifecycleNotifications.Add(notification);
+            return Task.CompletedTask;
+        }
+
+        public Task SendPlatformAlertAsync(
+            PlatformBillingAlertNotification notification,
+            CancellationToken cancellationToken = default)
+        {
+            PlatformAlerts.Add(notification);
             return Task.CompletedTask;
         }
     }
@@ -1005,6 +1025,7 @@ public sealed class WorkspacePaymentServiceTests
         private readonly Dictionary<Guid, WorkspaceCreditBalance> _balances = [];
         private readonly Dictionary<Guid, WorkspaceBillingTransaction> _billingTransactions = [];
         private readonly Dictionary<string, WorkspaceBillingWebhookEvent> _webhookEvents = [];
+        private readonly HashSet<string> _notificationDeliveries = new(StringComparer.OrdinalIgnoreCase);
 
         public List<WorkspaceCreditLedgerEntry> LedgerEntries { get; } = [];
 
@@ -1400,9 +1421,31 @@ public sealed class WorkspacePaymentServiceTests
             return Task.FromResult<IReadOnlyList<WorkspaceBillingWebhookEvent>>(results);
         }
 
+        public Task<bool> BillingNotificationDeliveryExistsAsync(
+            string notificationKind,
+            string dedupeKey,
+            string recipientEmail,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_notificationDeliveries.Contains(BuildDeliveryKey(notificationKind, dedupeKey, recipientEmail)));
+        }
+
+        public Task RecordBillingNotificationDeliveryAsync(
+            WorkspaceBillingNotificationDelivery delivery,
+            CancellationToken cancellationToken = default)
+        {
+            _notificationDeliveries.Add(BuildDeliveryKey(delivery.NotificationKind, delivery.DedupeKey, delivery.RecipientEmail));
+            return Task.CompletedTask;
+        }
+
         private static string GetWebhookKey(string provider, string providerEventId)
         {
             return $"{provider.Trim().ToLowerInvariant()}::{providerEventId.Trim()}";
+        }
+
+        private static string BuildDeliveryKey(string notificationKind, string dedupeKey, string recipientEmail)
+        {
+            return $"{notificationKind.Trim()}::{dedupeKey.Trim()}::{recipientEmail.Trim().ToUpperInvariant()}";
         }
     }
 

@@ -230,12 +230,14 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddScoped<AuthService>();
         services.AddScoped<PlatformAdminDashboardService>();
+        services.AddScoped<BillingMonitoringService>();
         services.AddScoped<WorkspaceBillingService>();
         services.AddScoped<WorkspacePaymentService>();
         services.AddScoped<DocumentService>();
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();
         services.AddScoped<WorkspaceCollaborationService>();
+        services.AddHostedService<BillingMonitoringBackgroundService>();
         services.AddHostedService<StripeWebhookReplayBackgroundService>();
 
         return services;

@@ -1095,6 +1095,72 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         return webhookEvents;
     }
 
+    public async Task<bool> BillingNotificationDeliveryExistsAsync(
+        string notificationKind,
+        string dedupeKey,
+        string recipientEmail,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT EXISTS (
+                               SELECT 1
+                               FROM workspace_billing_notification_deliveries
+                               WHERE notification_kind = @notificationKind
+                                 AND dedupe_key = @dedupeKey
+                                 AND recipient_email = @recipientEmail
+                           );
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("notificationKind", notificationKind);
+        command.Parameters.AddWithValue("dedupeKey", dedupeKey);
+        command.Parameters.AddWithValue("recipientEmail", recipientEmail.Trim().ToLowerInvariant());
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is true;
+    }
+
+    public async Task RecordBillingNotificationDeliveryAsync(
+        WorkspaceBillingNotificationDelivery delivery,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           INSERT INTO workspace_billing_notification_deliveries (
+                               id,
+                               workspace_id,
+                               notification_kind,
+                               dedupe_key,
+                               recipient_email,
+                               sent_at_utc
+                           )
+                           VALUES (
+                               @id,
+                               @workspaceId,
+                               @notificationKind,
+                               @dedupeKey,
+                               @recipientEmail,
+                               @sentAtUtc
+                           )
+                           ON CONFLICT (notification_kind, dedupe_key, recipient_email)
+                           DO NOTHING;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("id", delivery.Id);
+        command.Parameters.Add(new NpgsqlParameter("workspaceId", NpgsqlDbType.Uuid)
+        {
+            Value = (object?)delivery.WorkspaceId ?? DBNull.Value
+        });
+        command.Parameters.AddWithValue("notificationKind", delivery.NotificationKind);
+        command.Parameters.AddWithValue("dedupeKey", delivery.DedupeKey);
+        command.Parameters.AddWithValue("recipientEmail", delivery.RecipientEmail);
+        command.Parameters.AddWithValue("sentAtUtc", delivery.SentAtUtc);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     private static async Task<bool> ExistsAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,

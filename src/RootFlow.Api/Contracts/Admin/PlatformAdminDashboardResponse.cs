@@ -8,6 +8,7 @@ public sealed record PlatformAdminDashboardResponse(
     IReadOnlyList<PlatformAdminWorkspaceSummaryResponse> NoCreditWorkspaces,
     IReadOnlyList<PlatformAdminWorkspaceSummaryResponse> TrialsExpiringSoon,
     IReadOnlyList<PlatformAdminPaymentIssueResponse> PaymentIssues,
+    IReadOnlyList<PlatformAdminStripeWebhookIssueResponse> StripeWebhookIssues,
     IReadOnlyList<PlatformAdminBillingTransactionResponse> RecentCreditPurchases,
     IReadOnlyList<PlatformAdminSubscriptionActivityResponse> RecentSubscriptionChanges,
     IReadOnlyList<PlatformAdminWorkspaceSummaryResponse> TopCreditConsumers,
@@ -30,7 +31,8 @@ public sealed record PlatformAdminAlertCountsResponse(
     int LowCreditWorkspaces,
     int NoCreditWorkspaces,
     int TrialsExpiringSoon,
-    int PaymentIssues);
+    int PaymentIssues,
+    int StripeWebhookIssues);
 
 public sealed record PlatformAdminUsageWindowResponse(
     string Key,
@@ -110,3 +112,14 @@ public sealed record PlatformAdminPaymentIssueResponse(
     string CurrencyCode,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);
+
+public sealed record PlatformAdminStripeWebhookIssueResponse(
+    Guid WebhookEventId,
+    string ProviderEventId,
+    string EventType,
+    string Status,
+    int AttemptCount,
+    DateTime FirstReceivedAtUtc,
+    DateTime LastReceivedAtUtc,
+    DateTime UpdatedAtUtc,
+    string? LastError);

@@ -11,6 +11,7 @@ using Npgsql;
 using Pgvector;
 using RootFlow.Application.Abstractions.AI;
 using RootFlow.Application.Abstractions.Auth;
+using RootFlow.Application.Abstractions.Billing;
 using RootFlow.Application.Abstractions.Workspaces;
 using RootFlow.Api.Contracts.Auth;
 using RootFlow.Infrastructure.Configuration;
@@ -51,6 +52,7 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
             services.RemoveAll<IChatCompletionService>();
             services.RemoveAll<IPasswordResetNotifier>();
             services.RemoveAll<IWorkspaceInvitationNotifier>();
+            services.RemoveAll<IWorkspaceBillingNotifier>();
             services.RemoveAll<NpgsqlDataSource>();
 
             services.PostConfigure<StorageOptions>(options =>
@@ -73,6 +75,9 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
             services.AddSingleton<TestWorkspaceInvitationNotifier>();
             services.AddSingleton<IWorkspaceInvitationNotifier>(serviceProvider =>
                 serviceProvider.GetRequiredService<TestWorkspaceInvitationNotifier>());
+            services.AddSingleton<TestWorkspaceBillingNotifier>();
+            services.AddSingleton<IWorkspaceBillingNotifier>(serviceProvider =>
+                serviceProvider.GetRequiredService<TestWorkspaceBillingNotifier>());
         });
         builder.ConfigureAppConfiguration((_, configBuilder) =>
         {
@@ -83,7 +88,8 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
                 ["Storage:RootPath"] = _storageRootPath,
                 ["Jwt:Issuer"] = "RootFlow.Tests",
                 ["Jwt:Audience"] = "RootFlow.Web.Tests",
-                ["Jwt:Key"] = TestJwtKey
+                ["Jwt:Key"] = TestJwtKey,
+                ["PlatformAdmin:Emails:0"] = "admin@rootflow.test"
             });
         });
     }
@@ -152,6 +158,7 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
         ClearStorage();
         Services.GetRequiredService<TestPasswordResetNotifier>().Clear();
         Services.GetRequiredService<TestWorkspaceInvitationNotifier>().Clear();
+        Services.GetRequiredService<TestWorkspaceBillingNotifier>().Clear();
         await InitializeDatabaseAsync();
     }
 
@@ -163,6 +170,11 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
     public WorkspaceInvitationNotification? GetLatestWorkspaceInvitationNotification(string email)
     {
         return Services.GetRequiredService<TestWorkspaceInvitationNotifier>().GetLatestForEmail(email);
+    }
+
+    public TestWorkspaceBillingNotifier GetWorkspaceBillingNotifier()
+    {
+        return Services.GetRequiredService<TestWorkspaceBillingNotifier>();
     }
 
     private static async Task EnsureDatabaseExistsAsync()
@@ -192,6 +204,9 @@ public sealed class RootFlowApiFactory : WebApplicationFactory<Program>, IAsyncL
     {
         const string truncateSql = """
                                    TRUNCATE TABLE
+                                       workspace_billing_notification_deliveries,
+                                       workspace_billing_webhook_events,
+                                       workspace_billing_transactions,
                                        workspace_usage_events,
                                        workspace_credit_ledger,
                                        workspace_credit_balances,

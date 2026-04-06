@@ -36,6 +36,28 @@ export function usePlatformAdminDashboardQuery(enabled = true) {
   });
 }
 
+export function useReplayStripeWebhooksMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: rootflowApi.replayStripeWebhooks,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.platformAdminDashboard });
+    },
+  });
+}
+
+export function useRunBillingMonitoringMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: rootflowApi.runBillingMonitoring,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.platformAdminDashboard });
+    },
+  });
+}
+
 export function useBillingPlansQuery() {
   return useQuery({
     queryKey: queryKeys.billingPlans,

@@ -115,6 +115,78 @@ public sealed class LoggingWorkspaceBillingNotifier : IWorkspaceBillingNotifier
 #endif
     }
 
+    public async Task SendLifecycleNotificationAsync(
+        WorkspaceBillingLifecycleNotification notification,
+        CancellationToken cancellationToken = default)
+    {
+        var billingLink = _appLinkBuilder.BuildAppRouteLink("/billing", requireAbsoluteUrl: _emailSender.IsConfigured);
+        var template = BuildLifecycleTemplate(notification, billingLink);
+
+        if (_emailSender.IsConfigured)
+        {
+            await _emailSender.SendAsync(
+                RootFlowEmailTemplate.CreateMessage(notification.Email, notification.FullName, template),
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Sent RootFlow billing lifecycle email to {Email} for workspace {WorkspaceName}. Kind {LifecycleKind}.",
+                notification.Email,
+                notification.WorkspaceName,
+                notification.Kind);
+            return;
+        }
+
+        if (_hostEnvironment.IsDevelopment() || _hostEnvironment.IsEnvironment("IntegrationTesting"))
+        {
+            _logger.LogInformation(
+                "Billing lifecycle email requested for {Email}. Workspace: {WorkspaceName}. Kind: {LifecycleKind}.",
+                notification.Email,
+                notification.WorkspaceName,
+                notification.Kind);
+            return;
+        }
+
+        _logger.LogWarning(
+            "Billing lifecycle email for {Email} was skipped because outbound email is not configured.",
+            notification.Email);
+    }
+
+    public async Task SendPlatformAlertAsync(
+        PlatformBillingAlertNotification notification,
+        CancellationToken cancellationToken = default)
+    {
+        var adminLink = _appLinkBuilder.BuildAppRouteLink("/admin", requireAbsoluteUrl: _emailSender.IsConfigured);
+        var template = BuildPlatformAlertTemplate(notification, adminLink);
+
+        if (_emailSender.IsConfigured)
+        {
+            await _emailSender.SendAsync(
+                RootFlowEmailTemplate.CreateMessage(notification.Email, notification.FullName, template),
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Sent RootFlow platform billing alert email to {Email}. Payment issues {PaymentIssueCount}. Replayable webhooks {ReplayableWebhookCount}.",
+                notification.Email,
+                notification.PaymentIssueCount,
+                notification.ReplayableWebhookCount);
+            return;
+        }
+
+        if (_hostEnvironment.IsDevelopment() || _hostEnvironment.IsEnvironment("IntegrationTesting"))
+        {
+            _logger.LogInformation(
+                "Platform billing alert email requested for {Email}. Payment issues: {PaymentIssueCount}. Replayable webhooks: {ReplayableWebhookCount}.",
+                notification.Email,
+                notification.PaymentIssueCount,
+                notification.ReplayableWebhookCount);
+            return;
+        }
+
+        _logger.LogWarning(
+            "Platform billing alert email for {Email} was skipped because outbound email is not configured.",
+            notification.Email);
+    }
+
     private static ActionEmailTemplate BuildTemplate(
         WorkspacePaymentConfirmationNotification notification,
         string billingLink)
@@ -168,5 +240,113 @@ public sealed class LoggingWorkspaceBillingNotifier : IWorkspaceBillingNotifier
         }
 
         return $"{normalizedCurrencyCode} {amount:N2}";
+    }
+
+    private static ActionEmailTemplate BuildLifecycleTemplate(
+        WorkspaceBillingLifecycleNotification notification,
+        string billingLink)
+    {
+        var detailLines = new List<string>();
+        if (!string.IsNullOrWhiteSpace(notification.PlanName))
+        {
+            detailLines.Add($"Plano atual: {notification.PlanName}");
+        }
+
+        if (notification.Kind == WorkspaceBillingLifecycleNotificationKind.TrialExpiring)
+        {
+            if (notification.TrialDaysRemaining is not null)
+            {
+                detailLines.Add(
+                    notification.TrialDaysRemaining <= 0
+                        ? "O trial termina hoje."
+                        : $"Dias restantes de trial: {notification.TrialDaysRemaining}");
+            }
+
+            if (notification.TrialEndsAtUtc.HasValue)
+            {
+                detailLines.Add($"Trial termina em: {notification.TrialEndsAtUtc.Value:dd/MM/yyyy HH:mm} UTC");
+            }
+
+            return new ActionEmailTemplate(
+                "Trial proximo do fim - RootFlow",
+                $"O trial do workspace {notification.WorkspaceName} esta perto do fim.",
+                "Billing lifecycle",
+                "Seu trial esta acabando",
+                $"O workspace {notification.WorkspaceName} esta se aproximando do fim do periodo de trial. Este e o melhor momento para ativar um plano e evitar interrupcoes.",
+                "Abrir faturamento",
+                billingLink,
+                detailLines,
+                "Abra o faturamento para escolher o plano ideal e manter o workspace ativo.",
+                "Este e um aviso automatico da RootFlow.");
+        }
+
+        if (notification.RemainingPercent is not null)
+        {
+            detailLines.Add($"Percentual restante: {notification.RemainingPercent}%");
+        }
+
+        detailLines.Add($"Creditos disponiveis: {notification.AvailableCredits:N0}");
+
+        return notification.Kind switch
+        {
+            WorkspaceBillingLifecycleNotificationKind.NoCredits => new ActionEmailTemplate(
+                "Workspace sem creditos - RootFlow",
+                $"O workspace {notification.WorkspaceName} esta sem creditos.",
+                "Billing lifecycle",
+                "Seu workspace esta sem creditos",
+                $"O workspace {notification.WorkspaceName} esgotou os creditos disponiveis. O assistente pode ficar bloqueado ate a compra de novos creditos ou upgrade de plano.",
+                "Abrir faturamento",
+                billingLink,
+                detailLines,
+                "Abra o faturamento para comprar creditos extras ou fazer upgrade do plano.",
+                "Este e um aviso automatico da RootFlow."),
+            WorkspaceBillingLifecycleNotificationKind.CriticalCredits => new ActionEmailTemplate(
+                "Creditos criticamente baixos - RootFlow",
+                $"O workspace {notification.WorkspaceName} esta com creditos criticamente baixos.",
+                "Billing lifecycle",
+                "Seu workspace esta ficando sem creditos",
+                $"O workspace {notification.WorkspaceName} entrou em faixa critica de creditos restantes. Vale agir agora para evitar interrupcoes no uso.",
+                "Abrir faturamento",
+                billingLink,
+                detailLines,
+                "Abra o faturamento para reforcar a capacidade do workspace antes de atingir zero.",
+                "Este e um aviso automatico da RootFlow."),
+            _ => new ActionEmailTemplate(
+                "Creditos baixos - RootFlow",
+                $"O workspace {notification.WorkspaceName} esta com creditos baixos.",
+                "Billing lifecycle",
+                "Seu workspace esta com creditos baixos",
+                $"O workspace {notification.WorkspaceName} entrou em faixa de atencao de creditos. Vale planejar a proxima recarga ou upgrade.",
+                "Abrir faturamento",
+                billingLink,
+                detailLines,
+                "Abra o faturamento para acompanhar o consumo e decidir o proximo passo.",
+                "Este e um aviso automatico da RootFlow.")
+        };
+    }
+
+    private static ActionEmailTemplate BuildPlatformAlertTemplate(
+        PlatformBillingAlertNotification notification,
+        string adminLink)
+    {
+        var detailLines = new List<string>
+        {
+            $"Problemas de pagamento: {notification.PaymentIssueCount}",
+            $"Webhooks Stripe para replay: {notification.ReplayableWebhookCount}"
+        };
+
+        detailLines.AddRange(notification.DetailLines.Where(line => !string.IsNullOrWhiteSpace(line)));
+
+        return new ActionEmailTemplate(
+            "Alerta operacional de billing - RootFlow",
+            "A RootFlow detectou alertas operacionais no billing.",
+            "Platform ops",
+            "Billing precisa de atencao",
+            "A plataforma identificou anomalias em pagamentos ou sincronizacao de webhooks Stripe. Revise o painel admin para agir rapido.",
+            "Abrir admin",
+            adminLink,
+            detailLines,
+            "Use o painel admin para revisar issues recentes, acompanhar o estado de faturamento e executar replay quando necessario.",
+            "Este e um alerta automatico operacional da RootFlow.");
     }
 }

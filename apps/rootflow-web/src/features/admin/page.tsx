@@ -1,4 +1,5 @@
-import { BarChart3, CreditCard, DollarSign, type LucideIcon, Shield, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { Activity, BarChart3, CreditCard, DollarSign, type LucideIcon, RotateCw, Shield, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { useI18n } from "@/app/providers/i18n-provider";
@@ -8,14 +9,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { usePlatformAdminDashboardQuery } from "@/hooks/use-rootflow-data";
+import {
+  usePlatformAdminDashboardQuery,
+  useReplayStripeWebhooksMutation,
+  useRunBillingMonitoringMutation,
+} from "@/hooks/use-rootflow-data";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
+import type { ApiError } from "@/lib/api/client";
 import { formatCredits } from "@/lib/billing/workspace-credits";
 import { cn } from "@/lib/utils";
 import type {
   PlatformAdminBillingTransaction,
+  PlatformAdminBillingMonitoringRunResult,
   PlatformAdminModelUsage,
   PlatformAdminPaymentIssue,
+  PlatformAdminStripeWebhookIssue,
   PlatformAdminSubscriptionActivity,
   PlatformAdminWorkspaceSummary,
 } from "@/lib/api/contracts";
@@ -23,6 +31,12 @@ import type {
 export function AdminPage() {
   const { locale, t } = useI18n();
   const dashboardQuery = usePlatformAdminDashboardQuery();
+  const replayStripeWebhooksMutation = useReplayStripeWebhooksMutation();
+  const runBillingMonitoringMutation = useRunBillingMonitoringMutation();
+  const [billingOpsFeedback, setBillingOpsFeedback] = useState<{
+    tone: "success" | "error" | "info";
+    message: string;
+  } | null>(null);
   const dashboard = dashboardQuery.data;
 
   const businessMetrics = dashboard
@@ -93,6 +107,40 @@ export function AdminPage() {
         },
       ]
     : [];
+
+  const handleReplayWebhooks = async () => {
+    setBillingOpsFeedback(null);
+
+    try {
+      const result = await replayStripeWebhooksMutation.mutateAsync();
+      setBillingOpsFeedback({
+        tone: result.replayedCount > 0 ? "success" : "info",
+        message: result.message,
+      });
+    } catch (error) {
+      setBillingOpsFeedback({
+        tone: "error",
+        message: getErrorMessage(error, t("admin.billingOpsErrorFallback")),
+      });
+    }
+  };
+
+  const handleRunMonitoring = async () => {
+    setBillingOpsFeedback(null);
+
+    try {
+      const result = await runBillingMonitoringMutation.mutateAsync();
+      setBillingOpsFeedback({
+        tone: result.adminAlertsSent > 0 || result.workspaceNotificationsSent > 0 ? "success" : "info",
+        message: formatMonitoringMessage(result, t),
+      });
+    } catch (error) {
+      setBillingOpsFeedback({
+        tone: "error",
+        message: getErrorMessage(error, t("admin.billingOpsErrorFallback")),
+      });
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -167,20 +215,32 @@ export function AdminPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/80 bg-card/86">
-              <CardHeader>
-                <div className="space-y-1">
-                  <CardTitle>{t("admin.alertsTitle")}</CardTitle>
-                  <p className="text-sm text-muted-foreground/95">{t("admin.alertsDescription")}</p>
-                </div>
-              </CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2">
-                <AlertCard title={t("admin.lowCreditAlert")} count={dashboard.alerts.lowCreditWorkspaces} tone="warning" />
-                <AlertCard title={t("admin.noCreditAlert")} count={dashboard.alerts.noCreditWorkspaces} tone="critical" />
-                <AlertCard title={t("admin.expiringTrialAlert")} count={dashboard.alerts.trialsExpiringSoon} tone="info" />
-                <AlertCard title={t("admin.paymentIssueAlert")} count={dashboard.alerts.paymentIssues} tone="critical" />
-              </CardContent>
-            </Card>
+            <div className="space-y-3">
+              <Card className="border-border/80 bg-card/86">
+                <CardHeader>
+                  <div className="space-y-1">
+                    <CardTitle>{t("admin.alertsTitle")}</CardTitle>
+                    <p className="text-sm text-muted-foreground/95">{t("admin.alertsDescription")}</p>
+                  </div>
+                </CardHeader>
+                <CardContent className="grid gap-3 sm:grid-cols-2">
+                  <AlertCard title={t("admin.lowCreditAlert")} count={dashboard.alerts.lowCreditWorkspaces} tone="warning" />
+                  <AlertCard title={t("admin.noCreditAlert")} count={dashboard.alerts.noCreditWorkspaces} tone="critical" />
+                  <AlertCard title={t("admin.expiringTrialAlert")} count={dashboard.alerts.trialsExpiringSoon} tone="info" />
+                  <AlertCard title={t("admin.paymentIssueAlert")} count={dashboard.alerts.paymentIssues} tone="critical" />
+                  <AlertCard title={t("admin.webhookIssueAlert")} count={dashboard.alerts.stripeWebhookIssues} tone="warning" />
+                </CardContent>
+              </Card>
+
+              <AdminBillingOperationsCard
+                replayPending={replayStripeWebhooksMutation.isPending}
+                monitoringPending={runBillingMonitoringMutation.isPending}
+                feedback={billingOpsFeedback}
+                onReplayWebhooks={handleReplayWebhooks}
+                onRunMonitoring={handleRunMonitoring}
+                t={t}
+              />
+            </div>
           </section>
 
           <section className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
@@ -211,7 +271,12 @@ export function AdminPage() {
                 t={t}
                 emphasizeTrialDate
               />
-              <PaymentIssuesCard items={dashboard.paymentIssues} locale={locale} t={t} />
+              <PaymentIssuesCard
+                items={dashboard.paymentIssues}
+                webhookItems={dashboard.stripeWebhookIssues}
+                locale={locale}
+                t={t}
+              />
             </div>
 
             <div className="space-y-3">
@@ -451,43 +516,163 @@ function WorkspaceListCard({
 
 function PaymentIssuesCard({
   items,
+  webhookItems,
   locale,
   t,
 }: {
   items: PlatformAdminPaymentIssue[];
+  webhookItems: PlatformAdminStripeWebhookIssue[];
   locale: string;
   t: (key: string, values?: Record<string, string | number>) => string;
 }) {
+  const totalIssues = items.length + webhookItems.length;
+
   return (
     <Card className="border-border/80 bg-card/86">
       <CardHeader>
-        <div className="space-y-1">
-          <CardTitle>{t("admin.paymentWatchTitle")}</CardTitle>
-          <p className="text-sm text-muted-foreground/95">{t("admin.paymentWatchDescription")}</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle>{t("admin.paymentWatchTitle")}</CardTitle>
+            <p className="text-sm text-muted-foreground/95">{t("admin.paymentWatchDescription")}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={items.length > 0 ? "warning" : "secondary"}>
+              {t("admin.paymentIssuesChip", { count: items.length })}
+            </Badge>
+            <Badge variant={webhookItems.length > 0 ? "warning" : "secondary"}>
+              {t("admin.webhookIssuesChip", { count: webhookItems.length })}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {items.length === 0 ? (
+        {totalIssues === 0 ? (
           <div className="rounded-[18px] border border-dashed border-border/82 bg-background/72 px-4 py-3 text-sm text-muted-foreground">
             {t("admin.noPaymentIssues")}
           </div>
         ) : (
-          items.map((issue) => (
-            <div key={issue.transactionId} className="rounded-[20px] border border-border/78 bg-background/82 p-3.5">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-foreground">{issue.workspaceName}</div>
-                  <div className="truncate text-xs text-muted-foreground">@{issue.workspaceSlug}</div>
+          <>
+            {items.length > 0 ? (
+              <div className="space-y-3">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("admin.paymentIssuesSectionTitle")}
                 </div>
-                <Badge variant="warning">{issue.status}</Badge>
+                {items.map((issue) => (
+                  <div key={issue.transactionId} className="rounded-[20px] border border-border/78 bg-background/82 p-3.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground">{issue.workspaceName}</div>
+                        <div className="truncate text-xs text-muted-foreground">@{issue.workspaceSlug}</div>
+                      </div>
+                      <Badge variant="warning">{issue.status}</Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm">
+                      <MetricRow label={t("common.labels.type")} value={issue.type} />
+                      <MetricRow label={t("admin.amountLabel")} value={formatCurrency(issue.amount, issue.currencyCode, locale)} />
+                      <MetricRow label={t("common.labels.updatedLabel")} value={formatRelativeDate(issue.updatedAtUtc, locale as "en" | "pt-BR")} />
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="mt-3 grid gap-2 text-sm">
-                <MetricRow label={t("common.labels.type")} value={issue.type} />
-                <MetricRow label={t("admin.amountLabel")} value={formatCurrency(issue.amount, issue.currencyCode, locale)} />
-                <MetricRow label={t("common.labels.updatedLabel")} value={formatRelativeDate(issue.updatedAtUtc, locale as "en" | "pt-BR")} />
+            ) : null}
+
+            {webhookItems.length > 0 ? (
+              <div className="space-y-3">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  {t("admin.webhookIssuesSectionTitle")}
+                </div>
+                {webhookItems.map((issue) => (
+                  <div key={issue.webhookEventId} className="rounded-[20px] border border-border/78 bg-background/82 p-3.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-foreground">{issue.eventType}</div>
+                        <div className="truncate text-xs text-muted-foreground">{issue.providerEventId}</div>
+                      </div>
+                      <Badge variant={issue.status === "Failed" ? "default" : "warning"}>{issue.status}</Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm">
+                      <MetricRow label={t("admin.attemptsLabel")} value={formatNumber(issue.attemptCount, locale)} />
+                      <MetricRow label={t("admin.receivedLabel")} value={formatRelativeDate(issue.lastReceivedAtUtc, locale as "en" | "pt-BR")} />
+                      <MetricRow label={t("common.labels.updatedLabel")} value={formatRelativeDate(issue.updatedAtUtc, locale as "en" | "pt-BR")} />
+                      {issue.lastError ? <MetricRow label={t("admin.lastErrorLabel")} value={issue.lastError} /> : null}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          ))
+            ) : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AdminBillingOperationsCard({
+  replayPending,
+  monitoringPending,
+  feedback,
+  onReplayWebhooks,
+  onRunMonitoring,
+  t,
+}: {
+  replayPending: boolean;
+  monitoringPending: boolean;
+  feedback: {
+    tone: "success" | "error" | "info";
+    message: string;
+  } | null;
+  onReplayWebhooks: () => Promise<void>;
+  onRunMonitoring: () => Promise<void>;
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
+  const feedbackClassName = feedback?.tone === "error"
+    ? "border-rose-500/24 bg-rose-500/[0.1] text-rose-100"
+    : feedback?.tone === "success"
+      ? "border-emerald-500/24 bg-emerald-500/[0.08] text-emerald-100"
+      : "border-border/78 bg-background/82 text-muted-foreground";
+
+  return (
+    <Card className="border-border/80 bg-card/86">
+      <CardHeader>
+        <div className="space-y-1">
+          <CardTitle>{t("admin.billingOpsTitle")}</CardTitle>
+          <p className="text-sm text-muted-foreground/95">{t("admin.billingOpsDescription")}</p>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              void onReplayWebhooks();
+            }}
+            disabled={replayPending}
+          >
+            <RotateCw className={cn("mr-2 size-4", replayPending ? "animate-spin" : "")} />
+            {replayPending ? t("admin.replayWebhooksRunning") : t("admin.replayWebhooksAction")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              void onRunMonitoring();
+            }}
+            disabled={monitoringPending}
+          >
+            <Activity className={cn("mr-2 size-4", monitoringPending ? "animate-pulse" : "")} />
+            {monitoringPending ? t("admin.runMonitoringRunning") : t("admin.runMonitoringAction")}
+          </Button>
+        </div>
+
+        {feedback ? (
+          <div className={cn("rounded-[18px] border px-4 py-3 text-sm", feedbackClassName)}>
+            {feedback.message}
+          </div>
+        ) : (
+          <div className="rounded-[18px] border border-dashed border-border/82 bg-background/72 px-4 py-3 text-sm text-muted-foreground">
+            {t("admin.billingOpsIdleHint")}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -703,4 +888,27 @@ function formatCurrency(value: number, currencyCode: string, locale: string) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatMonitoringMessage(
+  result: PlatformAdminBillingMonitoringRunResult,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
+  return t("admin.monitoringCompletedMessage", {
+    adminAlertsSent: result.adminAlertsSent,
+    workspaceNotificationsSent: result.workspaceNotificationsSent,
+    paymentIssueCount: result.paymentIssueCount,
+    replayableWebhookCount: result.replayableWebhookCount,
+  });
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  const apiError = error as Partial<ApiError> | null;
+  return typeof apiError?.message === "string" && apiError.message.trim().length > 0
+    ? apiError.message
+    : fallback;
 }

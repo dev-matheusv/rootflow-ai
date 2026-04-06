@@ -631,6 +631,25 @@ public sealed class PostgresDatabaseInitializer
                 CREATE INDEX IF NOT EXISTS ix_workspace_billing_webhook_events_provider_processing
                     ON workspace_billing_webhook_events (provider, processing_started_at_utc ASC, id ASC)
                     WHERE status = 'Processing';
+                """),
+            new DatabaseMigration(
+                "202604060001_workspace_billing_notification_deliveries",
+                "Persist sent billing notification deliveries for dedupe and lifecycle automation",
+                """
+                CREATE TABLE IF NOT EXISTS workspace_billing_notification_deliveries (
+                    id uuid PRIMARY KEY,
+                    workspace_id uuid NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    notification_kind text NOT NULL,
+                    dedupe_key text NOT NULL,
+                    recipient_email text NOT NULL,
+                    sent_at_utc timestamptz NOT NULL
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_workspace_billing_notification_deliveries_unique
+                    ON workspace_billing_notification_deliveries (notification_kind, dedupe_key, recipient_email);
+
+                CREATE INDEX IF NOT EXISTS ix_workspace_billing_notification_deliveries_workspace_sent
+                    ON workspace_billing_notification_deliveries (workspace_id, sent_at_utc DESC, id DESC);
                 """)
         ];
     }

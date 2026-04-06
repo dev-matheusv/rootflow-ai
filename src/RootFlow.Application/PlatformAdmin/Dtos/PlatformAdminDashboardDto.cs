@@ -8,6 +8,7 @@ public sealed record PlatformAdminDashboardDto(
     IReadOnlyList<PlatformAdminWorkspaceSummaryDto> NoCreditWorkspaces,
     IReadOnlyList<PlatformAdminWorkspaceSummaryDto> TrialsExpiringSoon,
     IReadOnlyList<PlatformAdminPaymentIssueDto> PaymentIssues,
+    IReadOnlyList<PlatformAdminStripeWebhookIssueDto> StripeWebhookIssues,
     IReadOnlyList<PlatformAdminBillingTransactionDto> RecentCreditPurchases,
     IReadOnlyList<PlatformAdminSubscriptionActivityDto> RecentSubscriptionChanges,
     IReadOnlyList<PlatformAdminWorkspaceSummaryDto> TopCreditConsumers,
@@ -30,7 +31,8 @@ public sealed record PlatformAdminAlertCountsDto(
     int LowCreditWorkspaces,
     int NoCreditWorkspaces,
     int TrialsExpiringSoon,
-    int PaymentIssues);
+    int PaymentIssues,
+    int StripeWebhookIssues);
 
 public sealed record PlatformAdminUsageWindowDto(
     string Key,
@@ -110,3 +112,14 @@ public sealed record PlatformAdminPaymentIssueDto(
     string CurrencyCode,
     DateTime CreatedAtUtc,
     DateTime UpdatedAtUtc);
+
+public sealed record PlatformAdminStripeWebhookIssueDto(
+    Guid WebhookEventId,
+    string ProviderEventId,
+    string EventType,
+    string Status,
+    int AttemptCount,
+    DateTime FirstReceivedAtUtc,
+    DateTime LastReceivedAtUtc,
+    DateTime UpdatedAtUtc,
+    string? LastError);
