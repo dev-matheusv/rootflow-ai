@@ -1,3 +1,5 @@
 namespace RootFlow.Api.Contracts.Billing;
 
-public sealed record BillingCheckoutRedirectResponse(string Url);
+public sealed record BillingCheckoutRedirectResponse(
+    string SessionId,
+    string Url);

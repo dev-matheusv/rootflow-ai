@@ -48,7 +48,9 @@ export function TopbarCreditSummary({ workspaceId, className }: TopbarCreditSumm
   }
 
   const statusLabel =
-    snapshot.tone === "healthy"
+    snapshot.isTrial
+      ? t("billing.trialBadge")
+      : snapshot.tone === "healthy"
       ? t("billing.healthyState")
       : snapshot.tone === "low"
         ? t("billing.lowState")
@@ -58,13 +60,22 @@ export function TopbarCreditSummary({ workspaceId, className }: TopbarCreditSumm
             ? t("billing.inactiveState")
             : t("billing.emptyState");
   const statusClassName =
-    snapshot.tone === "healthy"
+    snapshot.isTrial
+      ? "border-primary/24 bg-primary/[0.12] text-primary"
+      : snapshot.tone === "healthy"
       ? "border-primary/24 bg-primary/[0.12] text-primary"
       : snapshot.tone === "low"
         ? "border-amber-500/24 bg-amber-500/[0.12] text-amber-700 dark:text-amber-300"
         : snapshot.tone === "inactive"
           ? "border-border/78 bg-background/84 text-muted-foreground"
           : "border-rose-500/24 bg-rose-500/[0.12] text-rose-700 dark:text-rose-300";
+
+  const planLabel = snapshot.isTrial ? t("billing.trialBadge") : snapshot.planName ?? t("billing.sharedHint");
+  const statusDetail = snapshot.isTrial
+    ? snapshot.trialDaysRemaining && snapshot.trialDaysRemaining > 0
+      ? t("billing.trialEndsInDays", { count: snapshot.trialDaysRemaining })
+      : t("billing.trialEndsToday")
+    : t("billing.remainingShort", { percent: snapshot.remainingPercent });
 
   return (
     <Link to="/billing" className={cn("block min-w-0 w-full sm:w-[224px]", className)}>
@@ -87,10 +98,10 @@ export function TopbarCreditSummary({ workspaceId, className }: TopbarCreditSumm
         </div>
 
         <div className="mt-2 flex min-w-0 items-center justify-between gap-3 text-xs text-muted-foreground">
-          <div className="min-w-0 truncate" title={snapshot.planName ?? undefined}>
-            {snapshot.planName ?? t("billing.sharedHint")}
+          <div className="min-w-0 truncate" title={planLabel}>
+            {planLabel}
           </div>
-          <div className="shrink-0">{t("billing.remainingShort", { percent: snapshot.remainingPercent })}</div>
+          <div className="shrink-0">{statusDetail}</div>
         </div>
 
         <WorkspaceCreditProgress className="mt-2" ratio={snapshot.remainingRatio} tone={snapshot.tone} />

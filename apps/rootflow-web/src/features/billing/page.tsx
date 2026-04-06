@@ -1,4 +1,4 @@
-import { Coins, Sparkles } from "lucide-react";
+import { Coins, LoaderCircle, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 
@@ -18,7 +18,14 @@ import {
   useBillingPlansQuery,
   useWorkspaceBillingSummaryQuery,
 } from "@/hooks/use-rootflow-data";
+import type { WorkspaceBillingSummary } from "@/lib/api/contracts";
 import { ApiError } from "@/lib/api/client";
+import {
+  clearBillingCheckoutContext,
+  readBillingCheckoutContext,
+  storeBillingCheckoutContext,
+  type BillingCheckoutContext,
+} from "@/lib/billing/checkout-session";
 import { formatCredits, getWorkspaceCreditSnapshot } from "@/lib/billing/workspace-credits";
 
 interface BillingFeedbackToast {
@@ -38,7 +45,9 @@ export function BillingPage() {
   const handledCheckoutReturnRef = useRef<string | null>(null);
   const checkoutSyncTimeoutRef = useRef<number | null>(null);
   const checkoutSyncStateRef = useRef({ attempts: 0, consecutiveErrors: 0 });
+  const checkoutContextRef = useRef<BillingCheckoutContext | null>(null);
   const workspaceId = session?.workspace.id;
+  const [checkoutSyncStatus, setCheckoutSyncStatus] = useState<"idle" | "syncing" | "pending">("idle");
   const billingSummaryQuery = useWorkspaceBillingSummaryQuery(workspaceId, { retry: false });
   const refetchBillingSummary = billingSummaryQuery.refetch;
   const billingPlansQuery = useBillingPlansQuery();
@@ -46,12 +55,16 @@ export function BillingPage() {
   const billingCheckoutMutation = useBillingCheckoutMutation();
   const snapshot = getWorkspaceCreditSnapshot(billingSummaryQuery.data);
   const currentPlanCode = billingSummaryQuery.data?.billingPlan?.code?.toLowerCase() ?? null;
-  const currentSubscriptionStatus = billingSummaryQuery.data?.subscription?.status ?? null;
+  const currentSubscriptionStatus =
+    billingSummaryQuery.data?.subscriptionStatus ?? billingSummaryQuery.data?.subscription?.status ?? null;
   const checkoutSearchParams = new URLSearchParams(location.search);
   const checkoutStatus = checkoutSearchParams.get("checkout");
   const checkoutSessionId = checkoutSearchParams.get("session_id");
   const checkoutReturnKey = checkoutStatus ? `${checkoutStatus}:${checkoutSessionId ?? ""}` : null;
   const [checkoutError, setCheckoutError] = useState<{ surface: "plans" | "credits"; message: string } | null>(null);
+  const planDisplayName = snapshot?.isTrial ? t("billing.trialBadge") : snapshot?.planName ?? t("billing.sharedHint");
+  const subscriptionStatusLabel = getSubscriptionStatusLabel(snapshot?.subscriptionStatus, t);
+  const trialStatusText = snapshot ? getTrialStatusText(snapshot.trialDaysRemaining, t) : null;
 
   const showToast = useCallback((tone: BillingFeedbackToast["tone"], title: string, description: string) => {
     setFeedbackToast({
@@ -83,56 +96,70 @@ export function BillingPage() {
     checkoutSyncStateRef.current = { attempts: 0, consecutiveErrors: 0 };
   }, []);
 
-  const hasPaidSubscription = useCallback((subscriptionStatus: string | null | undefined, trialEndsAtUtc?: string | null) => {
-    return subscriptionStatus === "Active" && !trialEndsAtUtc;
+  const clearCheckoutSyncContext = useCallback(() => {
+    checkoutContextRef.current = null;
+    clearBillingCheckoutContext();
   }, []);
 
   const runCheckoutSyncAttempt = useCallback(async () => {
     if (!workspaceId) {
       stopCheckoutSync();
+      setCheckoutSyncStatus("idle");
       return;
     }
 
     checkoutSyncStateRef.current.attempts += 1;
 
     const result = await refetchBillingSummary();
-    const subscription = result.data?.subscription;
-    if (subscription && hasPaidSubscription(subscription.status, subscription.trialEndsAtUtc)) {
+    const checkoutContext = checkoutContextRef.current;
+    if (hasCheckoutSynced(result.data, checkoutContext)) {
       stopCheckoutSync();
+      clearCheckoutSyncContext();
+      setCheckoutSyncStatus("idle");
       return;
     }
 
     if (result.error) {
       checkoutSyncStateRef.current.consecutiveErrors += 1;
       const isServerError = result.error instanceof ApiError && result.error.status >= 500;
+      const maxAttempts = checkoutContext ? 4 : 2;
 
       if (
         isServerError ||
         checkoutSyncStateRef.current.consecutiveErrors >= 2 ||
-        checkoutSyncStateRef.current.attempts >= 6
+        checkoutSyncStateRef.current.attempts >= maxAttempts
       ) {
         stopCheckoutSync();
-        showToast(
-          "error",
-          t("common.labels.somethingWentWrong"),
-          result.error instanceof Error ? result.error.message : "Billing summary is temporarily unavailable.",
-        );
+        setCheckoutSyncStatus("pending");
+        showToast("info", t("billing.checkoutPendingTitle"), t("billing.checkoutPendingDescription"));
         return;
       }
     } else {
       checkoutSyncStateRef.current.consecutiveErrors = 0;
     }
 
-    if (checkoutSyncStateRef.current.attempts >= 6 || checkoutSyncTimeoutRef.current !== null) {
+    if (!checkoutContext && result.data) {
       stopCheckoutSync();
+      clearCheckoutSyncContext();
+      setCheckoutSyncStatus("idle");
+      return;
+    }
+
+    if (
+      checkoutSyncStateRef.current.attempts >= (checkoutContext ? 4 : 2) ||
+      checkoutSyncTimeoutRef.current !== null
+    ) {
+      stopCheckoutSync();
+      setCheckoutSyncStatus("pending");
+      showToast("info", t("billing.checkoutPendingTitle"), t("billing.checkoutPendingDescription"));
       return;
     }
 
     checkoutSyncTimeoutRef.current = window.setTimeout(() => {
       checkoutSyncTimeoutRef.current = null;
       void runCheckoutSyncAttempt();
-    }, 2500);
-  }, [hasPaidSubscription, refetchBillingSummary, showToast, stopCheckoutSync, t, workspaceId]);
+    }, 2200);
+  }, [clearCheckoutSyncContext, refetchBillingSummary, showToast, stopCheckoutSync, t, workspaceId]);
 
   useEffect(() => {
     if (!checkoutReturnKey || handledCheckoutReturnRef.current === checkoutReturnKey) {
@@ -140,14 +167,24 @@ export function BillingPage() {
     }
 
     handledCheckoutReturnRef.current = checkoutReturnKey;
+    const storedCheckoutContext = readBillingCheckoutContext();
+    checkoutContextRef.current =
+      storedCheckoutContext &&
+      storedCheckoutContext.workspaceId === workspaceId &&
+      (!checkoutSessionId || storedCheckoutContext.sessionId === checkoutSessionId)
+        ? storedCheckoutContext
+        : null;
 
     if (checkoutStatus === "success") {
       stopCheckoutSync();
       checkoutSyncStateRef.current = { attempts: 0, consecutiveErrors: 0 };
+      setCheckoutSyncStatus("syncing");
       showToast("success", t("billing.checkoutSuccessTitle"), t("billing.checkoutSuccessDescription"));
       void runCheckoutSyncAttempt();
     } else {
       stopCheckoutSync();
+      clearCheckoutSyncContext();
+      setCheckoutSyncStatus("idle");
       showToast("info", t("billing.checkoutCanceledTitle"), t("billing.checkoutCanceledDescription"));
     }
 
@@ -155,7 +192,19 @@ export function BillingPage() {
     nextSearchParams.delete("checkout");
     nextSearchParams.delete("session_id");
     setSearchParams(nextSearchParams, { replace: true });
-  }, [checkoutReturnKey, checkoutStatus, location.search, runCheckoutSyncAttempt, setSearchParams, showToast, stopCheckoutSync, t]);
+  }, [
+    checkoutReturnKey,
+    checkoutSessionId,
+    checkoutStatus,
+    clearCheckoutSyncContext,
+    location.search,
+    runCheckoutSyncAttempt,
+    setSearchParams,
+    showToast,
+    stopCheckoutSync,
+    t,
+    workspaceId,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -163,12 +212,36 @@ export function BillingPage() {
     };
   }, [stopCheckoutSync]);
 
+  useEffect(() => {
+    if (checkoutSyncStatus !== "pending" || !checkoutContextRef.current) {
+      return;
+    }
+
+    if (hasCheckoutSynced(billingSummaryQuery.data, checkoutContextRef.current)) {
+      clearCheckoutSyncContext();
+      setCheckoutSyncStatus("idle");
+    }
+  }, [billingSummaryQuery.data, checkoutSyncStatus, clearCheckoutSyncContext]);
+
   const handlePlanCheckout = async (planCode: string, priceId?: string | null) => {
     setActiveCheckoutKey(`plan:${planCode}`);
     setCheckoutError(null);
+    clearBillingCheckoutContext();
 
     try {
       const checkoutSession = await billingCheckoutMutation.mutateAsync({ priceId: priceId ?? "" });
+      if (workspaceId) {
+        storeBillingCheckoutContext({
+          workspaceId,
+          sessionId: checkoutSession.sessionId,
+          kind: "plan",
+          targetCode: planCode,
+          baselinePlanCode: currentPlanCode,
+          baselineAvailableCredits: billingSummaryQuery.data?.balance.availableCredits ?? null,
+          baselineBalanceUpdatedAtUtc: billingSummaryQuery.data?.balance.updatedAtUtc ?? null,
+          createdAtUtc: new Date().toISOString(),
+        });
+      }
       window.location.assign(checkoutSession.url);
     } catch (error) {
       const message = error instanceof Error ? error.message : t("billing.sharedHint");
@@ -186,9 +259,22 @@ export function BillingPage() {
   const handleCreditCheckout = async (creditPackCode: string, priceId?: string | null) => {
     setActiveCheckoutKey(`credits:${creditPackCode}`);
     setCheckoutError(null);
+    clearBillingCheckoutContext();
 
     try {
       const checkoutSession = await billingCheckoutMutation.mutateAsync({ priceId: priceId ?? "" });
+      if (workspaceId) {
+        storeBillingCheckoutContext({
+          workspaceId,
+          sessionId: checkoutSession.sessionId,
+          kind: "credits",
+          targetCode: creditPackCode,
+          baselinePlanCode: currentPlanCode,
+          baselineAvailableCredits: billingSummaryQuery.data?.balance.availableCredits ?? null,
+          baselineBalanceUpdatedAtUtc: billingSummaryQuery.data?.balance.updatedAtUtc ?? null,
+          createdAtUtc: new Date().toISOString(),
+        });
+      }
       window.location.assign(checkoutSession.url);
     } catch (error) {
       const message = error instanceof Error ? error.message : t("billing.sharedHint");
@@ -230,6 +316,24 @@ export function BillingPage() {
         )}
       />
 
+      {checkoutSyncStatus !== "idle" ? (
+        <Card className={checkoutSyncStatus === "syncing" ? "border-primary/18 bg-primary/[0.05]" : "border-amber-500/20 bg-amber-500/[0.06]"}>
+          <CardContent className="flex items-start gap-3 p-4">
+            <div className={`mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-[18px] border ${checkoutSyncStatus === "syncing" ? "border-primary/14 bg-primary/10 text-primary" : "border-amber-500/18 bg-background/82 text-amber-700 dark:text-amber-300"}`}>
+              {checkoutSyncStatus === "syncing" ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm font-semibold text-foreground">
+                {checkoutSyncStatus === "syncing" ? t("billing.checkoutSyncTitle") : t("billing.checkoutPendingTitle")}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {checkoutSyncStatus === "syncing" ? t("billing.checkoutSyncDescription") : t("billing.checkoutPendingDescription")}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <section className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
         <Card className="border-border/82 bg-card/88">
           <CardHeader>
@@ -239,9 +343,9 @@ export function BillingPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {billingSummaryQuery.isLoading ? (
+            {billingSummaryQuery.isLoading && !snapshot ? (
               <LoadingState title={t("common.labels.loading")} description={t("billing.sharedHint")} />
-            ) : billingSummaryQuery.isError || !snapshot ? (
+            ) : !snapshot ? (
               <ErrorState
                 title={t("common.labels.somethingWentWrong")}
                 description={t("billing.sharedHint")}
@@ -250,9 +354,8 @@ export function BillingPage() {
             ) : (
               <>
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  {billingSummaryQuery.data?.billingPlan ? (
-                    <Badge variant="secondary">{billingSummaryQuery.data.billingPlan.name}</Badge>
-                  ) : null}
+                  <Badge variant="secondary">{planDisplayName}</Badge>
+                  <Badge variant="secondary">{subscriptionStatusLabel}</Badge>
                   <Badge variant="secondary">{t("billing.remainingDetail", { percent: snapshot.remainingPercent })}</Badge>
                 </div>
 
@@ -272,13 +375,20 @@ export function BillingPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between gap-3 text-sm">
-                    <div className="font-medium text-foreground">{t("billing.currentPlan")}</div>
-                    <div className="min-w-0 truncate text-right text-muted-foreground" title={snapshot.planName ?? undefined}>
-                      {snapshot.planName ?? t("billing.sharedHint")}
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.currentPlan")}</div>
+                      <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{planDisplayName}</div>
+                    </div>
+                    <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.subscriptionStatusLabel")}</div>
+                      <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{subscriptionStatusLabel}</div>
                     </div>
                   </div>
                   <WorkspaceCreditProgress className="mt-3" ratio={snapshot.remainingRatio} tone={snapshot.tone} />
+                  {snapshot.isTrial && trialStatusText ? (
+                    <p className="mt-3 text-sm font-medium text-primary">{trialStatusText}</p>
+                  ) : null}
                   <p className="mt-3 text-sm text-muted-foreground">
                     {snapshot.tone === "low"
                       ? t("billing.lowWarning")
@@ -320,6 +430,9 @@ export function BillingPage() {
                       const isCurrentPlan =
                         currentSubscriptionStatus === "Active" &&
                         currentPlanCode === plan.code.toLowerCase();
+                      const isTrialPlan =
+                        currentSubscriptionStatus === "Trial" &&
+                        currentPlanCode === plan.code.toLowerCase();
                       const isRedirecting = activeCheckoutKey === `plan:${plan.code}`;
 
                       return (
@@ -336,6 +449,7 @@ export function BillingPage() {
                               <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-base font-semibold tracking-[-0.03em] text-foreground">{plan.name}</div>
                                 {isCurrentPlan ? <Badge>{t("billing.currentPlanBadge")}</Badge> : null}
+                                {!isCurrentPlan && isTrialPlan ? <Badge variant="secondary">{t("billing.trialBadge")}</Badge> : null}
                               </div>
                               <div className="text-2xl font-semibold tracking-[-0.04em] text-foreground">
                                 {formatCurrency(plan.monthlyPrice, plan.currencyCode, locale)}
@@ -470,4 +584,73 @@ function formatCurrency(value: number, currencyCode: string, locale: string) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function hasCheckoutSynced(summary: WorkspaceBillingSummary | undefined, checkoutContext: BillingCheckoutContext | null) {
+  if (!summary) {
+    return false;
+  }
+
+  if (!checkoutContext) {
+    return true;
+  }
+
+  if (checkoutContext.kind === "plan") {
+    const planCode = summary.billingPlan?.code?.toLowerCase() ?? null;
+    const subscriptionStatus = summary.subscriptionStatus ?? summary.subscription?.status ?? null;
+    const trialEndsAtUtc = summary.trialEndsAtUtc ?? summary.subscription?.trialEndsAtUtc ?? null;
+
+    return subscriptionStatus === "Active" &&
+      !trialEndsAtUtc &&
+      planCode === checkoutContext.targetCode.toLowerCase();
+  }
+
+  if (
+    typeof checkoutContext.baselineAvailableCredits === "number" &&
+    summary.balance.availableCredits > checkoutContext.baselineAvailableCredits
+  ) {
+    return true;
+  }
+
+  if (
+    checkoutContext.baselineBalanceUpdatedAtUtc &&
+    summary.balance.updatedAtUtc !== checkoutContext.baselineBalanceUpdatedAtUtc
+  ) {
+    return true;
+  }
+
+  return checkoutContext.baselineAvailableCredits === null && checkoutContext.baselineBalanceUpdatedAtUtc === null;
+}
+
+function getSubscriptionStatusLabel(
+  status: string | null | undefined,
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  switch (status) {
+    case "Trial":
+      return t("billing.trialBadge");
+    case "Active":
+      return t("common.labels.active");
+    case "Canceled":
+      return t("billing.canceledState");
+    case "Expired":
+      return t("billing.expiredState");
+    default:
+      return status ?? t("common.helper.none");
+  }
+}
+
+function getTrialStatusText(
+  remainingDays: number | null | undefined,
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  if (remainingDays === null || remainingDays === undefined) {
+    return t("billing.trialActiveDescription");
+  }
+
+  if (remainingDays <= 0) {
+    return t("billing.trialEndsToday");
+  }
+
+  return t("billing.trialEndsInDays", { count: remainingDays });
 }

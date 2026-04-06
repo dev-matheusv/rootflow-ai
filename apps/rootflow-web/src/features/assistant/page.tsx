@@ -111,6 +111,9 @@ export function AssistantPage() {
       : !isBillingBlocked && creditSnapshot?.tone === "low"
         ? t("billing.assistantLowHint")
         : null;
+  const creditPlanLabel = creditSnapshot?.isTrial
+    ? t("billing.trialBadge")
+    : creditSnapshot?.planName ?? t("billing.sharedHint");
   const canAsk = question.trim().length >= 3 && !isSendingQuestion && readyDocumentCount > 0 && !isBillingBlocked;
 
   const submitQuestion = form.handleSubmit(async (values) => {
@@ -336,7 +339,7 @@ export function AssistantPage() {
                       </div>
                       <div className="min-w-0 w-full max-w-[220px] space-y-2">
                         <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                          <span>{creditSnapshot.planName ?? t("billing.sharedHint")}</span>
+                          <span>{creditPlanLabel}</span>
                           <span>{t("billing.remainingShort", { percent: creditSnapshot.remainingPercent })}</span>
                         </div>
                         <WorkspaceCreditProgress ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
@@ -384,6 +387,13 @@ export function AssistantPage() {
                           <div className="text-sm text-muted-foreground">{t("billing.remainingDetail", { percent: creditSnapshot.remainingPercent })}</div>
                         </div>
                         <WorkspaceCreditProgress className="mt-3" ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
+                        {creditSnapshot.isTrial ? (
+                          <p className="mt-3 text-sm font-medium text-primary">
+                            {creditSnapshot.trialDaysRemaining && creditSnapshot.trialDaysRemaining > 0
+                              ? t("billing.trialEndsInDays", { count: creditSnapshot.trialDaysRemaining })
+                              : t("billing.trialEndsToday")}
+                          </p>
+                        ) : null}
                       </div>
                     ) : null}
 

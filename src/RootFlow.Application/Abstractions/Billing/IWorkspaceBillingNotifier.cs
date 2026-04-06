@@ -7,10 +7,19 @@ public interface IWorkspaceBillingNotifier
         CancellationToken cancellationToken = default);
 }
 
+public enum WorkspacePaymentConfirmationKind
+{
+    Subscription = 1,
+    CreditPurchase = 2
+}
+
 public sealed record WorkspacePaymentConfirmationNotification(
     string Email,
     string? FullName,
     string WorkspaceName,
-    string PlanName,
+    WorkspacePaymentConfirmationKind Kind,
+    string ItemName,
     decimal AmountPaid,
-    string CurrencyCode);
+    string CurrencyCode,
+    string ConfirmationMessage,
+    long? CreditsGranted = null);

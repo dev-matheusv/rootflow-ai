@@ -183,10 +183,12 @@ public sealed class WorkspacePaymentService
         await _workspaceBillingRepository.AddBillingTransactionAsync(transaction, cancellationToken);
 
         _logger.LogInformation(
-            "Created Stripe subscription checkout session {CheckoutSessionId} for workspace {WorkspaceId} and plan {PlanCode}.",
+            "Created Stripe subscription checkout session {CheckoutSessionId} for workspace {WorkspaceId}, plan {PlanCode}, customer {CustomerId}, subscription {SubscriptionId}.",
             checkoutSession.SessionId,
             workspaceId,
-            plan.Code);
+            plan.Code,
+            checkoutSession.CustomerId,
+            checkoutSession.SubscriptionId);
 
         return new BillingCheckoutSessionDto(checkoutSession.SessionId, checkoutSession.Url);
     }
@@ -237,10 +239,11 @@ public sealed class WorkspacePaymentService
         await _workspaceBillingRepository.AddBillingTransactionAsync(transaction, cancellationToken);
 
         _logger.LogInformation(
-            "Created Stripe credit purchase checkout session {CheckoutSessionId} for workspace {WorkspaceId} and pack {CreditPackCode}.",
+            "Created Stripe credit purchase checkout session {CheckoutSessionId} for workspace {WorkspaceId}, pack {CreditPackCode}, customer {CustomerId}.",
             checkoutSession.SessionId,
             workspaceId,
-            creditPack.Code);
+            creditPack.Code,
+            checkoutSession.CustomerId);
 
         return new BillingCheckoutSessionDto(checkoutSession.SessionId, checkoutSession.Url);
     }
@@ -264,10 +267,7 @@ public sealed class WorkspacePaymentService
             throw new BillingWebhookValidationException(exception.Message);
         }
 
-        _logger.LogInformation(
-            "Received Stripe webhook event {EventType} ({EventId}).",
-            webhookEvent.EventType,
-            webhookEvent.EventId);
+        LogWebhookReceipt(webhookEvent);
 
         try
         {
@@ -313,6 +313,15 @@ public sealed class WorkspacePaymentService
         StripeCheckoutCompletedEvent checkoutCompletedEvent,
         CancellationToken cancellationToken)
     {
+        _logger.LogInformation(
+            "Processing Stripe checkout.session.completed {EventId} for session {CheckoutSessionId}, mode {CheckoutMode}, workspace {WorkspaceId}, customer {CustomerId}, subscription {SubscriptionId}.",
+            checkoutCompletedEvent.EventId,
+            checkoutCompletedEvent.SessionId,
+            checkoutCompletedEvent.Mode,
+            checkoutCompletedEvent.WorkspaceId,
+            checkoutCompletedEvent.CustomerId,
+            checkoutCompletedEvent.SubscriptionId);
+
         if (!string.Equals(checkoutCompletedEvent.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase) &&
             string.Equals(checkoutCompletedEvent.Mode, "payment", StringComparison.OrdinalIgnoreCase))
         {
@@ -427,11 +436,24 @@ public sealed class WorkspacePaymentService
 
         await _workspaceBillingRepository.UpdateBillingTransactionAsync(transaction, cancellationToken);
 
+        var creditPack = ResolveCreditPackOrDefault(checkoutCompletedEvent.CreditPackCode);
+
+        await TrySendPaymentConfirmedEmailAsync(
+            transaction.WorkspaceId,
+            WorkspacePaymentConfirmationKind.CreditPurchase,
+            creditPack.Name,
+            transaction.Amount,
+            transaction.CurrencyCode,
+            $"A compra de {creditPack.Name} foi confirmada e os creditos ja estao disponiveis para o workspace.",
+            creditPack.Credits,
+            cancellationToken);
+
         _logger.LogInformation(
-            "Granted {CreditsGranted} purchased credits to workspace {WorkspaceId} from Stripe checkout {CheckoutSessionId}.",
+            "Granted {CreditsGranted} purchased credits to workspace {WorkspaceId} from Stripe checkout {CheckoutSessionId}. Customer {CustomerId}.",
             creditsToGrant,
             transaction.WorkspaceId,
-            checkoutCompletedEvent.SessionId);
+            checkoutCompletedEvent.SessionId,
+            checkoutCompletedEvent.CustomerId);
     }
 
     private async Task HandleInvoicePaidAsync(
@@ -537,9 +559,12 @@ public sealed class WorkspacePaymentService
 
         await TrySendPaymentConfirmedEmailAsync(
             subscription.WorkspaceId,
-            plan,
+            WorkspacePaymentConfirmationKind.Subscription,
+            plan.Name,
             invoicePaidEvent.AmountPaid,
             invoicePaidEvent.CurrencyCode,
+            $"O plano {plan.Name} foi confirmado e esta ativo para o workspace.",
+            null,
             cancellationToken);
 
         _logger.LogInformation(
@@ -920,11 +945,83 @@ public sealed class WorkspacePaymentService
             subscription.UpdatedAtUtc);
     }
 
+    private StripeCreditPackOptions ResolveCreditPackOrDefault(string? creditPackCode)
+    {
+        if (!string.IsNullOrWhiteSpace(creditPackCode))
+        {
+            var configuredCreditPack = _stripeOptions.CreditPacks.FirstOrDefault(option =>
+                string.Equals(option.Code, creditPackCode.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            if (configuredCreditPack is not null)
+            {
+                return configuredCreditPack;
+            }
+
+            _logger.LogWarning(
+                "Stripe credit purchase confirmation could not resolve configured credit pack {CreditPackCode}. Falling back to a generic label.",
+                creditPackCode);
+        }
+
+        return new StripeCreditPackOptions
+        {
+            Code = creditPackCode?.Trim() ?? "credits",
+            Name = "Extra credits",
+            Description = "Additional workspace credits.",
+            Credits = 0,
+            Amount = 0m,
+            CurrencyCode = "BRL"
+        };
+    }
+
+    private void LogWebhookReceipt(StripeWebhookEvent webhookEvent)
+    {
+        switch (webhookEvent)
+        {
+            case StripeCheckoutCompletedEvent checkoutCompletedEvent:
+                _logger.LogInformation(
+                    "Received Stripe webhook event {EventType} ({EventId}) for session {CheckoutSessionId}, workspace {WorkspaceId}, customer {CustomerId}, subscription {SubscriptionId}.",
+                    checkoutCompletedEvent.EventType,
+                    checkoutCompletedEvent.EventId,
+                    checkoutCompletedEvent.SessionId,
+                    checkoutCompletedEvent.WorkspaceId,
+                    checkoutCompletedEvent.CustomerId,
+                    checkoutCompletedEvent.SubscriptionId);
+                break;
+            case StripeInvoicePaidEvent invoicePaidEvent:
+                _logger.LogInformation(
+                    "Received Stripe webhook event {EventType} ({EventId}) for invoice {InvoiceId}, subscription {SubscriptionId}, customer {CustomerId}.",
+                    invoicePaidEvent.EventType,
+                    invoicePaidEvent.EventId,
+                    invoicePaidEvent.InvoiceId,
+                    invoicePaidEvent.SubscriptionId,
+                    invoicePaidEvent.CustomerId);
+                break;
+            case StripeSubscriptionUpdatedEvent subscriptionUpdatedEvent:
+                _logger.LogInformation(
+                    "Received Stripe webhook event {EventType} ({EventId}) for subscription {SubscriptionId}, workspace {WorkspaceId}, customer {CustomerId}.",
+                    subscriptionUpdatedEvent.EventType,
+                    subscriptionUpdatedEvent.EventId,
+                    subscriptionUpdatedEvent.SubscriptionId,
+                    subscriptionUpdatedEvent.WorkspaceId,
+                    subscriptionUpdatedEvent.CustomerId);
+                break;
+            default:
+                _logger.LogInformation(
+                    "Received Stripe webhook event {EventType} ({EventId}).",
+                    webhookEvent.EventType,
+                    webhookEvent.EventId);
+                break;
+        }
+    }
+
     private async Task TrySendPaymentConfirmedEmailAsync(
         Guid workspaceId,
-        BillingPlan plan,
+        WorkspacePaymentConfirmationKind kind,
+        string itemName,
         decimal amountPaid,
         string currencyCode,
+        string confirmationMessage,
+        long? creditsGranted,
         CancellationToken cancellationToken)
     {
         try
@@ -962,15 +1059,20 @@ public sealed class WorkspacePaymentService
                     recipient.Email,
                     recipient.FullName,
                     workspace.Name,
-                    plan.Name,
+                    kind,
+                    itemName,
                     amountPaid,
-                    currencyCode),
+                    currencyCode,
+                    confirmationMessage,
+                    creditsGranted),
                 cancellationToken);
 
             _logger.LogInformation(
-                "Triggered billing confirmation email for workspace {WorkspaceId} to {Email}.",
+                "Triggered billing confirmation email for workspace {WorkspaceId} to {Email}. Kind {PaymentKind}, item {ItemName}.",
                 workspaceId,
-                recipient.Email);
+                recipient.Email,
+                kind,
+                itemName);
         }
         catch (Exception exception)
         {

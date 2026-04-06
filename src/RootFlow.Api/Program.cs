@@ -437,7 +437,9 @@ billing.MapPost("/checkout", async (
             new CreateWorkspaceBillingCheckoutCommand(user.GetRequiredWorkspaceId(), request.PriceId),
             cancellationToken);
 
-        return Results.Ok(new BillingCheckoutRedirectResponse(checkoutSession.CheckoutUrl));
+        return Results.Ok(new BillingCheckoutRedirectResponse(
+            checkoutSession.SessionId,
+            checkoutSession.CheckoutUrl));
     }
     catch (BillingCheckoutUnavailableException exception)
     {
@@ -455,6 +457,7 @@ billing.MapPost("/checkout", async (
 app.MapPost("/api/billing/webhooks/stripe", async (
     HttpRequest request,
     WorkspacePaymentService workspacePaymentService,
+    ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
     request.EnableBuffering();
@@ -477,10 +480,21 @@ app.MapPost("/api/billing/webhooks/stripe", async (
     }
     catch (BillingWebhookProcessingException exception)
     {
-        return Results.Problem(
-            title: "Stripe webhook processing failed.",
-            detail: exception.Message,
-            statusCode: StatusCodes.Status500InternalServerError);
+        logger.LogError(
+            exception,
+            "Stripe webhook processing encountered a recoverable synchronization error. Returning HTTP 202 so the request does not fail hard.");
+
+        return Results.Accepted(
+            value: new MessageResponse("Stripe webhook received with logged processing warnings."));
+    }
+    catch (Exception exception)
+    {
+        logger.LogError(
+            exception,
+            "Stripe webhook failed unexpectedly before billing synchronization completed. Returning HTTP 202 after logging the failure.");
+
+        return Results.Accepted(
+            value: new MessageResponse("Stripe webhook received with unexpected logged processing warnings."));
     }
 });
 
@@ -610,7 +624,25 @@ workspaces.MapGet("/{workspaceId:guid}/billing/summary", async (
     ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
-    if (user.GetRequiredWorkspaceId() != workspaceId)
+    Guid authenticatedWorkspaceId;
+    Guid authenticatedUserId;
+
+    try
+    {
+        authenticatedWorkspaceId = user.GetRequiredWorkspaceId();
+        authenticatedUserId = user.GetRequiredUserId();
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogWarning(
+            exception,
+            "Rejected workspace billing summary request for workspace {WorkspaceId} because the authenticated billing claims were missing or invalid.",
+            workspaceId);
+
+        return Results.Unauthorized();
+    }
+
+    if (authenticatedWorkspaceId != workspaceId)
     {
         return Results.Forbid();
     }
@@ -618,7 +650,7 @@ workspaces.MapGet("/{workspaceId:guid}/billing/summary", async (
     logger.LogInformation(
         "Received workspace billing summary request for workspace {WorkspaceId} from user {UserId}.",
         workspaceId,
-        user.GetRequiredUserId());
+        authenticatedUserId);
 
     try
     {
@@ -647,9 +679,25 @@ workspaces.MapPost("/{workspaceId:guid}/billing/checkout/subscription", async (
     CreateWorkspaceSubscriptionCheckoutRequest request,
     ClaimsPrincipal user,
     WorkspacePaymentService workspacePaymentService,
+    ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
-    if (user.GetRequiredWorkspaceId() != workspaceId)
+    Guid authenticatedWorkspaceId;
+    try
+    {
+        authenticatedWorkspaceId = user.GetRequiredWorkspaceId();
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogWarning(
+            exception,
+            "Rejected subscription checkout creation for workspace {WorkspaceId} because the authenticated billing claims were missing or invalid.",
+            workspaceId);
+
+        return Results.Unauthorized();
+    }
+
+    if (authenticatedWorkspaceId != workspaceId)
     {
         return Results.Forbid();
     }
@@ -688,9 +736,25 @@ workspaces.MapPost("/{workspaceId:guid}/billing/checkout/credits", async (
     CreateWorkspaceCreditPurchaseCheckoutRequest request,
     ClaimsPrincipal user,
     WorkspacePaymentService workspacePaymentService,
+    ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
-    if (user.GetRequiredWorkspaceId() != workspaceId)
+    Guid authenticatedWorkspaceId;
+    try
+    {
+        authenticatedWorkspaceId = user.GetRequiredWorkspaceId();
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogWarning(
+            exception,
+            "Rejected credit checkout creation for workspace {WorkspaceId} because the authenticated billing claims were missing or invalid.",
+            workspaceId);
+
+        return Results.Unauthorized();
+    }
+
+    if (authenticatedWorkspaceId != workspaceId)
     {
         return Results.Forbid();
     }

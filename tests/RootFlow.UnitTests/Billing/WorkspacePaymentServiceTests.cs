@@ -142,6 +142,57 @@ public sealed class WorkspacePaymentServiceTests
     }
 
     [Fact]
+    public async Task HandleStripeWebhookAsync_SendsCreditPurchaseConfirmationOnlyOnce()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
+        var repository = new InMemoryWorkspaceBillingRepository();
+        var gateway = new FakeStripePaymentGateway
+        {
+            NextCreditCheckout = new StripeCheckoutSessionResult(
+                "cs_credits_email",
+                "https://checkout.stripe.com/pay/cs_credits_email",
+                "cus_credits_email",
+                null,
+                "pi_credits_email")
+        };
+
+        var service = CreateService(
+            workspaceId,
+            [starterPlan],
+            repository,
+            gateway,
+            out _,
+            out var billingNotifier,
+            trialIncludedCredits: 100);
+
+        await service.CreateCreditPurchaseCheckoutAsync(
+            new CreateWorkspaceCreditPurchaseCheckoutCommand(workspaceId, "small"));
+
+        gateway.NextWebhookEvent = new StripeCheckoutCompletedEvent(
+            "evt_credit_email",
+            FixedClock.CurrentUtcNow,
+            "cs_credits_email",
+            "payment",
+            "paid",
+            workspaceId,
+            null,
+            "small",
+            10_000,
+            "cus_credits_email",
+            null,
+            "pi_credits_email");
+
+        await service.HandleStripeWebhookAsync("payload", "signature");
+        await service.HandleStripeWebhookAsync("payload", "signature");
+
+        var notification = Assert.Single(billingNotifier.Notifications);
+        Assert.Equal(WorkspacePaymentConfirmationKind.CreditPurchase, notification.Kind);
+        Assert.Equal("Small Credit Pack", notification.ItemName);
+        Assert.Equal(10_000, notification.CreditsGranted);
+    }
+
+    [Fact]
     public async Task HandleStripeWebhookAsync_AppliesInvoiceAndDoesNotDoubleGrantPlanCredits()
     {
         var workspaceId = Guid.NewGuid();
@@ -175,6 +226,7 @@ public sealed class WorkspacePaymentServiceTests
             repository,
             gateway,
             out _,
+            out var billingNotifier,
             trialIncludedCredits: 100);
 
         await service.CreateSubscriptionCheckoutAsync(
@@ -228,6 +280,9 @@ public sealed class WorkspacePaymentServiceTests
             entry =>
                 string.Equals(entry.ReferenceType, "stripe_invoice", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(entry.ReferenceId, "in_123", StringComparison.Ordinal));
+        var notification = Assert.Single(billingNotifier.Notifications);
+        Assert.Equal(WorkspacePaymentConfirmationKind.Subscription, notification.Kind);
+        Assert.Equal("Pro", notification.ItemName);
     }
 
     [Fact]
@@ -526,10 +581,29 @@ public sealed class WorkspacePaymentServiceTests
         out WorkspaceBillingService workspaceBillingService,
         long trialIncludedCredits = 5_000)
     {
+        return CreateService(
+            workspaceId,
+            plans,
+            repository,
+            gateway,
+            out workspaceBillingService,
+            out _,
+            trialIncludedCredits);
+    }
+
+    private static WorkspacePaymentService CreateService(
+        Guid workspaceId,
+        IReadOnlyList<BillingPlan> plans,
+        InMemoryWorkspaceBillingRepository repository,
+        FakeStripePaymentGateway gateway,
+        out WorkspaceBillingService workspaceBillingService,
+        out FakeWorkspaceBillingNotifier billingNotifier,
+        long trialIncludedCredits = 5_000)
+    {
         var workspaceRepository = new AlwaysExistingWorkspaceRepository(workspaceId);
         var workspaceMembershipRepository = new InMemoryWorkspaceMembershipRepository();
         var billingPlanRepository = new InMemoryBillingPlanRepository(plans);
-        var billingNotifier = new FakeWorkspaceBillingNotifier();
+        billingNotifier = new FakeWorkspaceBillingNotifier();
 
         workspaceMembershipRepository.AddMember(
             workspaceId,

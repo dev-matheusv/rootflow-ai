@@ -34,8 +34,29 @@ export function DashboardPage() {
       new Date(left.processedAtUtc ?? left.createdAtUtc).getTime(),
   )[0];
   const creditSnapshot = getWorkspaceCreditSnapshot(billingSummaryQuery.data);
+  const creditPlanLabel = creditSnapshot?.isTrial
+    ? t("billing.trialBadge")
+    : creditSnapshot?.planName ?? null;
+  const creditStatusLabel = creditSnapshot?.isTrial
+    ? t("billing.trialBadge")
+    : creditSnapshot?.tone === "healthy"
+      ? t("billing.healthyState")
+      : creditSnapshot?.tone === "low"
+        ? t("billing.lowState")
+        : creditSnapshot?.tone === "critical"
+          ? t("billing.criticalState")
+          : creditSnapshot?.tone === "inactive"
+            ? t("billing.inactiveState")
+            : t("billing.emptyState");
+  const trialStatusText = creditSnapshot?.isTrial
+    ? creditSnapshot.trialDaysRemaining && creditSnapshot.trialDaysRemaining > 0
+      ? t("billing.trialEndsInDays", { count: creditSnapshot.trialDaysRemaining })
+      : t("billing.trialEndsToday")
+    : null;
   const creditStatusClassName =
-    creditSnapshot?.tone === "healthy"
+    creditSnapshot?.isTrial
+      ? "border-primary/24 bg-primary/[0.12] text-primary"
+      : creditSnapshot?.tone === "healthy"
       ? undefined
       : creditSnapshot?.tone === "low"
         ? undefined
@@ -229,7 +250,7 @@ export function DashboardPage() {
                   <div className="h-7 w-36 rounded-full bg-border/70" />
                   <div className="h-2 rounded-full bg-border/70" />
                 </div>
-              ) : billingSummaryQuery.isError || !creditSnapshot ? (
+              ) : !creditSnapshot ? (
                 <ErrorState
                   title={t("common.labels.somethingWentWrong")}
                   description={t("billing.sharedHint")}
@@ -247,20 +268,12 @@ export function DashboardPage() {
                         <div className="mt-1 text-sm text-muted-foreground">{t("billing.availableShort", { count: formatCredits(creditSnapshot.availableCredits, locale) })}</div>
                       </div>
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        {creditSnapshot.planName ? <Badge variant="secondary">{creditSnapshot.planName}</Badge> : null}
+                        {creditPlanLabel ? <Badge variant="secondary">{creditPlanLabel}</Badge> : null}
                         <Badge
                           variant={creditSnapshot.tone === "healthy" ? "success" : creditSnapshot.tone === "low" ? "warning" : "secondary"}
                           className={creditStatusClassName}
                         >
-                          {creditSnapshot.tone === "healthy"
-                            ? t("billing.healthyState")
-                            : creditSnapshot.tone === "low"
-                              ? t("billing.lowState")
-                              : creditSnapshot.tone === "critical"
-                                ? t("billing.criticalState")
-                                : creditSnapshot.tone === "inactive"
-                                  ? t("billing.inactiveState")
-                                  : t("billing.emptyState")}
+                          {creditStatusLabel}
                         </Badge>
                       </div>
                     </div>
@@ -282,9 +295,10 @@ export function DashboardPage() {
 
                     <div className="mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground">
                       <span>{t("billing.remainingShort", { percent: creditSnapshot.remainingPercent })}</span>
-                      <span>{t("billing.currentPlan")}</span>
+                      <span>{creditPlanLabel ?? t("billing.currentPlan")}</span>
                     </div>
                     <WorkspaceCreditProgress className="mt-2.5" ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
+                    {trialStatusText ? <p className="mt-3 text-sm font-medium text-primary">{trialStatusText}</p> : null}
                     <p className="mt-3 text-sm text-muted-foreground">
                       {creditSnapshot.tone === "low"
                         ? t("billing.lowWarning")

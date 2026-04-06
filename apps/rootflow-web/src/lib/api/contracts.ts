@@ -130,6 +130,7 @@ export interface BillingCheckoutSession {
 }
 
 export interface BillingCheckoutRedirect {
+  sessionId: string;
   url: string;
 }
 
@@ -166,6 +167,9 @@ export interface WorkspaceCreditBalanceSummary {
 }
 
 export interface WorkspaceBillingSummary {
+  currentPlanName?: string | null;
+  subscriptionStatus?: string | null;
+  trialEndsAtUtc?: string | null;
   billingPlan?: BillingPlanSummary | null;
   subscription?: WorkspaceSubscriptionSummary | null;
   balance: WorkspaceCreditBalanceSummary;

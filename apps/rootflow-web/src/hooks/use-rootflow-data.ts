@@ -80,6 +80,8 @@ export function useWorkspaceBillingSummaryQuery(
     queryFn: () => rootflowApi.getWorkspaceBillingSummary(workspaceId!),
     enabled: options?.enabled ?? Boolean(workspaceId),
     retry: options?.retry,
+    staleTime: 15_000,
+    placeholderData: (previousData) => previousData,
   });
 }
 

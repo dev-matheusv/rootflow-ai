@@ -115,6 +115,55 @@ public sealed class StripePaymentGatewayTests
             webhookEvent.CurrentPeriodEndUtc);
     }
 
+    [Fact]
+    public void ParseWebhook_InvoicePaymentSucceeded_UsesInvoicePaidParser()
+    {
+        var webhookCreated = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var payload = $$"""
+                        {
+                          "id": "evt_invoice_payment_succeeded",
+                          "type": "invoice.payment_succeeded",
+                          "created": {{webhookCreated}},
+                          "data": {
+                            "object": {
+                              "id": "in_payment_succeeded",
+                              "subscription": "sub_payment_succeeded",
+                              "customer": "cus_payment_succeeded",
+                              "amount_paid": 9990,
+                              "currency": "brl",
+                              "lines": {
+                                "data": [
+                                  {
+                                    "period": {
+                                      "start": 1775347200,
+                                      "end": 1777939200
+                                    },
+                                    "price": {
+                                      "id": "price_pro"
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                        """;
+
+        var gateway = CreateGateway("{}");
+
+        var webhookEvent = Assert.IsType<StripeInvoicePaidEvent>(
+            gateway.ParseWebhook(payload, CreateSignatureHeader(payload)));
+
+        Assert.Equal("evt_invoice_payment_succeeded", webhookEvent.EventId);
+        Assert.Equal("invoice.paid", webhookEvent.EventType);
+        Assert.Equal("in_payment_succeeded", webhookEvent.InvoiceId);
+        Assert.Equal("sub_payment_succeeded", webhookEvent.SubscriptionId);
+        Assert.Equal("cus_payment_succeeded", webhookEvent.CustomerId);
+        Assert.Equal("price_pro", webhookEvent.PriceId);
+        Assert.Equal(99.90m, webhookEvent.AmountPaid);
+        Assert.Equal("BRL", webhookEvent.CurrencyCode);
+    }
+
     private static StripePaymentGateway CreateGateway(string responsePayload)
     {
         var httpClient = new HttpClient(new StubHttpMessageHandler(responsePayload))

@@ -35,6 +35,9 @@ public static class BillingContractMapper
     public static WorkspaceBillingSummaryResponse ToResponse(this WorkspaceCreditSummaryDto summary)
     {
         return new WorkspaceBillingSummaryResponse(
+            summary.BillingPlan?.Name,
+            summary.Subscription?.Status.ToString(),
+            summary.Subscription?.TrialEndsAtUtc,
             summary.BillingPlan?.ToResponse(),
             summary.Subscription?.ToResponse(),
             summary.Balance.ToResponse());

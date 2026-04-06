@@ -135,6 +135,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         {
             "checkout.session.completed" => ParseCheckoutCompletedEvent(eventId, occurredAtUtc, dataObject),
             "invoice.paid" => ParseInvoicePaidEvent(eventId, occurredAtUtc, dataObject),
+            "invoice.payment_succeeded" => ParseInvoicePaidEvent(eventId, occurredAtUtc, dataObject),
             "customer.subscription.created" => ParseSubscriptionUpdatedEvent(eventId, eventType, occurredAtUtc, dataObject),
             "customer.subscription.updated" => ParseSubscriptionUpdatedEvent(eventId, eventType, occurredAtUtc, dataObject),
             "customer.subscription.deleted" => ParseSubscriptionUpdatedEvent(eventId, eventType, occurredAtUtc, dataObject),
@@ -208,7 +209,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         var lines = dataObject.GetProperty("lines").GetProperty("data");
         var firstLine = lines.GetArrayLength() > 0
             ? lines[0]
-            : throw new BillingWebhookValidationException("Stripe invoice.paid event did not include invoice lines.");
+            : throw new BillingWebhookValidationException("Stripe invoice event did not include invoice lines.");
         var period = firstLine.GetProperty("period");
         var price = firstLine.TryGetProperty("price", out var priceElement) ? priceElement : default;
 

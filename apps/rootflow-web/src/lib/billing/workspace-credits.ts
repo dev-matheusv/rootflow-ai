@@ -5,6 +5,9 @@ export type WorkspaceCreditTone = "healthy" | "low" | "critical" | "empty" | "in
 export interface WorkspaceCreditSnapshot {
   planName: string | null;
   subscriptionStatus: string | null;
+  trialEndsAtUtc: string | null;
+  trialDaysRemaining: number | null;
+  isTrial: boolean;
   availableCredits: number;
   consumedCredits: number;
   totalTrackedCredits: number;
@@ -24,7 +27,11 @@ export function getWorkspaceCreditSnapshot(summary?: WorkspaceBillingSummary | n
   const totalTrackedCredits = Math.max(availableCredits + consumedCredits, includedCredits, availableCredits);
   const remainingRatio = totalTrackedCredits > 0 ? clamp(availableCredits / totalTrackedCredits, 0, 1) : 0;
   const remainingPercent = Math.round(remainingRatio * 100);
-  const subscriptionStatus = summary.subscription?.status ?? null;
+  const subscriptionStatus = summary.subscriptionStatus ?? summary.subscription?.status ?? null;
+  const planName = summary.currentPlanName ?? summary.billingPlan?.name ?? null;
+  const trialEndsAtUtc = summary.trialEndsAtUtc ?? summary.subscription?.trialEndsAtUtc ?? null;
+  const isTrial = subscriptionStatus === "Trial";
+  const trialDaysRemaining = isTrial ? getDaysRemaining(trialEndsAtUtc) : null;
 
   let tone: WorkspaceCreditTone;
   if (subscriptionStatus && subscriptionStatus !== "Active" && subscriptionStatus !== "Trial") {
@@ -40,8 +47,11 @@ export function getWorkspaceCreditSnapshot(summary?: WorkspaceBillingSummary | n
   }
 
   return {
-    planName: summary.billingPlan?.name ?? null,
+    planName,
     subscriptionStatus,
+    trialEndsAtUtc,
+    trialDaysRemaining,
+    isTrial,
     availableCredits,
     consumedCredits,
     totalTrackedCredits,
@@ -57,4 +67,22 @@ export function formatCredits(value: number, locale: string) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getDaysRemaining(input?: string | null) {
+  if (!input) {
+    return null;
+  }
+
+  const trialEnd = new Date(input);
+  if (Number.isNaN(trialEnd.getTime())) {
+    return null;
+  }
+
+  const remainingMs = trialEnd.getTime() - Date.now();
+  if (remainingMs <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(remainingMs / 86_400_000);
 }
