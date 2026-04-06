@@ -255,6 +255,16 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         var price = firstItem.ValueKind != JsonValueKind.Undefined && firstItem.TryGetProperty("price", out var priceElement)
             ? priceElement
             : default;
+        var currentPeriodStartUtc = GetSubscriptionPeriodUtc(
+            dataObject,
+            firstItem,
+            "current_period_start",
+            "Stripe subscription period start is missing.");
+        var currentPeriodEndUtc = GetSubscriptionPeriodUtc(
+            dataObject,
+            firstItem,
+            "current_period_end",
+            "Stripe subscription period end is missing.");
         var canceledAt = dataObject.TryGetProperty("canceled_at", out var canceledAtElement) &&
                          canceledAtElement.ValueKind != JsonValueKind.Null
             ? DateTimeOffset.FromUnixTimeSeconds(canceledAtElement.GetInt64()).UtcDateTime
@@ -268,8 +278,8 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
             GetOptionalString(dataObject, "customer"),
             GetOptionalString(price, "id"),
             dataObject.GetProperty("status").GetString() ?? string.Empty,
-            DateTimeOffset.FromUnixTimeSeconds(dataObject.GetProperty("current_period_start").GetInt64()).UtcDateTime,
-            DateTimeOffset.FromUnixTimeSeconds(dataObject.GetProperty("current_period_end").GetInt64()).UtcDateTime,
+            currentPeriodStartUtc,
+            currentPeriodEndUtc,
             canceledAt);
     }
 
@@ -352,6 +362,36 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         }
 
         return value.ValueKind == JsonValueKind.Null ? null : value.GetString();
+    }
+
+    private static DateTime GetSubscriptionPeriodUtc(
+        JsonElement subscription,
+        JsonElement firstItem,
+        string propertyName,
+        string errorMessage)
+    {
+        if (TryGetUnixTimeSeconds(subscription, propertyName, out var unixSeconds) ||
+            TryGetUnixTimeSeconds(firstItem, propertyName, out unixSeconds))
+        {
+            return DateTimeOffset.FromUnixTimeSeconds(unixSeconds).UtcDateTime;
+        }
+
+        throw new BillingWebhookValidationException(errorMessage);
+    }
+
+    private static bool TryGetUnixTimeSeconds(JsonElement parent, string propertyName, out long unixSeconds)
+    {
+        unixSeconds = default;
+
+        if (parent.ValueKind == JsonValueKind.Undefined ||
+            !parent.TryGetProperty(propertyName, out var value) ||
+            value.ValueKind == JsonValueKind.Null)
+        {
+            return false;
+        }
+
+        unixSeconds = value.GetInt64();
+        return true;
     }
 
     private static Guid? TryParseGuid(string? value)
