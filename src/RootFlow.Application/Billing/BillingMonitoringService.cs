@@ -274,10 +274,26 @@ public sealed class BillingMonitoringService
         foreach (var webhookIssue in webhookIssues.Take(3))
         {
             detailLines.Add(
-                $"Webhook: {webhookIssue.EventType} - {webhookIssue.Status} - tentativas {webhookIssue.AttemptCount}");
+                $"Webhook: {webhookIssue.EventType} ({webhookIssue.ProviderEventId}) - {webhookIssue.Status} - tentativas {webhookIssue.AttemptCount}{FormatWebhookErrorSuffix(webhookIssue.LastError)}");
         }
 
         return detailLines;
+    }
+
+    private static string FormatWebhookErrorSuffix(string? lastError)
+    {
+        if (string.IsNullOrWhiteSpace(lastError))
+        {
+            return string.Empty;
+        }
+
+        var normalized = lastError.Trim();
+        if (normalized.Length > 140)
+        {
+            normalized = $"{normalized[..140]}...";
+        }
+
+        return $" - erro: {normalized}";
     }
 
     private static IReadOnlyList<WorkspaceBillingWebhookEvent> ResolveActionableWebhookIssues(

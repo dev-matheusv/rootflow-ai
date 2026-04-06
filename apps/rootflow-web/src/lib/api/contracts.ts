@@ -296,6 +296,7 @@ export interface PlatformAdminStripeWebhookIssue {
 export interface PlatformAdminDashboard {
   overview: PlatformAdminOverview;
   alerts: PlatformAdminAlertCounts;
+  billingOpsReadiness: PlatformAdminBillingOpsReadiness;
   usageWindows: PlatformAdminUsageWindow[];
   lowCreditWorkspaces: PlatformAdminWorkspaceSummary[];
   noCreditWorkspaces: PlatformAdminWorkspaceSummary[];
@@ -308,6 +309,14 @@ export interface PlatformAdminDashboard {
   topProviderCostWorkspaces: PlatformAdminWorkspaceSummary[];
   topRevenueBasisWorkspaces: PlatformAdminWorkspaceSummary[];
   modelBreakdown: PlatformAdminModelUsage[];
+}
+
+export interface PlatformAdminBillingOpsReadiness {
+  isReady: boolean;
+  adminAlertRecipientCount: number;
+  adminAlertRecipientsConfigured: boolean;
+  outboundEmailConfigured: boolean;
+  backgroundMonitoringEnabled: boolean;
 }
 
 export interface PlatformAdminReplayStripeWebhooksResult {

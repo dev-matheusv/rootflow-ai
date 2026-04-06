@@ -3,6 +3,7 @@ namespace RootFlow.Api.Contracts.Admin;
 public sealed record PlatformAdminDashboardResponse(
     PlatformAdminOverviewResponse Overview,
     PlatformAdminAlertCountsResponse Alerts,
+    PlatformAdminBillingOpsReadinessResponse BillingOpsReadiness,
     IReadOnlyList<PlatformAdminUsageWindowResponse> UsageWindows,
     IReadOnlyList<PlatformAdminWorkspaceSummaryResponse> LowCreditWorkspaces,
     IReadOnlyList<PlatformAdminWorkspaceSummaryResponse> NoCreditWorkspaces,
@@ -33,6 +34,13 @@ public sealed record PlatformAdminAlertCountsResponse(
     int TrialsExpiringSoon,
     int PaymentIssues,
     int StripeWebhookIssues);
+
+public sealed record PlatformAdminBillingOpsReadinessResponse(
+    bool IsReady,
+    int AdminAlertRecipientCount,
+    bool AdminAlertRecipientsConfigured,
+    bool OutboundEmailConfigured,
+    bool BackgroundMonitoringEnabled);
 
 public sealed record PlatformAdminUsageWindowResponse(
     string Key,

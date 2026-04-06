@@ -5,11 +5,14 @@ namespace RootFlow.Api.Admin;
 
 public static class PlatformAdminContractMapper
 {
-    public static PlatformAdminDashboardResponse ToResponse(this PlatformAdminDashboardDto dashboard)
+    public static PlatformAdminDashboardResponse ToResponse(
+        this PlatformAdminDashboardDto dashboard,
+        PlatformAdminBillingOpsReadinessResponse billingOpsReadiness)
     {
         return new PlatformAdminDashboardResponse(
             dashboard.Overview.ToResponse(),
             dashboard.Alerts.ToResponse(),
+            billingOpsReadiness,
             dashboard.UsageWindows.Select(ToResponse).ToArray(),
             dashboard.LowCreditWorkspaces.Select(ToResponse).ToArray(),
             dashboard.NoCreditWorkspaces.Select(ToResponse).ToArray(),

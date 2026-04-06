@@ -134,6 +134,10 @@ public sealed class BillingMonitoringServiceTests
         Assert.Equal(0, secondRun.AdminAlertsSent);
         Assert.Equal(0, secondRun.WorkspaceNotificationsSent);
         Assert.Single(notifier.PlatformAlerts);
+        Assert.Contains(
+            notifier.PlatformAlerts[0].DetailLines,
+            line => line.Contains("evt_123", StringComparison.Ordinal) &&
+                    line.Contains("Stripe snapshot could not be resolved", StringComparison.Ordinal));
         Assert.Equal(2, notifier.LifecycleNotifications.Count);
         Assert.Contains(
             notifier.LifecycleNotifications,

@@ -19,6 +19,7 @@ import type { ApiError } from "@/lib/api/client";
 import { formatCredits } from "@/lib/billing/workspace-credits";
 import { cn } from "@/lib/utils";
 import type {
+  PlatformAdminDashboard,
   PlatformAdminBillingTransaction,
   PlatformAdminBillingMonitoringRunResult,
   PlatformAdminModelUsage,
@@ -232,6 +233,12 @@ export function AdminPage() {
                 </CardContent>
               </Card>
 
+              <BillingOpsReadinessCard
+                readiness={dashboard.billingOpsReadiness}
+                locale={locale}
+                t={t}
+              />
+
               <AdminBillingOperationsCard
                 replayPending={replayStripeWebhooksMutation.isPending}
                 monitoringPending={runBillingMonitoringMutation.isPending}
@@ -444,6 +451,94 @@ function AlertCard({
         <Badge variant={badgeVariant}>{count}</Badge>
       </div>
     </div>
+  );
+}
+
+function BillingOpsReadinessCard({
+  readiness,
+  locale,
+  t,
+}: {
+  readiness: PlatformAdminDashboard["billingOpsReadiness"];
+  locale: string;
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
+  const warnings = [
+    !readiness.adminAlertRecipientsConfigured ? t("admin.billingReadinessMissingRecipientsWarning") : null,
+    !readiness.outboundEmailConfigured ? t("admin.billingReadinessMissingEmailWarning") : null,
+    !readiness.backgroundMonitoringEnabled ? t("admin.billingReadinessMonitoringDisabledWarning") : null,
+  ].filter((warning): warning is string => Boolean(warning));
+
+  return (
+    <Card className={cn(
+      "border bg-card/86",
+      readiness.isReady ? "border-emerald-500/18 bg-emerald-500/[0.05]" : "border-amber-500/20 bg-amber-500/[0.06]",
+    )}>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle>{t("admin.billingReadinessTitle")}</CardTitle>
+            <p className="text-sm text-muted-foreground/95">{t("admin.billingReadinessDescription")}</p>
+          </div>
+          <Badge variant={readiness.isReady ? "success" : "warning"}>
+            {readiness.isReady ? t("admin.billingReadinessReadyBadge") : t("admin.billingReadinessAttentionBadge")}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-[18px] border border-border/78 bg-background/82 px-3 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {t("admin.billingReadinessRecipientsLabel")}
+            </div>
+            <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">
+              {formatNumber(readiness.adminAlertRecipientCount, locale)}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {readiness.adminAlertRecipientsConfigured
+                ? t("admin.billingReadinessConfigured")
+                : t("admin.billingReadinessMissing")}
+            </div>
+          </div>
+
+          <div className="rounded-[18px] border border-border/78 bg-background/82 px-3 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {t("admin.billingReadinessEmailLabel")}
+            </div>
+            <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">
+              {readiness.outboundEmailConfigured
+                ? t("admin.billingReadinessConfigured")
+                : t("admin.billingReadinessMissing")}
+            </div>
+          </div>
+
+          <div className="rounded-[18px] border border-border/78 bg-background/82 px-3 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {t("admin.billingReadinessMonitoringLabel")}
+            </div>
+            <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">
+              {readiness.backgroundMonitoringEnabled
+                ? t("admin.billingReadinessEnabled")
+                : t("admin.billingReadinessDisabled")}
+            </div>
+          </div>
+        </div>
+
+        {warnings.length === 0 ? (
+          <div className="rounded-[18px] border border-emerald-500/18 bg-emerald-500/[0.08] px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
+            {t("admin.billingReadinessReadyHint")}
+          </div>
+        ) : (
+          <div className="rounded-[18px] border border-amber-500/20 bg-amber-500/[0.08] px-4 py-3">
+            <ul className="space-y-2 text-sm text-amber-700 dark:text-amber-300">
+              {warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

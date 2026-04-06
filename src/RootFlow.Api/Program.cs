@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using RootFlow.Api.Admin;
 using RootFlow.Api.Auth;
@@ -31,6 +32,7 @@ using RootFlow.Application.Workspaces.Commands;
 using RootFlow.Application.Workspaces.Queries;
 using RootFlow.Domain.Workspaces;
 using RootFlow.Infrastructure.DependencyInjection;
+using RootFlow.Infrastructure.Email;
 using RootFlow.Infrastructure.Persistence;
 
 ConfigurePlatformUrlsFromPort();
@@ -333,6 +335,9 @@ admin.MapGet("/dashboard", async (
     ClaimsPrincipal user,
     IPlatformAdminAccessService platformAdminAccessService,
     PlatformAdminDashboardService platformAdminDashboardService,
+    IOptions<PlatformAdminOptions> platformAdminOptions,
+    IEmailSender emailSender,
+    IHostEnvironment hostEnvironment,
     ILogger<Program> logger,
     CancellationToken cancellationToken) =>
 {
@@ -357,8 +362,12 @@ admin.MapGet("/dashboard", async (
     var dashboard = await platformAdminDashboardService.GetDashboardAsync(
         new GetPlatformAdminDashboardQuery(),
         cancellationToken);
+    var billingOpsReadiness = BuildPlatformAdminBillingOpsReadinessResponse(
+        platformAdminOptions.Value,
+        emailSender,
+        hostEnvironment);
 
-    return Results.Ok(dashboard.ToResponse());
+    return Results.Ok(dashboard.ToResponse(billingOpsReadiness));
 });
 
 admin.MapPost("/billing/replay-webhooks", async (
@@ -1209,6 +1218,32 @@ static string[] SplitDelimitedValues(string? value)
 static string? FirstNonEmpty(params string?[] values)
 {
     return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim();
+}
+
+static PlatformAdminBillingOpsReadinessResponse BuildPlatformAdminBillingOpsReadinessResponse(
+    PlatformAdminOptions options,
+    IEmailSender emailSender,
+    IHostEnvironment hostEnvironment)
+{
+    ArgumentNullException.ThrowIfNull(options);
+    ArgumentNullException.ThrowIfNull(emailSender);
+    ArgumentNullException.ThrowIfNull(hostEnvironment);
+
+    var adminAlertRecipientCount = options.Emails
+        .Select(email => email?.Trim())
+        .Where(email => !string.IsNullOrWhiteSpace(email))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Count();
+    var adminAlertRecipientsConfigured = adminAlertRecipientCount > 0;
+    var outboundEmailConfigured = emailSender.IsConfigured;
+    var backgroundMonitoringEnabled = !hostEnvironment.IsEnvironment("IntegrationTesting");
+
+    return new PlatformAdminBillingOpsReadinessResponse(
+        adminAlertRecipientsConfigured && outboundEmailConfigured && backgroundMonitoringEnabled,
+        adminAlertRecipientCount,
+        adminAlertRecipientsConfigured,
+        outboundEmailConfigured,
+        backgroundMonitoringEnabled);
 }
 
 public partial class Program

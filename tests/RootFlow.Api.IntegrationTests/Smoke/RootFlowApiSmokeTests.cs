@@ -148,7 +148,12 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
 
         var dashboard = await dashboardResponse.Content.ReadFromJsonAsync<PlatformAdminDashboardResponse>();
         Assert.NotNull(dashboard);
+        Assert.NotNull(dashboard!.BillingOpsReadiness);
         Assert.NotNull(dashboard!.StripeWebhookIssues);
+        Assert.True(dashboard.BillingOpsReadiness.AdminAlertRecipientsConfigured);
+        Assert.False(dashboard.BillingOpsReadiness.OutboundEmailConfigured);
+        Assert.False(dashboard.BillingOpsReadiness.BackgroundMonitoringEnabled);
+        Assert.False(dashboard.BillingOpsReadiness.IsReady);
 
         var replayResponse = await client.PostAsync("/api/admin/billing/replay-webhooks", new StringContent(string.Empty));
         replayResponse.EnsureSuccessStatusCode();
@@ -230,7 +235,15 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
 
     private sealed record PlatformAdminDashboardResponse(
         PlatformAdminAlertCountsResponse Alerts,
+        PlatformAdminBillingOpsReadinessResponse BillingOpsReadiness,
         List<PlatformAdminStripeWebhookIssueResponse> StripeWebhookIssues);
+
+    private sealed record PlatformAdminBillingOpsReadinessResponse(
+        bool IsReady,
+        int AdminAlertRecipientCount,
+        bool AdminAlertRecipientsConfigured,
+        bool OutboundEmailConfigured,
+        bool BackgroundMonitoringEnabled);
 
     private sealed record PlatformAdminAlertCountsResponse(
         int LowCreditWorkspaces,
