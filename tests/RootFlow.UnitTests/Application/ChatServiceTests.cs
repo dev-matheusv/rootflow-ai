@@ -79,10 +79,10 @@ public sealed class ChatServiceTests
             includedCredits: 0,
             minimumAssistantCreditsRequired: 1);
 
-        var exception = await Assert.ThrowsAsync<InsufficientWorkspaceCreditsException>(() =>
+        var exception = await Assert.ThrowsAsync<WorkspaceTrialUsageLimitReachedException>(() =>
             chatService.AskAsync(new AskQuestionCommand(Guid.NewGuid(), "What is the travel policy?")));
 
-        Assert.Equal("Your workspace has no credits available.", exception.Message);
+        Assert.Equal("Your workspace reached the trial usage limit. Choose a plan to continue.", exception.Message);
         Assert.Equal(0, completionService.CallCount);
         Assert.Equal(0, conversationRepository.ConversationCount);
         Assert.Equal(0, conversationRepository.TotalMessageCount);

@@ -39,7 +39,7 @@ public sealed class WorkspaceBillingServiceTests
         Assert.NotNull(summary.Subscription);
         Assert.Equal(WorkspaceSubscriptionStatus.Trial, summary.Subscription!.Status);
         Assert.Equal(FixedClock.UtcNow.AddDays(7), summary.Subscription.TrialEndsAtUtc);
-        Assert.Equal(5_000, summary.Balance.AvailableCredits);
+        Assert.Equal(3_000, summary.Balance.AvailableCredits);
         Assert.Equal(0, summary.Balance.ConsumedCredits);
         Assert.Single(workspaceBillingRepository.LedgerEntries);
         Assert.Equal(WorkspaceCreditLedgerType.SubscriptionGrant, workspaceBillingRepository.LedgerEntries[0].Type);
@@ -83,7 +83,7 @@ public sealed class WorkspaceBillingServiceTests
         Assert.Equal(0.32m, usageEvent.EstimatedCost);
         Assert.Equal(32, usageEvent.CreditsCharged);
         Assert.NotNull(updatedBalance);
-        Assert.Equal(4_968, updatedBalance!.AvailableCredits);
+        Assert.Equal(2_968, updatedBalance!.AvailableCredits);
         Assert.Equal(32, updatedBalance.ConsumedCredits);
         Assert.Single(workspaceBillingRepository.UsageEvents);
         Assert.Equal(conversationId, workspaceBillingRepository.UsageEvents[0].ConversationId);
@@ -168,6 +168,41 @@ public sealed class WorkspaceBillingServiceTests
     }
 
     [Fact]
+    public async Task EnsureAssistantUsageAllowedAsync_ThrowsTrialLimitException_WhenTrialCreditsAreExhausted()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = new BillingPlan(
+            Guid.NewGuid(),
+            "starter",
+            "Starter",
+            49m,
+            "USD",
+            10_000,
+            3,
+            FixedClock.UtcNow);
+
+        var service = CreateService(
+            workspaceId,
+            starterPlan,
+            new StubUsagePricingCalculator(estimatedCost: 0.01m, creditsCharged: 1),
+            out _,
+            trialIncludedCredits: 1);
+
+        await service.GetCreditSummaryAsync(new GetWorkspaceCreditSummaryQuery(workspaceId));
+        await service.ConsumeCreditsAsync(
+            new ConsumeWorkspaceCreditsCommand(
+                workspaceId,
+                1,
+                WorkspaceCreditLedgerType.ManualAdjustment,
+                "Exhaust trial credits"));
+
+        var exception = await Assert.ThrowsAsync<WorkspaceTrialUsageLimitReachedException>(() =>
+            service.EnsureAssistantUsageAllowedAsync(workspaceId));
+
+        Assert.Contains("trial usage limit", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GetCreditSummaryAsync_ReturnsDegradedSummary_WhenSubscriptionResolutionFails()
     {
         var workspaceId = Guid.NewGuid();
@@ -197,7 +232,7 @@ public sealed class WorkspaceBillingServiceTests
         Assert.True(summary.IsDegraded);
         Assert.Null(summary.BillingPlan);
         Assert.Null(summary.Subscription);
-        Assert.Equal(5_000, summary.Balance.AvailableCredits);
+        Assert.Equal(3_000, summary.Balance.AvailableCredits);
     }
 
     private static WorkspaceBillingService CreateService(
@@ -205,7 +240,7 @@ public sealed class WorkspaceBillingServiceTests
         BillingPlan starterPlan,
         IAiUsagePricingCalculator usagePricingCalculator,
         out InMemoryWorkspaceBillingRepository workspaceBillingRepository,
-        long trialIncludedCredits = 5_000,
+        long trialIncludedCredits = 3_000,
         IClock? clock = null,
         InMemoryWorkspaceBillingRepository? existingRepository = null)
     {

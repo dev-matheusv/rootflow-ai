@@ -450,7 +450,7 @@ public static class InfrastructureServiceCollectionExtensions
                 "small",
                 "Small Credit Pack",
                 "Extra shared credits for lighter workspace usage.",
-                10_000,
+                5_000,
                 29.90m),
             CreateCanonicalCreditPack(
                 configuredPacks,
@@ -458,7 +458,7 @@ public static class InfrastructureServiceCollectionExtensions
                 "medium",
                 "Medium Credit Pack",
                 "Shared credits for teams that need more assistant continuity.",
-                25_000,
+                10_000,
                 59.90m),
             CreateCanonicalCreditPack(
                 configuredPacks,
@@ -466,7 +466,7 @@ public static class InfrastructureServiceCollectionExtensions
                 "large",
                 "Large Credit Pack",
                 "Larger shared credit reserve for higher workspace demand.",
-                50_000,
+                20_000,
                 99.90m)
         ];
     }

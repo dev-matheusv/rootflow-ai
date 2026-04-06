@@ -969,6 +969,12 @@ app.MapPost("/api/chat", async (
             new { error = exception.Message, code = "inactive_subscription" },
             statusCode: StatusCodes.Status402PaymentRequired);
     }
+    catch (WorkspaceTrialUsageLimitReachedException exception)
+    {
+        return Results.Json(
+            new { error = exception.Message, code = "trial_limit_reached" },
+            statusCode: StatusCodes.Status402PaymentRequired);
+    }
     catch (InsufficientWorkspaceCreditsException exception)
     {
         return Results.Json(

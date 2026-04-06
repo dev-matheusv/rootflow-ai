@@ -379,9 +379,9 @@ public sealed class PostgresDatabaseInitializer
                     created_at_utc
                 )
                 VALUES
-                    ('7d402ac6-b828-4df0-92de-d7d4bf79e001', 'starter', 'Starter', 49.00, 'USD', 10000, 3, TRUE, NOW()),
-                    ('7d402ac6-b828-4df0-92de-d7d4bf79e002', 'pro', 'Pro', 149.00, 'USD', 50000, 10, TRUE, NOW()),
-                    ('7d402ac6-b828-4df0-92de-d7d4bf79e003', 'business', 'Business', 499.00, 'USD', 200000, 50, TRUE, NOW())
+                    ('7d402ac6-b828-4df0-92de-d7d4bf79e001', 'starter', 'Starter', 49.90, 'BRL', 10000, 3, TRUE, NOW()),
+                    ('7d402ac6-b828-4df0-92de-d7d4bf79e002', 'pro', 'Pro', 99.90, 'BRL', 25000, 10, TRUE, NOW()),
+                    ('7d402ac6-b828-4df0-92de-d7d4bf79e003', 'business', 'Business', 199.90, 'BRL', 50000, 50, TRUE, NOW())
                 ON CONFLICT (code) DO UPDATE
                 SET name = EXCLUDED.name,
                     monthly_price = EXCLUDED.monthly_price,
@@ -650,6 +650,33 @@ public sealed class PostgresDatabaseInitializer
 
                 CREATE INDEX IF NOT EXISTS ix_workspace_billing_notification_deliveries_workspace_sent
                     ON workspace_billing_notification_deliveries (workspace_id, sent_at_utc DESC, id DESC);
+                """),
+            new DatabaseMigration(
+                "202604060002_workspace_billing_plan_repricing",
+                "Align billing plans and bundled credits with the BRL go-to-market pricing ladder",
+                """
+                UPDATE billing_plans
+                SET monthly_price = CASE code
+                        WHEN 'starter' THEN 49.90
+                        WHEN 'pro' THEN 99.90
+                        WHEN 'business' THEN 199.90
+                        ELSE monthly_price
+                    END,
+                    currency_code = 'BRL',
+                    included_credits = CASE code
+                        WHEN 'starter' THEN 10000
+                        WHEN 'pro' THEN 25000
+                        WHEN 'business' THEN 50000
+                        ELSE included_credits
+                    END,
+                    max_users = CASE code
+                        WHEN 'starter' THEN 3
+                        WHEN 'pro' THEN 10
+                        WHEN 'business' THEN 50
+                        ELSE max_users
+                    END,
+                    is_active = TRUE
+                WHERE code IN ('starter', 'pro', 'business');
                 """)
         ];
     }

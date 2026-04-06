@@ -105,8 +105,10 @@ export function AssistantPage() {
   const isInactiveSubscription =
     billingErrorCode === "inactive_subscription" || (!creditSnapshot?.isDegraded && creditSnapshot?.tone === "inactive");
   const isOutOfCredits =
-    billingErrorCode === "insufficient_credits" || (!creditSnapshot?.isDegraded && creditSnapshot?.tone === "empty");
-  const isBillingBlocked = isInactiveSubscription || isOutOfCredits;
+    billingErrorCode === "insufficient_credits" || (!creditSnapshot?.isDegraded && !creditSnapshot?.isTrial && creditSnapshot?.tone === "empty");
+  const isTrialLimitReached =
+    billingErrorCode === "trial_limit_reached" || (!creditSnapshot?.isDegraded && Boolean(creditSnapshot?.isTrialUsageLimited));
+  const isBillingBlocked = isInactiveSubscription || isOutOfCredits || isTrialLimitReached;
   const inlineCreditWarning =
     !creditSnapshot?.isDegraded && !isBillingBlocked && creditSnapshot?.tone === "critical"
       ? t("billing.assistantCriticalHint")
@@ -373,10 +375,18 @@ export function AssistantPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-foreground">
-                            {isInactiveSubscription ? t("billing.assistantInactiveTitle") : t("billing.assistantBlockedTitle")}
+                            {isInactiveSubscription
+                              ? t("billing.assistantInactiveTitle")
+                              : isTrialLimitReached
+                                ? t("billing.assistantTrialLimitTitle")
+                                : t("billing.assistantBlockedTitle")}
                           </div>
                           <p className="mt-1 text-sm text-muted-foreground/95">
-                            {isInactiveSubscription ? t("billing.assistantInactiveDescription") : t("billing.assistantBlockedDescription")}
+                            {isInactiveSubscription
+                              ? t("billing.assistantInactiveDescription")
+                              : isTrialLimitReached
+                                ? t("billing.assistantTrialLimitDescription")
+                                : t("billing.assistantBlockedDescription")}
                           </p>
                         </div>
                       </div>
@@ -384,10 +394,16 @@ export function AssistantPage() {
                         className={
                           isInactiveSubscription
                             ? "border-border/78 bg-background/84 text-muted-foreground"
-                            : "border-rose-500/24 bg-rose-500/[0.12] text-rose-700 dark:text-rose-300"
+                            : isTrialLimitReached
+                              ? "border-amber-500/24 bg-amber-500/[0.12] text-amber-700 dark:text-amber-300"
+                              : "border-rose-500/24 bg-rose-500/[0.12] text-rose-700 dark:text-rose-300"
                         }
                       >
-                        {isInactiveSubscription ? t("billing.inactiveState") : t("billing.emptyState")}
+                        {isInactiveSubscription
+                          ? t("billing.inactiveState")
+                          : isTrialLimitReached
+                            ? t("billing.trialLimitReachedBadge")
+                            : t("billing.emptyState")}
                       </Badge>
                     </div>
 
@@ -397,25 +413,40 @@ export function AssistantPage() {
                           <div className="min-w-0">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.shellLabel")}</div>
                             <div className="mt-1 text-base font-semibold tracking-[-0.02em] text-foreground">
-                              {t("billing.availableShort", { count: formatCredits(creditSnapshot.availableCredits, locale) })}
+                              {creditSnapshot.isTrial
+                                ? creditSnapshot.isTrialUsageLimited
+                                  ? t("billing.trialLimitReachedTitle")
+                                  : t("billing.trialTopbarTitle")
+                                : t("billing.availableShort", { count: formatCredits(creditSnapshot.availableCredits, locale) })}
                             </div>
                           </div>
-                          <div className="text-sm text-muted-foreground">{t("billing.remainingDetail", { percent: creditSnapshot.remainingPercent })}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {creditSnapshot.isTrial
+                              ? creditSnapshot.trialDaysRemaining && creditSnapshot.trialDaysRemaining > 0
+                                ? t("billing.trialEndsInDays", { count: creditSnapshot.trialDaysRemaining })
+                                : t("billing.trialEndsToday")
+                              : t("billing.remainingDetail", { percent: creditSnapshot.remainingPercent })}
+                          </div>
                         </div>
-                        <WorkspaceCreditProgress className="mt-3" ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
                         {creditSnapshot.isTrial ? (
-                          <p className="mt-3 text-sm font-medium text-primary">
-                            {creditSnapshot.trialDaysRemaining && creditSnapshot.trialDaysRemaining > 0
-                              ? t("billing.trialEndsInDays", { count: creditSnapshot.trialDaysRemaining })
-                              : t("billing.trialEndsToday")}
+                          <p className="mt-3 text-sm text-muted-foreground">
+                            {creditSnapshot.isTrialUsageLimited
+                              ? t("billing.trialLimitReachedDescription")
+                              : t("billing.trialUsageTrackedInternally")}
                           </p>
-                        ) : null}
+                        ) : (
+                          <WorkspaceCreditProgress className="mt-3" ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
+                        )}
                       </div>
                     ) : null}
 
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Button asChild className="sm:flex-1">
-                        <Link to="/billing">{isInactiveSubscription ? t("common.actions.upgradePlan") : t("common.actions.buyCredits")}</Link>
+                        <Link to="/billing">
+                          {isInactiveSubscription || isTrialLimitReached
+                            ? t("common.actions.upgradePlan")
+                            : t("common.actions.buyCredits")}
+                        </Link>
                       </Button>
                       <Button variant="outline" asChild className="sm:flex-1">
                         <Link to="/billing">{t("common.actions.openBilling")}</Link>

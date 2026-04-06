@@ -133,7 +133,7 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
         Assert.NotNull(summary.Subscription);
         Assert.Equal("Trial", summary.Subscription!.Status);
         Assert.NotNull(summary.Subscription.TrialEndsAtUtc);
-        Assert.Equal(5_000, summary.Balance.AvailableCredits);
+        Assert.Equal(3_000, summary.Balance.AvailableCredits);
         Assert.Equal(0, summary.Balance.ConsumedCredits);
     }
 

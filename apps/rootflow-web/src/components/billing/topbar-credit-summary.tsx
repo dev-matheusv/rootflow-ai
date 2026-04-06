@@ -48,7 +48,9 @@ export function TopbarCreditSummary({ workspaceId, className }: TopbarCreditSumm
   }
 
   const statusLabel =
-    snapshot.isTrial
+    snapshot.isTrialUsageLimited
+      ? t("billing.trialLimitReachedBadge")
+      : snapshot.isTrial
       ? t("billing.trialBadge")
       : snapshot.tone === "healthy"
       ? t("billing.healthyState")
@@ -60,7 +62,9 @@ export function TopbarCreditSummary({ workspaceId, className }: TopbarCreditSumm
             ? t("billing.inactiveState")
             : t("billing.emptyState");
   const statusClassName =
-    snapshot.isTrial
+    snapshot.isTrialUsageLimited
+      ? "border-amber-500/24 bg-amber-500/[0.12] text-amber-700 dark:text-amber-300"
+      : snapshot.isTrial
       ? "border-primary/24 bg-primary/[0.12] text-primary"
       : snapshot.tone === "healthy"
       ? "border-primary/24 bg-primary/[0.12] text-primary"
@@ -76,6 +80,11 @@ export function TopbarCreditSummary({ workspaceId, className }: TopbarCreditSumm
       ? t("billing.trialEndsInDays", { count: snapshot.trialDaysRemaining })
       : t("billing.trialEndsToday")
     : t("billing.remainingShort", { percent: snapshot.remainingPercent });
+  const headline = snapshot.isTrial
+    ? snapshot.isTrialUsageLimited
+      ? t("billing.trialLimitReachedTitle")
+      : t("billing.trialTopbarTitle")
+    : t("billing.availableShort", { count: formatCredits(snapshot.availableCredits, locale) });
 
   return (
     <Link to="/billing" className={cn("block min-w-0 w-full sm:w-[224px]", className)}>
@@ -90,7 +99,7 @@ export function TopbarCreditSummary({ workspaceId, className }: TopbarCreditSumm
                 {t("billing.shellLabel")}
               </div>
               <div className="truncate text-sm font-semibold tracking-[-0.02em] text-foreground">
-                {t("billing.availableShort", { count: formatCredits(snapshot.availableCredits, locale) })}
+                {headline}
               </div>
             </div>
           </div>
@@ -104,7 +113,15 @@ export function TopbarCreditSummary({ workspaceId, className }: TopbarCreditSumm
           <div className="shrink-0">{statusDetail}</div>
         </div>
 
-        <WorkspaceCreditProgress className="mt-2" ratio={snapshot.remainingRatio} tone={snapshot.tone} />
+        {snapshot.isTrial ? (
+          <div className="mt-2 text-xs text-muted-foreground">
+            {snapshot.isTrialUsageLimited
+              ? t("billing.trialLimitReachedDescription")
+              : t("billing.trialUsageTrackedInternally")}
+          </div>
+        ) : (
+          <WorkspaceCreditProgress className="mt-2" ratio={snapshot.remainingRatio} tone={snapshot.tone} />
+        )}
       </div>
     </Link>
   );

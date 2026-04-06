@@ -58,6 +58,7 @@ export function BillingPage() {
   const currentPlanCode = billingSummaryQuery.data?.billingPlan?.code?.toLowerCase() ?? null;
   const currentSubscriptionStatus =
     billingSummaryQuery.data?.subscriptionStatus ?? billingSummaryQuery.data?.subscription?.status ?? null;
+  const canBuyCreditPacks = currentSubscriptionStatus === "Active";
   const checkoutSearchParams = new URLSearchParams(location.search);
   const checkoutStatus = checkoutSearchParams.get("checkout");
   const checkoutSessionId = checkoutSearchParams.get("session_id");
@@ -371,50 +372,83 @@ export function BillingPage() {
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <Badge variant="secondary">{planDisplayName}</Badge>
                   <Badge variant="secondary">{subscriptionStatusLabel}</Badge>
-                  <Badge variant="secondary">{t("billing.remainingDetail", { percent: snapshot.remainingPercent })}</Badge>
+                  <Badge variant="secondary">
+                    {snapshot.isTrial
+                      ? trialStatusText ?? t("billing.trialActiveDescription")
+                      : t("billing.remainingDetail", { percent: snapshot.remainingPercent })}
+                  </Badge>
                 </div>
 
                 <div className="rounded-[22px] border border-border/78 bg-card/72 p-4">
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.available")}</div>
-                      <div className="mt-1 text-lg font-semibold tracking-[-0.03em] text-foreground">{formatCredits(snapshot.availableCredits, locale)}</div>
+                  {snapshot.isTrial ? (
+                    <div className="space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.currentPlan")}</div>
+                          <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{planDisplayName}</div>
+                        </div>
+                        <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.subscriptionStatusLabel")}</div>
+                          <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{subscriptionStatusLabel}</div>
+                        </div>
+                      </div>
+                      <div className="rounded-[18px] border border-primary/16 bg-primary/[0.06] px-3 py-3">
+                        <div className="text-sm font-semibold text-foreground">
+                          {snapshot.isTrialUsageLimited ? t("billing.trialLimitReachedTitle") : t("billing.trialTopbarTitle")}
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          {snapshot.isTrialUsageLimited
+                            ? t("billing.trialLimitReachedDescription")
+                            : t("billing.trialUsageTrackedInternally")}
+                        </p>
+                        <p className="mt-2 text-sm text-muted-foreground">{t("billing.trialUnlockCreditsAfterPlan")}</p>
+                      </div>
                     </div>
-                    <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.used")}</div>
-                      <div className="mt-1 text-lg font-semibold tracking-[-0.03em] text-foreground">{formatCredits(snapshot.consumedCredits, locale)}</div>
-                    </div>
-                    <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.tracked")}</div>
-                      <div className="mt-1 text-lg font-semibold tracking-[-0.03em] text-foreground">{formatCredits(snapshot.totalTrackedCredits, locale)}</div>
-                    </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.available")}</div>
+                          <div className="mt-1 text-lg font-semibold tracking-[-0.03em] text-foreground">{formatCredits(snapshot.availableCredits, locale)}</div>
+                        </div>
+                        <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.used")}</div>
+                          <div className="mt-1 text-lg font-semibold tracking-[-0.03em] text-foreground">{formatCredits(snapshot.consumedCredits, locale)}</div>
+                        </div>
+                        <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.tracked")}</div>
+                          <div className="mt-1 text-lg font-semibold tracking-[-0.03em] text-foreground">{formatCredits(snapshot.totalTrackedCredits, locale)}</div>
+                        </div>
+                      </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.currentPlan")}</div>
-                      <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{planDisplayName}</div>
-                    </div>
-                    <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.subscriptionStatusLabel")}</div>
-                      <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{subscriptionStatusLabel}</div>
-                    </div>
-                  </div>
-                  <WorkspaceCreditProgress className="mt-3" ratio={snapshot.remainingRatio} tone={snapshot.tone} />
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.currentPlan")}</div>
+                          <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{planDisplayName}</div>
+                        </div>
+                        <div className="rounded-[18px] border border-border/75 bg-background/84 px-3 py-2.5">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.subscriptionStatusLabel")}</div>
+                          <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{subscriptionStatusLabel}</div>
+                        </div>
+                      </div>
+                      <WorkspaceCreditProgress className="mt-3" ratio={snapshot.remainingRatio} tone={snapshot.tone} />
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        {snapshot.tone === "low"
+                          ? t("billing.lowWarning")
+                          : snapshot.tone === "critical"
+                            ? t("billing.criticalWarning")
+                            : snapshot.tone === "inactive"
+                              ? t("billing.inactiveWarning")
+                              : snapshot.tone === "empty"
+                                ? t("billing.emptyWarning")
+                                : t("billing.dashboardHint")}
+                      </p>
+                    </>
+                  )}
+
                   {snapshot.isTrial && trialStatusText ? (
                     <p className="mt-3 text-sm font-medium text-primary">{trialStatusText}</p>
                   ) : null}
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {snapshot.tone === "low"
-                      ? t("billing.lowWarning")
-                      : snapshot.tone === "critical"
-                        ? t("billing.criticalWarning")
-                        : snapshot.tone === "inactive"
-                          ? t("billing.inactiveWarning")
-                          : snapshot.tone === "empty"
-                            ? t("billing.emptyWarning")
-                            : t("billing.dashboardHint")}
-                  </p>
                 </div>
               </>
             )}
@@ -448,6 +482,7 @@ export function BillingPage() {
                       const isTrialPlan =
                         currentSubscriptionStatus === "Trial" &&
                         currentPlanCode === plan.code.toLowerCase();
+                      const isPopularPlan = plan.code.toLowerCase() === "pro";
                       const isRedirecting = activeCheckoutKey === `plan:${plan.code}`;
 
                       return (
@@ -456,6 +491,8 @@ export function BillingPage() {
                           className={`rounded-[22px] border p-4 ${
                             isCurrentPlan
                               ? "border-primary/20 bg-primary/[0.05]"
+                              : isPopularPlan
+                                ? "border-primary/22 bg-primary/[0.07] shadow-[0_22px_40px_-28px_rgba(37,99,235,0.2)]"
                               : "border-border/78 bg-background/80"
                           }`}
                         >
@@ -464,6 +501,7 @@ export function BillingPage() {
                               <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-base font-semibold tracking-[-0.03em] text-foreground">{plan.name}</div>
                                 {isCurrentPlan ? <Badge>{t("billing.currentPlanBadge")}</Badge> : null}
+                                {!isCurrentPlan && isPopularPlan ? <Badge>{t("billing.popularPlanBadge")}</Badge> : null}
                                 {!isCurrentPlan && isTrialPlan ? <Badge variant="secondary">{t("billing.trialBadge")}</Badge> : null}
                               </div>
                               <div className="text-2xl font-semibold tracking-[-0.04em] text-foreground">
@@ -476,7 +514,7 @@ export function BillingPage() {
                             </div>
 
                             <Button
-                              variant={isCurrentPlan ? "outline" : "default"}
+                              variant={isCurrentPlan ? "outline" : isPopularPlan ? "default" : "outline"}
                               disabled={isCurrentPlan || isRedirecting}
                               onClick={() => void handlePlanCheckout(plan.code, plan.priceId)}
                             >
@@ -518,8 +556,20 @@ export function BillingPage() {
                 />
               ) : (
                 <>
+                  {!canBuyCreditPacks ? (
+                    <div className="rounded-[22px] border border-border/78 bg-background/80 p-4">
+                      <div className="text-sm font-semibold text-foreground">{t("billing.creditPacksLockedTitle")}</div>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {currentSubscriptionStatus === "Trial"
+                          ? t("billing.creditPacksLockedTrialDescription")
+                          : t("billing.creditPacksLockedInactiveDescription")}
+                      </p>
+                    </div>
+                  ) : null}
+
                   {creditPacksQuery.data?.map((creditPack) => {
                     const isRedirecting = activeCheckoutKey === `credits:${creditPack.code}`;
+                    const isDisabled = !creditPack.isConfigured || isRedirecting || !canBuyCreditPacks;
 
                     return (
                       <div key={creditPack.code} className="rounded-[22px] border border-border/78 bg-background/80 p-4">
@@ -540,12 +590,14 @@ export function BillingPage() {
                               <span>{formatCurrency(creditPack.amount, creditPack.currencyCode, locale)}</span>
                             </div>
                             <Button
-                              disabled={!creditPack.isConfigured || isRedirecting}
+                              disabled={isDisabled}
                               onClick={() => void handleCreditCheckout(creditPack.code, creditPack.priceId)}
                             >
                               {isRedirecting
                                 ? t("billing.redirecting")
-                                : creditPack.isConfigured
+                                : !canBuyCreditPacks
+                                  ? t("billing.unavailableCta")
+                                  : creditPack.isConfigured
                                   ? t("common.actions.buyCredits")
                                   : t("billing.unavailableCta")}
                             </Button>

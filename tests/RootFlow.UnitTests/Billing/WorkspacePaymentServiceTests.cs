@@ -16,7 +16,7 @@ public sealed class WorkspacePaymentServiceTests
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
-        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 25_000, 10);
         var repository = new InMemoryWorkspaceBillingRepository();
         var gateway = new FakeStripePaymentGateway
         {
@@ -53,7 +53,7 @@ public sealed class WorkspacePaymentServiceTests
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
-        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 25_000, 10);
         var repository = new InMemoryWorkspaceBillingRepository();
         var gateway = new FakeStripePaymentGateway
         {
@@ -105,8 +105,15 @@ public sealed class WorkspacePaymentServiceTests
             [starterPlan],
             repository,
             gateway,
-            out var billingService,
+            out _,
             trialIncludedCredits: 100);
+
+        repository.SeedSubscription(CreateActiveStripeSubscription(
+            workspaceId,
+            starterPlan,
+            customerId: "cus_credits",
+            subscriptionId: "sub_paid_credits",
+            priceId: "price_starter"));
 
         await service.CreateCreditPurchaseCheckoutAsync(
             new CreateWorkspaceCreditPurchaseCheckoutCommand(workspaceId, "small"));
@@ -132,7 +139,7 @@ public sealed class WorkspacePaymentServiceTests
         var transaction = await repository.GetBillingTransactionByCheckoutSessionIdAsync("stripe", "cs_credits_123");
 
         Assert.NotNull(balance);
-        Assert.Equal(10_100, balance!.AvailableCredits);
+        Assert.Equal(5_000, balance!.AvailableCredits);
         Assert.Equal(0, balance.ConsumedCredits);
         Assert.NotNull(transaction);
         Assert.True(transaction!.IsCompleted);
@@ -166,6 +173,13 @@ public sealed class WorkspacePaymentServiceTests
             out var billingNotifier,
             trialIncludedCredits: 100);
 
+        repository.SeedSubscription(CreateActiveStripeSubscription(
+            workspaceId,
+            starterPlan,
+            customerId: "cus_credits_email",
+            subscriptionId: "sub_paid_credits_email",
+            priceId: "price_starter"));
+
         await service.CreateCreditPurchaseCheckoutAsync(
             new CreateWorkspaceCreditPurchaseCheckoutCommand(workspaceId, "small"));
 
@@ -189,7 +203,30 @@ public sealed class WorkspacePaymentServiceTests
         var notification = Assert.Single(billingNotifier.Notifications);
         Assert.Equal(WorkspacePaymentConfirmationKind.CreditPurchase, notification.Kind);
         Assert.Equal("Small Credit Pack", notification.ItemName);
-        Assert.Equal(10_000, notification.CreditsGranted);
+        Assert.Equal(5_000, notification.CreditsGranted);
+    }
+
+    [Fact]
+    public async Task CreateCreditPurchaseCheckoutAsync_Throws_WhenWorkspaceIsTrialing()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
+        var repository = new InMemoryWorkspaceBillingRepository();
+        var gateway = new FakeStripePaymentGateway();
+
+        var service = CreateService(
+            workspaceId,
+            [starterPlan],
+            repository,
+            gateway,
+            out _,
+            trialIncludedCredits: 100);
+
+        var exception = await Assert.ThrowsAsync<BillingCheckoutUnavailableException>(() =>
+            service.CreateCreditPurchaseCheckoutAsync(
+                new CreateWorkspaceCreditPurchaseCheckoutCommand(workspaceId, "small")));
+
+        Assert.Contains("paid plan", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -197,7 +234,7 @@ public sealed class WorkspacePaymentServiceTests
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
-        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 25_000, 10);
         var repository = new InMemoryWorkspaceBillingRepository();
         var gateway = new FakeStripePaymentGateway
         {
@@ -269,7 +306,7 @@ public sealed class WorkspacePaymentServiceTests
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
-        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 25_000, 10);
         var repository = new InMemoryWorkspaceBillingRepository();
         var gateway = new FakeStripePaymentGateway
         {
@@ -344,7 +381,7 @@ public sealed class WorkspacePaymentServiceTests
         Assert.Equal(proPlan.Id, latestSubscription.BillingPlanId);
         Assert.Equal("sub_pro", latestSubscription.ProviderSubscriptionId);
         Assert.NotNull(balance);
-        Assert.Equal(50_100, balance!.AvailableCredits);
+        Assert.Equal(25_100, balance!.AvailableCredits);
         Assert.NotNull(invoiceTransaction);
         Assert.True(invoiceTransaction!.IsCompleted);
         Assert.Single(
@@ -362,8 +399,8 @@ public sealed class WorkspacePaymentServiceTests
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
-        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
-        var businessPlan = CreatePlan("business", "Business", 199.90m, 200_000, 50);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 25_000, 10);
+        var businessPlan = CreatePlan("business", "Business", 199.90m, 50_000, 50);
         var repository = new InMemoryWorkspaceBillingRepository();
         var gateway = new FakeStripePaymentGateway
         {
@@ -470,9 +507,9 @@ public sealed class WorkspacePaymentServiceTests
         Assert.Equal(WorkspaceSubscriptionStatus.Active, latestSubscription!.Status);
         Assert.Equal(businessPlan.Id, latestSubscription.BillingPlanId);
         Assert.NotNull(balance);
-        Assert.Equal(200_100, balance!.AvailableCredits);
+        Assert.Equal(50_100, balance!.AvailableCredits);
         Assert.Equal(
-            200_000,
+            50_000,
             repository.LedgerEntries
                 .Where(entry =>
                     entry.WorkspaceId == workspaceId
@@ -486,7 +523,7 @@ public sealed class WorkspacePaymentServiceTests
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
-        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 25_000, 10);
         var repository = new InMemoryWorkspaceBillingRepository();
         var gateway = new FakeStripePaymentGateway
         {
@@ -551,7 +588,7 @@ public sealed class WorkspacePaymentServiceTests
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
-        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 25_000, 10);
         var repository = new InMemoryWorkspaceBillingRepository();
         var gateway = new FakeStripePaymentGateway
         {
@@ -603,7 +640,7 @@ public sealed class WorkspacePaymentServiceTests
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
-        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 25_000, 10);
         var repository = new InMemoryWorkspaceBillingRepository();
         var gateway = new FakeStripePaymentGateway
         {
@@ -659,7 +696,7 @@ public sealed class WorkspacePaymentServiceTests
         Assert.Equal(proPlan.Id, latestSubscription.BillingPlanId);
         Assert.Equal("sub_invoice_fallback", latestSubscription.ProviderSubscriptionId);
         Assert.NotNull(balance);
-        Assert.Equal(50_100, balance!.AvailableCredits);
+        Assert.Equal(25_100, balance!.AvailableCredits);
     }
 
     [Fact]
@@ -667,7 +704,7 @@ public sealed class WorkspacePaymentServiceTests
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = CreatePlan("starter", "Starter", 49.90m, 10_000, 3);
-        var proPlan = CreatePlan("pro", "Pro", 99.90m, 50_000, 10);
+        var proPlan = CreatePlan("pro", "Pro", 99.90m, 25_000, 10);
         var repository = new InMemoryWorkspaceBillingRepository();
         var gateway = new FakeStripePaymentGateway
         {
@@ -751,6 +788,28 @@ public sealed class WorkspacePaymentServiceTests
         Assert.Equal("sub_old_trial_override", historicalSubscriptionAfterSync.ProviderSubscriptionId);
     }
 
+    private static WorkspaceSubscription CreateActiveStripeSubscription(
+        Guid workspaceId,
+        BillingPlan plan,
+        string customerId,
+        string subscriptionId,
+        string priceId)
+    {
+        return new WorkspaceSubscription(
+            Guid.NewGuid(),
+            workspaceId,
+            plan.Id,
+            WorkspaceSubscriptionStatus.Active,
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow.AddMonths(1),
+            FixedClock.CurrentUtcNow,
+            FixedClock.CurrentUtcNow,
+            provider: "stripe",
+            providerCustomerId: customerId,
+            providerSubscriptionId: subscriptionId,
+            providerPriceId: priceId);
+    }
+
     private static BillingPlan CreatePlan(
         string code,
         string name,
@@ -775,7 +834,7 @@ public sealed class WorkspacePaymentServiceTests
         InMemoryWorkspaceBillingRepository repository,
         FakeStripePaymentGateway gateway,
         out WorkspaceBillingService workspaceBillingService,
-        long trialIncludedCredits = 5_000)
+        long trialIncludedCredits = 3_000)
     {
         return CreateService(
             workspaceId,
@@ -794,7 +853,7 @@ public sealed class WorkspacePaymentServiceTests
         FakeStripePaymentGateway gateway,
         out WorkspaceBillingService workspaceBillingService,
         out FakeWorkspaceBillingNotifier billingNotifier,
-        long trialIncludedCredits = 5_000)
+        long trialIncludedCredits = 3_000)
     {
         var workspaceRepository = new AlwaysExistingWorkspaceRepository(workspaceId);
         var workspaceMembershipRepository = new InMemoryWorkspaceMembershipRepository();
@@ -851,7 +910,7 @@ public sealed class WorkspacePaymentServiceTests
                         Code = "small",
                         Name = "Small Credit Pack",
                         Description = "Extra shared credits for lighter workspace usage.",
-                        Credits = 10_000,
+                        Credits = 5_000,
                         Amount = 29.90m,
                         CurrencyCode = "BRL",
                         PriceId = "price_small"
@@ -861,7 +920,7 @@ public sealed class WorkspacePaymentServiceTests
                         Code = "medium",
                         Name = "Medium Credit Pack",
                         Description = "Shared credits for teams that need more assistant continuity.",
-                        Credits = 25_000,
+                        Credits = 10_000,
                         Amount = 59.90m,
                         CurrencyCode = "BRL",
                         PriceId = "price_medium"
@@ -871,7 +930,7 @@ public sealed class WorkspacePaymentServiceTests
                         Code = "large",
                         Name = "Large Credit Pack",
                         Description = "Larger shared credit reserve for higher workspace demand.",
-                        Credits = 50_000,
+                        Credits = 20_000,
                         Amount = 99.90m,
                         CurrencyCode = "BRL",
                         PriceId = "price_large"

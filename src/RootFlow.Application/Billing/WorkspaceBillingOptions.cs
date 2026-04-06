@@ -8,11 +8,11 @@ public sealed class WorkspaceBillingOptions
 
     public int TrialPeriodDays { get; set; } = 7;
 
-    public long TrialIncludedCredits { get; set; } = 5_000;
+    public long TrialIncludedCredits { get; set; } = 3_000;
 
     public long MinimumAssistantCreditsRequired { get; set; } = 1;
 
-    public long CreditsPerDollar { get; set; } = 100;
+    public long CreditsPerDollar { get; set; } = 2_000;
 
     public decimal UsageMarkupMultiplier { get; set; } = 2.0m;
 

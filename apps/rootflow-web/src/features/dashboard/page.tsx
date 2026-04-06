@@ -37,7 +37,9 @@ export function DashboardPage() {
   const creditPlanLabel = creditSnapshot?.isTrial
     ? t("billing.trialBadge")
     : creditSnapshot?.planName ?? null;
-  const creditStatusLabel = creditSnapshot?.isTrial
+  const creditStatusLabel = creditSnapshot?.isTrialUsageLimited
+    ? t("billing.trialLimitReachedBadge")
+    : creditSnapshot?.isTrial
     ? t("billing.trialBadge")
     : creditSnapshot?.tone === "healthy"
       ? t("billing.healthyState")
@@ -54,7 +56,9 @@ export function DashboardPage() {
       : t("billing.trialEndsToday")
     : null;
   const creditStatusClassName =
-    creditSnapshot?.isTrial
+    creditSnapshot?.isTrialUsageLimited
+      ? "border-amber-500/24 bg-amber-500/[0.12] text-amber-700 dark:text-amber-300"
+      : creditSnapshot?.isTrial
       ? "border-primary/24 bg-primary/[0.12] text-primary"
       : creditSnapshot?.tone === "healthy"
       ? undefined
@@ -63,6 +67,7 @@ export function DashboardPage() {
         : creditSnapshot?.tone === "inactive"
           ? "border-border/78 bg-background/84 text-muted-foreground"
           : "border-rose-500/24 bg-rose-500/[0.12] text-rose-700 dark:text-rose-300";
+  const canBuyCreditPacks = creditSnapshot?.subscriptionStatus === "Active";
 
   const metrics = [
     { label: t("dashboard.documentsMetric"), value: String(documents.length), note: t("dashboard.total"), hint: t("common.helper.librarySize"), icon: BookOpenText },
@@ -263,9 +268,17 @@ export function DashboardPage() {
                       <div className="min-w-0">
                         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.shellLabel")}</div>
                         <div className="mt-1 text-[1.65rem] font-semibold tracking-[-0.05em] text-foreground">
-                          {formatCredits(creditSnapshot.availableCredits, locale)}
+                          {creditSnapshot.isTrial
+                            ? creditSnapshot.isTrialUsageLimited
+                              ? t("billing.trialLimitReachedTitle")
+                              : t("billing.trialTopbarTitle")
+                            : formatCredits(creditSnapshot.availableCredits, locale)}
                         </div>
-                        <div className="mt-1 text-sm text-muted-foreground">{t("billing.availableShort", { count: formatCredits(creditSnapshot.availableCredits, locale) })}</div>
+                        <div className="mt-1 text-sm text-muted-foreground">
+                          {creditSnapshot.isTrial
+                            ? trialStatusText ?? t("billing.trialActiveDescription")
+                            : t("billing.availableShort", { count: formatCredits(creditSnapshot.availableCredits, locale) })}
+                        </div>
                       </div>
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
                         {creditPlanLabel ? <Badge variant="secondary">{creditPlanLabel}</Badge> : null}
@@ -278,53 +291,83 @@ export function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-2.5">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.available")}</div>
-                        <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{formatCredits(creditSnapshot.availableCredits, locale)}</div>
+                    {creditSnapshot.isTrial ? (
+                      <div className="mt-4 space-y-3">
+                        <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-3">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.currentPlan")}</div>
+                          <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{t("billing.trialBadge")}</div>
+                        </div>
+                        <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-3">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.subscriptionStatusLabel")}</div>
+                          <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{creditStatusLabel}</div>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {creditSnapshot.isTrialUsageLimited
+                            ? t("billing.trialLimitReachedDescription")
+                            : t("billing.trialUsageTrackedInternally")}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{t("billing.trialUnlockCreditsAfterPlan")}</p>
                       </div>
-                      <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-2.5">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.used")}</div>
-                        <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{formatCredits(creditSnapshot.consumedCredits, locale)}</div>
-                      </div>
-                      <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-2.5">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.tracked")}</div>
-                        <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{formatCredits(creditSnapshot.totalTrackedCredits, locale)}</div>
-                      </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-2.5">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.available")}</div>
+                            <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{formatCredits(creditSnapshot.availableCredits, locale)}</div>
+                          </div>
+                          <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-2.5">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.used")}</div>
+                            <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{formatCredits(creditSnapshot.consumedCredits, locale)}</div>
+                          </div>
+                          <div className="rounded-[18px] border border-border/76 bg-background/84 px-3 py-2.5">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("billing.tracked")}</div>
+                            <div className="mt-1 text-base font-semibold tracking-[-0.03em] text-foreground">{formatCredits(creditSnapshot.totalTrackedCredits, locale)}</div>
+                          </div>
+                        </div>
 
-                    <div className="mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground">
-                      <span>{t("billing.remainingShort", { percent: creditSnapshot.remainingPercent })}</span>
-                      <span>{creditPlanLabel ?? t("billing.currentPlan")}</span>
-                    </div>
-                    <WorkspaceCreditProgress className="mt-2.5" ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
+                        <div className="mt-4 flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                          <span>{t("billing.remainingShort", { percent: creditSnapshot.remainingPercent })}</span>
+                          <span>{creditPlanLabel ?? t("billing.currentPlan")}</span>
+                        </div>
+                        <WorkspaceCreditProgress className="mt-2.5" ratio={creditSnapshot.remainingRatio} tone={creditSnapshot.tone} />
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          {creditSnapshot.tone === "low"
+                            ? t("billing.lowWarning")
+                            : creditSnapshot.tone === "critical"
+                              ? t("billing.criticalWarning")
+                              : creditSnapshot.tone === "inactive"
+                                ? t("billing.inactiveWarning")
+                                : creditSnapshot.tone === "empty"
+                                  ? t("billing.emptyWarning")
+                                  : t("billing.dashboardHint")}
+                        </p>
+                      </>
+                    )}
+
                     {creditSnapshot.isDegraded ? (
                       <p className="mt-3 text-sm font-medium text-amber-700 dark:text-amber-300">{t("billing.billingDegradedDescription")}</p>
                     ) : null}
-                    {trialStatusText ? <p className="mt-3 text-sm font-medium text-primary">{trialStatusText}</p> : null}
-                    <p className="mt-3 text-sm text-muted-foreground">
-                      {creditSnapshot.tone === "low"
-                        ? t("billing.lowWarning")
-                        : creditSnapshot.tone === "critical"
-                          ? t("billing.criticalWarning")
-                          : creditSnapshot.tone === "inactive"
-                            ? t("billing.inactiveWarning")
-                            : creditSnapshot.tone === "empty"
-                              ? t("billing.emptyWarning")
-                              : t("billing.dashboardHint")}
-                    </p>
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Button className="justify-between" asChild>
-                      <Link to="/billing">
-                        <span>{t("common.actions.buyCredits")}</span>
-                        <Coins className="size-4" />
-                      </Link>
-                    </Button>
+                    {canBuyCreditPacks ? (
+                      <Button className="justify-between" asChild>
+                        <Link to="/billing">
+                          <span>{t("common.actions.buyCredits")}</span>
+                          <Coins className="size-4" />
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button className="justify-between" asChild>
+                        <Link to="/billing">
+                          <span>{t("common.actions.upgradePlan")}</span>
+                          <CreditCard className="size-4" />
+                        </Link>
+                      </Button>
+                    )}
                     <Button variant="outline" className="justify-between" asChild>
                       <Link to="/billing">
-                        <span>{t("common.actions.upgradePlan")}</span>
+                        <span>{canBuyCreditPacks ? t("common.actions.upgradePlan") : t("common.actions.openBilling")}</span>
                         <CreditCard className="size-4" />
                       </Link>
                     </Button>

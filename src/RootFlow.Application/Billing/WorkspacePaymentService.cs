@@ -207,9 +207,22 @@ public sealed class WorkspacePaymentService
         await _workspaceBillingService.EnsureTrialProvisionedAsync(workspaceId, cancellationToken);
 
         var creditPack = ResolveCreditPack(creditPackCode);
-        var existingSubscription = await _workspaceBillingRepository.GetLatestSubscriptionAsync(
+        var currentSubscription = await _workspaceBillingRepository.GetCurrentSubscriptionAsync(
             workspaceId,
+            _clock.UtcNow,
             cancellationToken);
+
+        if (currentSubscription?.Status != WorkspaceSubscriptionStatus.Active)
+        {
+            _logger.LogInformation(
+                "Blocked Stripe credit purchase checkout for workspace {WorkspaceId} because the current subscription is not an active paid plan. Subscription status: {SubscriptionStatus}.",
+                workspaceId,
+                currentSubscription?.Status);
+
+            throw new BillingCheckoutUnavailableException(
+                "Extra credits are available after activating a paid plan.");
+        }
+
         var now = _clock.UtcNow;
         var checkoutSession = await _stripePaymentGateway.CreateCreditPurchaseCheckoutSessionAsync(
             new StripeCreditPurchaseCheckoutRequest(
@@ -219,8 +232,8 @@ public sealed class WorkspacePaymentService
                 creditPack.PriceId,
                 successUrl,
                 cancelUrl,
-                existingSubscription?.Provider == StripeProvider
-                    ? existingSubscription.ProviderCustomerId
+                currentSubscription.Provider == StripeProvider
+                    ? currentSubscription.ProviderCustomerId
                     : null),
             cancellationToken);
 

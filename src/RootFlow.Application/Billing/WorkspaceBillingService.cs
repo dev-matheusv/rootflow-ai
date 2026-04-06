@@ -185,7 +185,10 @@ public sealed class WorkspaceBillingService
                 balance.AvailableCredits,
                 minimumCreditsRequired);
 
-            throw new InsufficientWorkspaceCreditsException("Your workspace has no credits available.");
+            ThrowCreditLimitException(
+                subscription,
+                "Your workspace reached the trial usage limit. Choose a plan to continue.",
+                "Your workspace has no credits available.");
         }
     }
 
@@ -291,7 +294,11 @@ public sealed class WorkspaceBillingService
             var balance = await RequireBalanceAsync(command.WorkspaceId, cancellationToken);
             if (!balance.HasAvailableCredits(usageEvent.CreditsCharged))
             {
-                throw new InsufficientWorkspaceCreditsException("Workspace does not have enough credits to register this usage.");
+                var subscription = await GetEffectiveSubscriptionAsync(command.WorkspaceId, cancellationToken);
+                ThrowCreditLimitException(
+                    subscription,
+                    "Your workspace reached the trial usage limit. Choose a plan to continue.",
+                    "Workspace does not have enough credits to register this usage.");
             }
 
             var ledgerEntry = new WorkspaceCreditLedgerEntry(
@@ -529,5 +536,18 @@ public sealed class WorkspaceBillingService
             usageEvent.EstimatedCost,
             usageEvent.CreditsCharged,
             usageEvent.CreatedAtUtc);
+    }
+
+    private static void ThrowCreditLimitException(
+        WorkspaceSubscription? subscription,
+        string trialMessage,
+        string paidMessage)
+    {
+        if (subscription?.Status == WorkspaceSubscriptionStatus.Trial)
+        {
+            throw new WorkspaceTrialUsageLimitReachedException(trialMessage);
+        }
+
+        throw new InsufficientWorkspaceCreditsException(paidMessage);
     }
 }
