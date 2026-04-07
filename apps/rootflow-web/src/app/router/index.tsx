@@ -15,21 +15,24 @@ import { BillingPage } from "@/features/billing/page";
 import { ConversationsPage } from "@/features/conversations/page";
 import { DashboardPage } from "@/features/dashboard/page";
 import { KnowledgeBasePage } from "@/features/knowledge-base/page";
+import { LandingPage } from "@/features/landing/landing-page";
 import { SettingsPage } from "@/features/settings/page";
 
 export const router = createBrowserRouter([
+  // Public landing page
   {
     path: "/",
+    element: <LandingPage />,
+  },
+
+  // Protected app shell
+  {
     element: (
       <RequireAuth>
         <AppShell />
       </RequireAuth>
     ),
     children: [
-      {
-        index: true,
-        element: <Navigate replace to="/dashboard" />,
-      },
       {
         path: "dashboard",
         element: <DashboardPage />,
@@ -92,6 +95,8 @@ export const router = createBrowserRouter([
       },
     ],
   },
+
+  // Auth routes (redirect if already authenticated)
   {
     path: "/auth/login",
     element: (
@@ -127,5 +132,11 @@ export const router = createBrowserRouter([
   {
     path: "/auth/invite",
     element: <AcceptInvitePage />,
+  },
+
+  // Fallback redirect
+  {
+    path: "*",
+    element: <Navigate replace to="/" />,
   },
 ]);

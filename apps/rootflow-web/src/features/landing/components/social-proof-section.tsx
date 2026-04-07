@@ -1,0 +1,167 @@
+import { Quote, Star } from "lucide-react";
+
+// TODO: Replace with real testimonials as they come in
+const TESTIMONIALS = [
+  {
+    quote:
+      "Antes, qualquer dúvida sobre processo parava no mesmo gerente. Com o RootFlow, o time encontra a resposta sozinho. O impacto no onboarding foi imediato.",
+    author: "Diretora de Operações",
+    company: "Agência de Marketing Digital",
+    initials: "CM",
+  },
+  {
+    quote:
+      "Subimos o manual de atendimento e os scripts de venda. Agora o time consulta antes de perguntar. As perguntas repetidas caíram absurdamente.",
+    author: "Head de CS",
+    company: "Consultoria B2B",
+    initials: "RL",
+  },
+  {
+    quote:
+      "Tentei outras ferramentas antes e sempre precisava de alguém técnico pra configurar. O RootFlow foi o único que funcionou no mesmo dia.",
+    author: "Sócio-fundador",
+    company: "Empresa de Serviços",
+    initials: "FT",
+  },
+];
+
+const STATS = [
+  { value: "70%", label: "menos dúvidas repetidas" },
+  { value: "3x", label: "mais rápido no onboarding" },
+  { value: "< 5min", label: "para subir e usar" },
+];
+
+// TODO: Replace src with real product screenshot when available
+const PREVIEW_MESSAGES = [
+  {
+    type: "user",
+    text: "Qual é a política de reembolso para clientes com menos de 30 dias?",
+  },
+  {
+    type: "bot",
+    text: "Conforme a Política Comercial v2.1, clientes dentro de 30 dias corridos da contratação têm direito a reembolso integral, desde que solicitado via ticket no sistema. O prazo de processamento é de 5 dias úteis.",
+    source: "Política Comercial v2.1 · Seção 4.2",
+  },
+];
+
+export function SocialProofSection() {
+  return (
+    <section className="relative overflow-hidden py-24 sm:py-32">
+      {/* Background */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#060d15] via-[#070e19] to-[#060d15]" />
+        <div className="absolute left-1/2 top-0 h-px w-3/4 -translate-x-1/2 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      </div>
+
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mx-auto mb-16 max-w-2xl text-center">
+          <p className="mb-3 text-sm font-semibold tracking-widest text-[#06b6d4] uppercase">Prova social</p>
+          <h2 className="font-display mb-4 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Equipes já estão usando o RootFlow
+          </h2>
+          <p className="text-base text-white/50">
+            Empresas que centralizaram seu conhecimento e pararam de repetir respostas todo dia.
+          </p>
+        </div>
+
+        {/* Stats */}
+        <div className="mb-16 grid grid-cols-3 gap-4 sm:gap-8">
+          {STATS.map((s, i) => (
+            <div key={i} className="text-center">
+              <p className="font-display mb-1 text-3xl font-bold text-white sm:text-4xl">{s.value}</p>
+              <p className="text-xs text-white/40 sm:text-sm">{s.label}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
+          {/* Testimonials */}
+          <div className="flex flex-col gap-4">
+            {TESTIMONIALS.map((t, i) => (
+              <div
+                key={i}
+                className="relative rounded-2xl border border-white/[0.07] bg-white/[0.025] p-6 transition-all hover:border-white/12"
+              >
+                <Quote className="mb-3 h-5 w-5 text-[#0f63ec]/60" />
+                <p className="mb-4 text-sm leading-relaxed text-white/70 sm:text-base">"{t.quote}"</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0f63ec]/20 text-xs font-bold text-[#3b87f5]">
+                    {t.initials}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white/80">{t.author}</p>
+                    <p className="text-xs text-white/40">{t.company}</p>
+                  </div>
+                  <div className="ml-auto flex gap-0.5">
+                    {[...Array(5)].map((_, j) => (
+                      <Star key={j} className="h-3.5 w-3.5 fill-[#f59e0b] text-[#f59e0b]" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Product preview — conversa real */}
+          <div className="sticky top-24">
+            <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1520]/90 shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
+              {/* Chrome */}
+              <div className="flex items-center gap-2 border-b border-white/[0.06] bg-white/[0.03] px-4 py-3">
+                <div className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+                <div className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
+                <div className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+                <span className="ml-2 text-xs text-white/25">Assistente RootFlow · ao vivo</span>
+                <span className="ml-auto flex items-center gap-1 text-xs text-[#06b6d4]">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#06b6d4]" />
+                  online
+                </span>
+              </div>
+
+              {/* Chat */}
+              <div className="flex flex-col gap-4 p-5">
+                {PREVIEW_MESSAGES.map((msg, i) => (
+                  <div key={i} className={`flex items-start gap-3 ${msg.type === "user" ? "flex-row-reverse" : ""}`}>
+                    <div
+                      className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-xs ${
+                        msg.type === "user" ? "bg-white/[0.06] text-white/40" : "bg-[#0f63ec]/20 text-[#06b6d4]"
+                      }`}
+                    >
+                      {msg.type === "user" ? "👤" : "⚡"}
+                    </div>
+                    <div
+                      className={`max-w-xs rounded-2xl px-4 py-3 text-sm ${
+                        msg.type === "user"
+                          ? "rounded-tr-sm bg-white/[0.06] text-white/70"
+                          : "rounded-tl-sm border border-[#0f63ec]/20 bg-[#0f63ec]/8 text-white/80"
+                      }`}
+                    >
+                      <p>{msg.text}</p>
+                      {msg.source && (
+                        <p className="mt-2 text-xs text-white/35">📄 {msg.source}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Input area */}
+              <div className="border-t border-white/[0.05] px-4 py-3">
+                <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+                  <span className="flex-1 text-xs text-white/20">Pergunte algo sobre sua operação...</span>
+                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#0f63ec]/80">
+                    <span className="text-xs text-white">↑</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-3 text-center text-xs text-white/25">
+              * Conversa de demonstração baseada em dados reais de uso
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
