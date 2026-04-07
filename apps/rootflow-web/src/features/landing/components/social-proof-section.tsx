@@ -31,18 +31,6 @@ const STATS = [
   { value: "< 5min", label: "para subir e usar" },
 ];
 
-// TODO: Replace src with real product screenshot when available
-const PREVIEW_MESSAGES = [
-  {
-    type: "user",
-    text: "Qual é a política de reembolso para clientes com menos de 30 dias?",
-  },
-  {
-    type: "bot",
-    text: "Conforme a Política Comercial v2.1, clientes dentro de 30 dias corridos da contratação têm direito a reembolso integral, desde que solicitado via ticket no sistema. O prazo de processamento é de 5 dias úteis.",
-    source: "Política Comercial v2.1 · Seção 4.2",
-  },
-];
 
 export function SocialProofSection() {
   return (
@@ -103,61 +91,31 @@ export function SocialProofSection() {
             ))}
           </div>
 
-          {/* Product preview — conversa real */}
+          {/* Product screenshot — conversa real */}
+          {/* Salve o screenshot como: apps/rootflow-web/public/product-screenshot.png */}
           <div className="sticky top-24">
-            <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1520]/90 shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
-              {/* Chrome */}
-              <div className="flex items-center gap-2 border-b border-white/[0.06] bg-white/[0.03] px-4 py-3">
+            <div className="overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_24px_60px_rgba(0,0,0,0.55)]">
+              {/* Fake browser chrome */}
+              <div className="flex items-center gap-2 border-b border-white/[0.06] bg-[#0d1520] px-4 py-2.5">
                 <div className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
                 <div className="h-2.5 w-2.5 rounded-full bg-[#ffbd2e]" />
                 <div className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
-                <span className="ml-2 text-xs text-white/25">Assistente RootFlow · ao vivo</span>
+                <span className="ml-2 text-xs text-white/25">app.rootflow.com.br/assistant</span>
                 <span className="ml-auto flex items-center gap-1 text-xs text-[#06b6d4]">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#06b6d4]" />
-                  online
+                  ao vivo
                 </span>
               </div>
-
-              {/* Chat */}
-              <div className="flex flex-col gap-4 p-5">
-                {PREVIEW_MESSAGES.map((msg, i) => (
-                  <div key={i} className={`flex items-start gap-3 ${msg.type === "user" ? "flex-row-reverse" : ""}`}>
-                    <div
-                      className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-xs ${
-                        msg.type === "user" ? "bg-white/[0.06] text-white/40" : "bg-[#0f63ec]/20 text-[#06b6d4]"
-                      }`}
-                    >
-                      {msg.type === "user" ? "👤" : "⚡"}
-                    </div>
-                    <div
-                      className={`max-w-xs rounded-2xl px-4 py-3 text-sm ${
-                        msg.type === "user"
-                          ? "rounded-tr-sm bg-white/[0.06] text-white/70"
-                          : "rounded-tl-sm border border-[#0f63ec]/20 bg-[#0f63ec]/8 text-white/80"
-                      }`}
-                    >
-                      <p>{msg.text}</p>
-                      {msg.source && (
-                        <p className="mt-2 text-xs text-white/35">📄 {msg.source}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Input area */}
-              <div className="border-t border-white/[0.05] px-4 py-3">
-                <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2">
-                  <span className="flex-1 text-xs text-white/20">Pergunte algo sobre sua operação...</span>
-                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#0f63ec]/80">
-                    <span className="text-xs text-white">↑</span>
-                  </div>
-                </div>
-              </div>
+              <img
+                src="/product-screenshot.png"
+                alt="RootFlow assistente respondendo em tempo real"
+                className="block w-full object-cover object-top"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
-
             <p className="mt-3 text-center text-xs text-white/25">
-              * Conversa de demonstração baseada em dados reais de uso
+              Resposta real gerada com base nos documentos da empresa
             </p>
           </div>
         </div>
