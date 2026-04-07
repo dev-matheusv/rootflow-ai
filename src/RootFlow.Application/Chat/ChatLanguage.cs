@@ -55,9 +55,9 @@ public static class ChatLanguageDetector
             }
         }
 
-        return portugueseScore > englishScore
-            ? ChatLanguage.Portuguese
-            : ChatLanguage.English;
+        return englishScore > portugueseScore
+            ? ChatLanguage.English
+            : ChatLanguage.Portuguese;
     }
 
     public static string GetNoContextAnswer(ChatLanguage language)
@@ -69,7 +69,7 @@ public static class ChatLanguageDetector
 
     public static string GetPromptLanguageLabel(ChatLanguage language)
     {
-        return language == ChatLanguage.Portuguese ? "Portuguese" : "English";
+        return language == ChatLanguage.Portuguese ? "Brazilian Portuguese (PT-BR)" : "English";
     }
 
     private static bool ContainsPortugueseAccent(string value)
