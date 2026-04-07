@@ -1,5 +1,6 @@
 import { BenefitsSection } from "@/features/landing/components/benefits-section";
 import { SocialProofSection } from "@/features/landing/components/social-proof-section";
+import { VideoSection } from "@/features/landing/components/video-section";
 import { FaqSection } from "@/features/landing/components/faq-section";
 import { FinalCtaSection } from "@/features/landing/components/final-cta-section";
 import { HeroSection } from "@/features/landing/components/hero-section";
@@ -18,6 +19,7 @@ export function LandingPage() {
       <LandingHeader />
       <main>
         <HeroSection />
+        <VideoSection />
         <ProblemSection />
         <SolutionSection />
         <HowItWorksSection />
