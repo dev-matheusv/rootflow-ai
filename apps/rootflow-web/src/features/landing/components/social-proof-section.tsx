@@ -112,6 +112,9 @@ export function SocialProofSection() {
                 className="block w-full object-cover object-top"
                 loading="lazy"
                 decoding="async"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
               />
             </div>
             <p className="mt-3 text-center text-xs text-white/25">
