@@ -162,7 +162,7 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         if (!response.IsSuccessStatusCode)
         {
             throw new BillingCheckoutUnavailableException(
-                $"Stripe checkout session creation failed with status {(int)response.StatusCode}.");
+                $"Stripe checkout session creation failed with status {(int)response.StatusCode}. Body: {payload}");
         }
 
         using var document = JsonDocument.Parse(payload);
