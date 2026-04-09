@@ -699,6 +699,63 @@ workspaces.MapPost("/invites/accept", async (
     }
 });
 
+workspaces.MapGet("/invites/lookup", async (
+    string token,
+    WorkspaceCollaborationService workspaceCollaborationService,
+    CancellationToken cancellationToken) =>
+{
+    var result = await workspaceCollaborationService.LookupInviteAsync(
+        new LookupInviteQuery(token ?? string.Empty),
+        cancellationToken);
+
+    return Results.Ok(new InviteLookupResponse(
+        result.Email,
+        result.WorkspaceName,
+        result.InviterName,
+        result.IsExistingUser,
+        result.IsValid,
+        result.ErrorMessage));
+}).AllowAnonymous();
+
+workspaces.MapPost("/invites/signup", async (
+    SignupAndAcceptInviteRequest request,
+    WorkspaceCollaborationService workspaceCollaborationService,
+    JwtTokenGenerator jwtTokenGenerator,
+    CancellationToken cancellationToken) =>
+{
+    var validationErrors = new Dictionary<string, string[]>();
+    if (string.IsNullOrWhiteSpace(request.Token))
+        validationErrors["token"] = ["Invite token is required."];
+    if (string.IsNullOrWhiteSpace(request.FullName))
+        validationErrors["fullName"] = ["Full name is required."];
+    if (string.IsNullOrWhiteSpace(request.Password))
+        validationErrors["password"] = ["Password is required."];
+    if (validationErrors.Count > 0)
+        return Results.ValidationProblem(validationErrors);
+
+    try
+    {
+        var session = await workspaceCollaborationService.SignupAndAcceptInviteAsync(
+            new SignupAndAcceptInviteCommand(request.FullName, request.Password, request.Token),
+            cancellationToken);
+
+        var jwtToken = jwtTokenGenerator.Generate(session);
+        return Results.Ok(jwtToken.ToResponse(session));
+    }
+    catch (InvalidWorkspaceInvitationException exception)
+    {
+        return Results.BadRequest(new { error = exception.Message });
+    }
+    catch (WorkspaceInviteConflictException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.BadRequest(new { error = exception.Message });
+    }
+}).AllowAnonymous();
+
 workspaces.MapGet("/{workspaceId:guid}/members", async (
     Guid workspaceId,
     ClaimsPrincipal user,

@@ -9,6 +9,7 @@ using RootFlow.Application.Auth.Dtos;
 using RootFlow.Application.Workspaces.Commands;
 using RootFlow.Application.Workspaces.Dtos;
 using RootFlow.Application.Workspaces.Queries;
+using RootFlow.Domain.Users;
 using RootFlow.Domain.Workspaces;
 
 namespace RootFlow.Application.Workspaces;
@@ -23,6 +24,7 @@ public sealed class WorkspaceCollaborationService
     private readonly IWorkspaceMembershipRepository _workspaceMembershipRepository;
     private readonly IWorkspaceInvitationRepository _workspaceInvitationRepository;
     private readonly IWorkspaceInvitationNotifier _workspaceInvitationNotifier;
+    private readonly IPasswordHashingService _passwordHashingService;
     private readonly IPlatformAdminAccessService? _platformAdminAccessService;
     private readonly IClock _clock;
 
@@ -32,6 +34,7 @@ public sealed class WorkspaceCollaborationService
         IWorkspaceMembershipRepository workspaceMembershipRepository,
         IWorkspaceInvitationRepository workspaceInvitationRepository,
         IWorkspaceInvitationNotifier workspaceInvitationNotifier,
+        IPasswordHashingService passwordHashingService,
         IPlatformAdminAccessService? platformAdminAccessService,
         IClock clock)
     {
@@ -40,6 +43,7 @@ public sealed class WorkspaceCollaborationService
         _workspaceMembershipRepository = workspaceMembershipRepository;
         _workspaceInvitationRepository = workspaceInvitationRepository;
         _workspaceInvitationNotifier = workspaceInvitationNotifier;
+        _passwordHashingService = passwordHashingService;
         _platformAdminAccessService = platformAdminAccessService;
         _clock = clock;
     }
@@ -212,6 +216,97 @@ public sealed class WorkspaceCollaborationService
         {
             throw new InvalidOperationException("The workspace membership could not be loaded after accepting the invite.");
         }
+
+        return session with
+        {
+            IsPlatformAdmin = _platformAdminAccessService?.HasAccess(session.User.Email) == true
+        };
+    }
+
+    public async Task<InviteLookupDto> LookupInviteAsync(
+        LookupInviteQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query.Token))
+            return new InviteLookupDto("", "", "", false, false, "Invalid invite link.");
+
+        var invitation = await _workspaceInvitationRepository.GetByTokenHashAsync(
+            HashToken(query.Token), cancellationToken);
+
+        var utcNow = _clock.UtcNow;
+        if (invitation is null || !invitation.CanBeAccepted(utcNow))
+            return new InviteLookupDto("", "", "", false, false, "This invite is invalid or has expired.");
+
+        var workspace = await _workspaceRepository.GetByIdAsync(invitation.WorkspaceId, cancellationToken);
+        if (workspace is null || !workspace.IsActive)
+            return new InviteLookupDto("", "", "", false, false, "This invite is invalid or has expired.");
+
+        var inviter = await _authRepository.GetUserByIdAsync(invitation.InvitedByUserId, cancellationToken);
+        var existingUser = await _authRepository.GetUserByNormalizedEmailAsync(
+            invitation.NormalizedEmail, cancellationToken);
+
+        return new InviteLookupDto(
+            invitation.Email,
+            workspace.Name,
+            inviter?.FullName ?? "",
+            existingUser is not null,
+            true);
+    }
+
+    public async Task<AuthSessionDto> SignupAndAcceptInviteAsync(
+        SignupAndAcceptInviteCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(command.InviteToken))
+            throw new InvalidWorkspaceInvitationException(InvalidInvitationMessage);
+
+        var invitation = await _workspaceInvitationRepository.GetByTokenHashAsync(
+            HashToken(command.InviteToken), cancellationToken);
+
+        var utcNow = _clock.UtcNow;
+        if (invitation is null || !invitation.CanBeAccepted(utcNow))
+            throw new InvalidWorkspaceInvitationException(InvalidInvitationMessage);
+
+        var workspace = await _workspaceRepository.GetByIdAsync(invitation.WorkspaceId, cancellationToken);
+        if (workspace is null || !workspace.IsActive)
+            throw new InvalidWorkspaceInvitationException(InvalidInvitationMessage);
+
+        var existingUser = await _authRepository.GetUserByNormalizedEmailAsync(
+            invitation.NormalizedEmail, cancellationToken);
+        if (existingUser is not null)
+            throw new WorkspaceInviteConflictException("An account with this email already exists. Please sign in to accept the invite.");
+
+        var fullName = command.FullName?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(fullName) || fullName.Length > 120)
+            throw new ArgumentException("Full name is required and must be 120 characters or less.", nameof(command.FullName));
+
+        if (string.IsNullOrWhiteSpace(command.Password) || command.Password.Length < 8 || command.Password.Length > 128)
+            throw new ArgumentException("Password must be between 8 and 128 characters.", nameof(command.Password));
+
+        var user = new AppUser(
+            Guid.NewGuid(),
+            invitation.Email,
+            fullName,
+            _passwordHashingService.HashPassword(command.Password),
+            utcNow);
+
+        await _authRepository.CreateUserAsync(user, cancellationToken);
+
+        var membership = new WorkspaceMembership(
+            Guid.NewGuid(),
+            invitation.WorkspaceId,
+            user.Id,
+            invitation.Role,
+            utcNow);
+
+        await _workspaceMembershipRepository.AddAsync(membership, cancellationToken);
+
+        invitation.Accept(utcNow);
+        await _workspaceInvitationRepository.UpdateAsync(invitation, cancellationToken);
+
+        var session = await _authRepository.GetSessionAsync(user.Id, invitation.WorkspaceId, cancellationToken);
+        if (session is null)
+            throw new InvalidOperationException("Session could not be loaded after accepting the invite.");
 
         return session with
         {

@@ -92,6 +92,16 @@ export const rootflowApi = {
       },
       body: JSON.stringify(payload),
     }),
+  lookupInvite: (token: string) =>
+    apiRequest<InviteLookupResult>(`/api/workspaces/invites/lookup?token=${encodeURIComponent(token)}`),
+  signupViaInvite: (payload: SignupViaInvitePayload) =>
+    apiRequest<AuthResponse>("/api/workspaces/invites/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
   getCurrentSession: () => apiRequest<SessionInfo>("/api/auth/me"),
   getWorkspaceBillingSummary: (workspaceId: string) =>
     apiRequest<WorkspaceBillingSummary>(`/api/workspaces/${workspaceId}/billing/summary`),

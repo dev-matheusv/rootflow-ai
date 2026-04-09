@@ -63,6 +63,21 @@ export interface AcceptWorkspaceInvitePayload {
   token: string;
 }
 
+export interface SignupViaInvitePayload {
+  fullName: string;
+  password: string;
+  token: string;
+}
+
+export interface InviteLookupResult {
+  email: string;
+  workspaceName: string;
+  inviterName: string;
+  isExistingUser: boolean;
+  isValid: boolean;
+  errorMessage?: string | null;
+}
+
 export interface WorkspaceInvitationResult {
   message: string;
   email: string;

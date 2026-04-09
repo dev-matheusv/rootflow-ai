@@ -18,6 +18,10 @@ public interface IAuthRepository
         string slug,
         CancellationToken cancellationToken = default);
 
+    Task CreateUserAsync(
+        AppUser user,
+        CancellationToken cancellationToken = default);
+
     Task CreateUserWorkspaceAsync(
         AppUser user,
         Workspace workspace,

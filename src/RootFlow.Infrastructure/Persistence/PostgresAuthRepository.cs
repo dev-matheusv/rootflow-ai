@@ -83,6 +83,43 @@ public sealed class PostgresAuthRepository : IAuthRepository
         return result is true;
     }
 
+    public async Task CreateUserAsync(
+        AppUser user,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           INSERT INTO app_users (
+                               id,
+                               email,
+                               normalized_email,
+                               full_name,
+                               password_hash,
+                               created_at_utc,
+                               is_active
+                           )
+                           VALUES (
+                               @id,
+                               @email,
+                               @normalizedEmail,
+                               @fullName,
+                               @passwordHash,
+                               @createdAtUtc,
+                               @isActive
+                           );
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("id", user.Id);
+        command.Parameters.AddWithValue("email", user.Email);
+        command.Parameters.AddWithValue("normalizedEmail", user.NormalizedEmail);
+        command.Parameters.AddWithValue("fullName", user.FullName);
+        command.Parameters.AddWithValue("passwordHash", user.PasswordHash);
+        command.Parameters.AddWithValue("createdAtUtc", user.CreatedAtUtc);
+        command.Parameters.AddWithValue("isActive", user.IsActive);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task CreateUserWorkspaceAsync(
         AppUser user,
         Workspace workspace,
