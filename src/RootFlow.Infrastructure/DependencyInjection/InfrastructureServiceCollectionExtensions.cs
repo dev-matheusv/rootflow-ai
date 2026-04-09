@@ -174,6 +174,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<RootFlowAppLinkBuilder>();
         services.AddSingleton<IAppLinkBuilder>(serviceProvider => serviceProvider.GetRequiredService<RootFlowAppLinkBuilder>());
 
+        services.AddHttpClient();
         services.AddScoped<IFileStorage, LocalFileStorage>();
         services.AddScoped<IDocumentTextExtractor, SimpleDocumentTextExtractor>();
         services.AddScoped<ITextChunker, SimpleTextChunker>();
