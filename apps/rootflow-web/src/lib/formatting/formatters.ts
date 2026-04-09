@@ -27,6 +27,19 @@ export function formatRelativeDate(input: string | Date, locale: AppLocale = "en
   return isPortuguese ? `há ${deltaDays} d` : `${deltaDays}d ago`;
 }
 
+export function formatAbsoluteDate(input: string | Date, locale: AppLocale = "en"): string {
+  const value = typeof input === "string" ? new Date(input) : input;
+  const intlLocale = locale === "pt-BR" ? "pt-BR" : "en-US";
+
+  return new Intl.DateTimeFormat(intlLocale, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value);
+}
+
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) {
     return `${bytes} B`;

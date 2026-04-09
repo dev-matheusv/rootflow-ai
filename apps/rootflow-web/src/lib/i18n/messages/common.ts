@@ -40,6 +40,7 @@ export const commonMessages = {
         openBilling: "Open billing",
         buyCredits: "Buy credits",
         upgradePlan: "Upgrade plan",
+        exportPdf: "Export PDF",
       },
       labels: {
         loading: "Loading",
@@ -199,6 +200,7 @@ export const commonMessages = {
         openBilling: "Abrir faturamento",
         buyCredits: "Comprar créditos",
         upgradePlan: "Fazer upgrade do plano",
+        exportPdf: "Exportar PDF",
       },
       labels: {
         loading: "Carregando",

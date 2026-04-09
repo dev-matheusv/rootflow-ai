@@ -13,6 +13,7 @@ import { ResetPasswordPage } from "@/features/auth/pages/reset-password-page";
 import { SignUpPage } from "@/features/auth/pages/sign-up-page";
 import { BillingPage } from "@/features/billing/page";
 import { ConversationsPage } from "@/features/conversations/page";
+import { ConversationPrintPage } from "@/features/conversations/print-page";
 import { DashboardPage } from "@/features/dashboard/page";
 import { KnowledgeBasePage } from "@/features/knowledge-base/page";
 import { LandingPage } from "@/features/landing/landing-page";
@@ -94,6 +95,16 @@ export const router = createBrowserRouter([
         },
       },
     ],
+  },
+
+  // Conversation print page (auth required, no AppShell)
+  {
+    path: "/conversations/print",
+    element: (
+      <RequireAuth>
+        <ConversationPrintPage />
+      </RequireAuth>
+    ),
   },
 
   // Auth routes (redirect if already authenticated)
