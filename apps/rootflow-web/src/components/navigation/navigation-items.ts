@@ -1,6 +1,7 @@
 import {
   Bot,
   CreditCard,
+  FileOutput,
   LayoutDashboard,
   MessagesSquare,
   Settings2,
@@ -39,6 +40,14 @@ export const navigationItems = [
     icon: MessagesSquare,
     labelKey: "nav.conversations",
     captionKey: "nav.conversationsCaption",
+    requiresPlatformAdmin: false,
+  },
+  {
+    id: "document-engine",
+    to: "/document-engine",
+    icon: FileOutput,
+    labelKey: "nav.documentEngine",
+    captionKey: "nav.documentEngineCaption",
     requiresPlatformAdmin: false,
   },
   {

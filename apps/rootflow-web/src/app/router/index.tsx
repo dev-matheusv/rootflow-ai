@@ -14,6 +14,7 @@ import { SignUpPage } from "@/features/auth/pages/sign-up-page";
 import { BillingPage } from "@/features/billing/page";
 import { ConversationsPage } from "@/features/conversations/page";
 import { ConversationPrintPage } from "@/features/conversations/print-page";
+import { DocumentEnginePage } from "@/features/document-engine/page";
 import { DashboardPage } from "@/features/dashboard/page";
 import { KnowledgeBasePage } from "@/features/knowledge-base/page";
 import { LandingPage } from "@/features/landing/landing-page";
@@ -56,6 +57,14 @@ export const router = createBrowserRouter([
         handle: {
           title: "Assistant",
           subtitle: "Grounded answer experience with a premium conversation surface.",
+        },
+      },
+      {
+        path: "document-engine",
+        element: <DocumentEnginePage />,
+        handle: {
+          title: "Documents",
+          subtitle: "Generate professional PDFs from reusable templates.",
         },
       },
       {

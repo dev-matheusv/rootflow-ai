@@ -399,6 +399,41 @@ export interface ConversationHistory {
   messages: ConversationMessage[];
 }
 
+export interface TemplateFieldSummary {
+  key: string;
+  label: string;
+  type: string;
+  isRequired: boolean;
+}
+
+export interface DocumentTemplateSummary {
+  id: string;
+  workspaceId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  isActive: boolean;
+  fields: TemplateFieldSummary[];
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface DocumentTemplateDetail extends DocumentTemplateSummary {
+  body: string;
+}
+
+export interface CreateDocumentTemplatePayload {
+  name: string;
+  slug: string;
+  description?: string | null;
+  body: string;
+  fields: TemplateFieldSummary[];
+}
+
+export interface GenerateDocumentPayload {
+  fieldValues: Record<string, string>;
+}
+
 export interface ConversationSummary {
   conversationId: string;
   title: string;

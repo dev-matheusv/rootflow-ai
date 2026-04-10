@@ -74,6 +74,38 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   return (await response.json()) as T;
 }
 
+export async function apiRequestBlob(path: string, options: RequestInit = {}): Promise<Blob> {
+  const { headers, ...init } = options;
+  const storedSession = getStoredAuthSession();
+
+  if (!env.isApiBaseUrlConfigured) {
+    throw new ApiError(env.apiConfigurationError ?? "The frontend API base URL is not configured.", 0);
+  }
+
+  const response = await fetch(`${env.apiBaseUrl}${path}`, {
+    ...init,
+    headers: {
+      ...(storedSession ? { Authorization: `Bearer ${storedSession.token}` } : {}),
+      ...headers,
+    },
+  });
+
+  if (!response.ok) {
+    let payload: unknown = null;
+    try { payload = await response.json(); } catch { payload = null; }
+
+    const message =
+      typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string"
+        ? payload.error
+        : `Request failed with status ${response.status}.`;
+
+    if (response.status === 401 && storedSession) clearStoredAuthSession();
+    throw new ApiError(message, response.status, payload);
+  }
+
+  return response.blob();
+}
+
 export function getApiErrorCode(error: unknown): string | null {
   if (!(error instanceof ApiError)) {
     return null;

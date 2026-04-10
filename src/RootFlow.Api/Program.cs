@@ -20,6 +20,10 @@ using RootFlow.Application.Auth.Commands;
 using RootFlow.Application.Abstractions.Documents;
 using RootFlow.Application.Chat;
 using RootFlow.Application.Chat.Commands;
+using RootFlow.Application.DocumentTemplates;
+using RootFlow.Application.DocumentTemplates.Commands;
+using RootFlow.Application.DocumentTemplates.Queries;
+using RootFlow.Api.Contracts.DocumentTemplates;
 using RootFlow.Application.Conversations;
 using RootFlow.Application.Conversations.Queries;
 using RootFlow.Application.Documents;
@@ -157,12 +161,14 @@ var auth = app.MapGroup("/api/auth");
 var billing = app.MapGroup("/api/billing");
 var admin = app.MapGroup("/api/admin");
 var workspaces = app.MapGroup("/api/workspaces");
+var documentTemplates = app.MapGroup("/api/document-templates");
 
 documents.RequireAuthorization();
 conversations.RequireAuthorization();
 billing.RequireAuthorization();
 admin.RequireAuthorization();
 workspaces.RequireAuthorization();
+documentTemplates.RequireAuthorization();
 
 auth.MapPost("/signup", async (
     SignupRequest request,
@@ -1073,6 +1079,113 @@ conversations.MapGet("/{conversationId:guid}", async (
         cancellationToken);
 
     return conversation is null ? Results.NotFound() : Results.Ok(conversation);
+});
+
+// ── Document Templates ───────────────────────────────────────────────────────
+
+documentTemplates.MapGet("/", async (
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    var templates = await documentTemplateService.ListAsync(
+        new ListDocumentTemplatesQuery(user.GetRequiredWorkspaceId()),
+        cancellationToken);
+
+    return Results.Ok(templates.Select(t => new DocumentTemplateSummaryResponse(
+        t.Id, t.WorkspaceId, t.Name, t.Slug, t.Description, t.IsActive,
+        t.Fields.Select(f => new TemplateFieldResponse(f.Key, f.Label, f.Type, f.IsRequired)).ToArray(),
+        t.CreatedAtUtc, t.UpdatedAtUtc)));
+});
+
+documentTemplates.MapGet("/{templateId:guid}", async (
+    Guid templateId,
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    var template = await documentTemplateService.GetByIdAsync(
+        new GetDocumentTemplateByIdQuery(templateId, user.GetRequiredWorkspaceId()),
+        cancellationToken);
+
+    if (template is null) return Results.NotFound();
+
+    return Results.Ok(new DocumentTemplateDetailResponse(
+        template.Id, template.WorkspaceId, template.Name, template.Slug, template.Description,
+        template.Body, template.IsActive,
+        template.Fields.Select(f => new TemplateFieldResponse(f.Key, f.Label, f.Type, f.IsRequired)).ToArray(),
+        template.CreatedAtUtc, template.UpdatedAtUtc));
+});
+
+documentTemplates.MapPost("/", async (
+    CreateDocumentTemplateRequest request,
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var fields = (request.Fields ?? [])
+            .Select(f => new CreateTemplateFieldCommand(f.Key, f.Label, f.Type, f.IsRequired))
+            .ToList();
+
+        var template = await documentTemplateService.CreateAsync(
+            new CreateDocumentTemplateCommand(
+                user.GetRequiredWorkspaceId(),
+                request.Name,
+                request.Slug,
+                request.Description,
+                request.Body,
+                fields),
+            cancellationToken);
+
+        return Results.Created($"/api/document-templates/{template.Id}", new DocumentTemplateSummaryResponse(
+            template.Id, template.WorkspaceId, template.Name, template.Slug, template.Description, template.IsActive,
+            template.Fields.Select(f => new TemplateFieldResponse(f.Key, f.Label, f.Type, f.IsRequired)).ToArray(),
+            template.CreatedAtUtc, template.UpdatedAtUtc));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Conflict(new { error = ex.Message });
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [ex.ParamName ?? "request"] = [ex.Message]
+        });
+    }
+});
+
+documentTemplates.MapPost("/{templateId:guid}/generate", async (
+    Guid templateId,
+    GenerateDocumentRequest request,
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var pdfBytes = await documentTemplateService.GenerateAsync(
+            new GenerateDocumentCommand(
+                templateId,
+                user.GetRequiredWorkspaceId(),
+                request.FieldValues ?? new Dictionary<string, string>()),
+            cancellationToken);
+
+        return Results.File(pdfBytes, "application/pdf", $"document-{templateId:N}.pdf");
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [ex.ParamName ?? "request"] = [ex.Message]
+        });
+    }
 });
 
 app.Run();

@@ -652,6 +652,29 @@ public sealed class PostgresDatabaseInitializer
                     ON workspace_billing_notification_deliveries (workspace_id, sent_at_utc DESC, id DESC);
                 """),
             new DatabaseMigration(
+                "202604100001_document_engine_foundation",
+                "Create document_templates table for the integrated DocumentEngine feature",
+                """
+                CREATE TABLE IF NOT EXISTS document_templates (
+                    id                  uuid            PRIMARY KEY,
+                    workspace_id        uuid            NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    name                text            NOT NULL,
+                    slug                text            NOT NULL,
+                    description         text            NULL,
+                    body                text            NOT NULL,
+                    fields              jsonb           NOT NULL DEFAULT '[]',
+                    is_active           boolean         NOT NULL DEFAULT TRUE,
+                    created_at_utc      timestamptz     NOT NULL,
+                    updated_at_utc      timestamptz     NOT NULL
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS uix_document_templates_workspace_slug
+                    ON document_templates (workspace_id, slug);
+
+                CREATE INDEX IF NOT EXISTS ix_document_templates_workspace_active
+                    ON document_templates (workspace_id, is_active, created_at_utc DESC);
+                """),
+            new DatabaseMigration(
                 "202604060002_workspace_billing_plan_repricing",
                 "Align billing plans and bundled credits with the BRL go-to-market pricing ladder",
                 """

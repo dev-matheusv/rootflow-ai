@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using Pgvector;
+using QuestPDF.Infrastructure;
 using RootFlow.Application.Abstractions.AI;
 using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Application.Abstractions.Billing;
@@ -17,6 +18,7 @@ using RootFlow.Application.Billing;
 using RootFlow.Application.Chat;
 using RootFlow.Application.Conversations;
 using RootFlow.Application.Documents;
+using RootFlow.Application.DocumentTemplates;
 using RootFlow.Application.PlatformAdmin;
 using RootFlow.Application.Workspaces;
 using RootFlow.Infrastructure.AI;
@@ -39,6 +41,8 @@ public static class InfrastructureServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        QuestPDF.Settings.License = LicenseType.Community;
+
         var connectionString = ResolvePostgresConnectionString(configuration);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -177,6 +181,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient();
         services.AddScoped<IFileStorage, LocalFileStorage>();
         services.AddScoped<IDocumentTextExtractor, SimpleDocumentTextExtractor>();
+        services.AddScoped<IDocumentRenderer, QuestPdfDocumentRenderer>();
+        services.AddScoped<IDocumentTemplateRepository, PostgresDocumentTemplateRepository>();
+        services.AddScoped<DocumentTemplateService>();
         services.AddScoped<ITextChunker, SimpleTextChunker>();
         services.AddScoped<SmtpEmailSender>();
         services.AddHttpClient<ResendEmailSender>((serviceProvider, client) =>
