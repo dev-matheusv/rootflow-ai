@@ -131,7 +131,13 @@ public sealed partial class DocumentTemplateService
             }
             """;
 
-        var prompt = $"Crie um template profissional em português para: {command.Description}\n\n" +
+        var prompt = "Crie um template de documento profissional em português brasileiro.\n\n" +
+                     "SOLICITAÇÃO DO USUÁRIO:\n" + command.Description + "\n\n" +
+                     "REGRAS OBRIGATÓRIAS:\n" +
+                     "1. Se o usuário listou campos específicos, use EXATAMENTE esses campos — não invente outros nem omita nenhum.\n" +
+                     "2. Cada campo mencionado pelo usuário deve virar um placeholder {{chave_snake_case}} no corpo E um item em \"fields\".\n" +
+                     "3. O corpo deve ser um documento real e completo (cabeçalho, texto, assinatura), usando os placeholders nos locais corretos.\n" +
+                     "4. Use type=\"Date\" para datas, type=\"Number\" para números, type=\"Text\" para o resto.\n\n" +
                      "Retorne APENAS JSON válido, sem markdown, sem explicação:\n" + jsonSchema;
 
         return await CallAiForDraftAsync(prompt, cancellationToken);
