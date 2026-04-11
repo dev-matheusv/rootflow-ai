@@ -30,16 +30,13 @@ public sealed partial class QuestPdfDocumentRenderer : IDocumentRenderer
                 {
                     header.Row(row =>
                     {
-                        row.RelativeItem().Column(col =>
-                        {
-                            col.Item()
-                                .Text("RootFlow")
-                                .FontSize(8)
-                                .FontColor(Colors.Grey.Darken1)
-                                .Bold()
-                                .LetterSpacing(0.12f);
-                        });
-                        row.ConstantItem(140).AlignRight().Text(DateTime.UtcNow.ToString("dd/MM/yyyy"))
+                        row.RelativeItem().Text("RootFlow")
+                            .FontSize(8)
+                            .FontColor(Colors.Grey.Darken1)
+                            .Bold()
+                            .LetterSpacing(0.12f);
+
+                        row.RelativeItem().AlignRight().Text(DateTime.UtcNow.ToString("dd/MM/yyyy"))
                             .FontSize(8)
                             .FontColor(Colors.Grey.Darken1);
                     });
@@ -94,7 +91,10 @@ public sealed partial class QuestPdfDocumentRenderer : IDocumentRenderer
         return PlaceholderRegex().Replace(body, match =>
         {
             var key = match.Groups[1].Value.Trim();
-            return fieldValues.TryGetValue(key, out var value) ? value : match.Value;
+            if (!fieldValues.TryGetValue(key, out var value)) return match.Value;
+            return DateOnly.TryParseExact(value, "yyyy-MM-dd", out var date)
+                ? date.ToString("dd/MM/yyyy")
+                : value;
         });
     }
 
