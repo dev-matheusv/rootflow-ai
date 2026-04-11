@@ -24,6 +24,7 @@ using RootFlow.Application.DocumentTemplates;
 using RootFlow.Application.DocumentTemplates.Commands;
 using RootFlow.Application.DocumentTemplates.Queries;
 using RootFlow.Api.Contracts.DocumentTemplates;
+using Microsoft.AspNetCore.Http.Features;
 using RootFlow.Application.Conversations;
 using RootFlow.Application.Conversations.Queries;
 using RootFlow.Application.Documents;
@@ -1117,6 +1118,78 @@ documentTemplates.MapGet("/{templateId:guid}", async (
         template.CreatedAtUtc, template.UpdatedAtUtc));
 });
 
+documentTemplates.MapPost("/ai-suggest", async (
+    AiSuggestTemplateRequest request,
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Description))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["description"] = ["Descreva o documento que deseja gerar."]
+        });
+    }
+
+    try
+    {
+        var draft = await documentTemplateService.SuggestFromDescriptionAsync(
+            new SuggestTemplateFromDescriptionCommand(request.Description),
+            cancellationToken);
+
+        return Results.Ok(new DocumentTemplateDraftResponse(
+            draft.Name, draft.Body,
+            draft.Fields.Select(f => new TemplateFieldResponse(f.Key, f.Label, f.Type, f.IsRequired)).ToArray()));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: StatusCodes.Status422UnprocessableEntity);
+    }
+});
+
+documentTemplates.MapPost("/import-file", async (
+    HttpRequest httpRequest,
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    if (!httpRequest.HasFormContentType || httpRequest.Form.Files.Count == 0)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["file"] = ["Envie um arquivo para importar."]
+        });
+    }
+
+    var file = httpRequest.Form.Files[0];
+    var allowedExtensions = new HashSet<string>([".pdf", ".docx", ".txt", ".md"], StringComparer.OrdinalIgnoreCase);
+    var ext = Path.GetExtension(file.FileName);
+    if (!allowedExtensions.Contains(ext))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["file"] = ["Formatos aceitos: PDF, DOCX, TXT, MD."]
+        });
+    }
+
+    try
+    {
+        await using var stream = file.OpenReadStream();
+        var draft = await documentTemplateService.SuggestFromFileAsync(
+            new SuggestTemplateFromFileCommand(file.FileName, file.ContentType, stream),
+            cancellationToken);
+
+        return Results.Ok(new DocumentTemplateDraftResponse(
+            draft.Name, draft.Body,
+            draft.Fields.Select(f => new TemplateFieldResponse(f.Key, f.Label, f.Type, f.IsRequired)).ToArray()));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: StatusCodes.Status422UnprocessableEntity);
+    }
+});
+
 documentTemplates.MapPost("/", async (
     CreateDocumentTemplateRequest request,
     ClaimsPrincipal user,
@@ -1133,10 +1206,10 @@ documentTemplates.MapPost("/", async (
             new CreateDocumentTemplateCommand(
                 user.GetRequiredWorkspaceId(),
                 request.Name,
-                request.Slug,
                 request.Description,
                 request.Body,
-                fields),
+                fields,
+                request.Slug),
             cancellationToken);
 
         return Results.Created($"/api/document-templates/{template.Id}", new DocumentTemplateSummaryResponse(

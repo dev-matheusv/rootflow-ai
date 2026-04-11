@@ -9,7 +9,7 @@ public sealed record CreateTemplateFieldCommand(
 public sealed record CreateDocumentTemplateCommand(
     Guid WorkspaceId,
     string Name,
-    string Slug,
     string? Description,
     string Body,
-    IReadOnlyList<CreateTemplateFieldCommand> Fields);
+    IReadOnlyList<CreateTemplateFieldCommand> Fields,
+    string? Slug = null);

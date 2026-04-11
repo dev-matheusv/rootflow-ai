@@ -434,6 +434,16 @@ export interface GenerateDocumentPayload {
   fieldValues: Record<string, string>;
 }
 
+export interface DocumentTemplateDraft {
+  name: string;
+  body: string;
+  fields: TemplateFieldSummary[];
+}
+
+export interface AiSuggestTemplatePayload {
+  description: string;
+}
+
 export interface ConversationSummary {
   conversationId: string;
   title: string;

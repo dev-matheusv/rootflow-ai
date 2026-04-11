@@ -1,26 +1,37 @@
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using RootFlow.Application.Abstractions.AI;
 using RootFlow.Application.Abstractions.Documents;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Abstractions.Time;
 using RootFlow.Application.DocumentTemplates.Commands;
 using RootFlow.Application.DocumentTemplates.Dtos;
 using RootFlow.Application.DocumentTemplates.Queries;
+using RootFlow.Domain.Conversations;
 using RootFlow.Domain.DocumentTemplates;
 
 namespace RootFlow.Application.DocumentTemplates;
 
-public sealed class DocumentTemplateService
+public sealed partial class DocumentTemplateService
 {
     private readonly IDocumentTemplateRepository _repository;
     private readonly IDocumentRenderer _renderer;
+    private readonly IDocumentTextExtractor _textExtractor;
+    private readonly IChatCompletionService _chatCompletion;
     private readonly IClock _clock;
 
     public DocumentTemplateService(
         IDocumentTemplateRepository repository,
         IDocumentRenderer renderer,
+        IDocumentTextExtractor textExtractor,
+        IChatCompletionService chatCompletion,
         IClock clock)
     {
         _repository = repository;
         _renderer = renderer;
+        _textExtractor = textExtractor;
+        _chatCompletion = chatCompletion;
         _clock = clock;
     }
 
@@ -28,17 +39,21 @@ public sealed class DocumentTemplateService
         CreateDocumentTemplateCommand command,
         CancellationToken cancellationToken = default)
     {
-        var slugExists = await _repository.SlugExistsAsync(command.Slug, command.WorkspaceId, cancellationToken);
+        var slug = string.IsNullOrWhiteSpace(command.Slug)
+            ? await GenerateUniqueSlugAsync(command.Name, command.WorkspaceId, cancellationToken)
+            : command.Slug.Trim().ToLowerInvariant();
+
+        var slugExists = await _repository.SlugExistsAsync(slug, command.WorkspaceId, cancellationToken);
         if (slugExists)
         {
-            throw new InvalidOperationException($"A template with slug '{command.Slug}' already exists in this workspace.");
+            throw new InvalidOperationException($"Já existe um template com o slug '{slug}' neste workspace.");
         }
 
         var template = new DocumentTemplate(
             Guid.NewGuid(),
             command.WorkspaceId,
             command.Name,
-            command.Slug,
+            slug,
             command.Description,
             command.Body,
             _clock.UtcNow);
@@ -99,6 +114,124 @@ public sealed class DocumentTemplateService
         return await _renderer.RenderAsync(renderRequest, cancellationToken);
     }
 
+    public async Task<DocumentTemplateDraftDto> SuggestFromDescriptionAsync(
+        SuggestTemplateFromDescriptionCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(command.Description);
+
+        const string jsonSchema =
+            """
+            {
+              "name": "Nome do template",
+              "body": "Corpo do documento com {{chave_campo}} para cada variável",
+              "fields": [
+                {"key": "chave_snake_case", "label": "Rótulo em português", "type": "Text|Date|Number", "isRequired": true}
+              ]
+            }
+            """;
+
+        var prompt = $"Crie um template profissional em português para: {command.Description}\n\n" +
+                     "Retorne APENAS JSON válido, sem markdown, sem explicação:\n" + jsonSchema;
+
+        return await CallAiForDraftAsync(prompt, cancellationToken);
+    }
+
+    public async Task<DocumentTemplateDraftDto> SuggestFromFileAsync(
+        SuggestTemplateFromFileCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var tempPath = Path.Combine(Path.GetTempPath(), $"rf_tpl_{Guid.NewGuid()}{Path.GetExtension(command.FileName)}");
+        try
+        {
+            await using (var fs = File.Create(tempPath))
+            {
+                await command.Content.CopyToAsync(fs, cancellationToken);
+            }
+
+            var storedFile = new StoredFile(tempPath, command.FileName, command.ContentType, new FileInfo(tempPath).Length);
+            var extractedText = await _textExtractor.ExtractTextAsync(storedFile, cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(extractedText))
+            {
+                throw new InvalidOperationException("Não foi possível extrair texto do arquivo enviado.");
+            }
+
+            var truncated = extractedText.Length > 6000 ? extractedText[..6000] : extractedText;
+
+            const string fileJsonSchema =
+                """
+                {
+                  "name": "Nome sugerido para o template",
+                  "body": "Texto do documento com {{placeholders}} inseridos",
+                  "fields": [
+                    {"key": "chave_snake_case", "label": "Rótulo em português", "type": "Text|Date|Number", "isRequired": true}
+                  ]
+                }
+                """;
+
+            var prompt = "Analise este template de documento. Identifique todos os campos variáveis " +
+                         "(nomes, datas, números, IDs que mudam a cada uso). " +
+                         "Substitua as variáveis por {{chave_snake_case}} e liste os campos identificados.\n\n" +
+                         "Retorne APENAS JSON válido, sem markdown, sem explicação:\n" + fileJsonSchema +
+                         "\n\nDocumento:\n" + truncated;
+
+            return await CallAiForDraftAsync(prompt, cancellationToken);
+        }
+        finally
+        {
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+        }
+    }
+
+    private async Task<DocumentTemplateDraftDto> CallAiForDraftAsync(string prompt, CancellationToken cancellationToken)
+    {
+        var messages = new List<ChatPromptMessage>
+        {
+            new(MessageRole.System, "Você é um assistente especializado em geração de templates de documentos corporativos. Responda APENAS com JSON válido, sem markdown."),
+            new(MessageRole.User, prompt),
+        };
+
+        var response = await _chatCompletion.CompleteAsync(new ChatCompletionRequest(messages), cancellationToken);
+
+        var json = CleanJson(response.Content);
+        var draft = JsonSerializer.Deserialize<AiTemplateDraft>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+        }) ?? throw new InvalidOperationException("A IA retornou uma resposta inválida. Tente novamente.");
+
+        var fields = (draft.Fields ?? [])
+            .Select(f => new TemplateFieldDto(
+                f.Key ?? "",
+                f.Label ?? f.Key ?? "",
+                f.Type ?? "Text",
+                f.IsRequired))
+            .ToList();
+
+        return new DocumentTemplateDraftDto(draft.Name ?? "Novo Template", draft.Body ?? "", fields);
+    }
+
+    private async Task<string> GenerateUniqueSlugAsync(string name, Guid workspaceId, CancellationToken cancellationToken)
+    {
+        var baseSlug = SlugCleanRegex().Replace(name.ToLowerInvariant(), "-").Trim('-');
+        if (string.IsNullOrWhiteSpace(baseSlug)) baseSlug = "template";
+
+        var slug = baseSlug;
+        var counter = 1;
+        while (await _repository.SlugExistsAsync(slug, workspaceId, cancellationToken))
+        {
+            slug = $"{baseSlug}-{counter++}";
+        }
+        return slug;
+    }
+
+    private static string CleanJson(string raw)
+    {
+        var start = raw.IndexOf('{');
+        var end = raw.LastIndexOf('}');
+        return start >= 0 && end > start ? raw[start..(end + 1)] : raw;
+    }
+
     private static TemplateFieldType ParseFieldType(string type) => type.ToUpperInvariant() switch
     {
         "DATE" => TemplateFieldType.Date,
@@ -118,4 +251,23 @@ public sealed class DocumentTemplateService
         new(t.Id, t.WorkspaceId, t.Name, t.Slug, t.Description, t.Body, t.IsActive,
             t.Fields.Select(ToFieldDto).ToList(),
             t.CreatedAtUtc, t.UpdatedAtUtc);
+
+    [GeneratedRegex(@"[^a-z0-9]+")]
+    private static partial Regex SlugCleanRegex();
+
+    // AI response shape
+    private sealed class AiTemplateDraft
+    {
+        public string? Name { get; set; }
+        public string? Body { get; set; }
+        public List<AiFieldDraft>? Fields { get; set; }
+    }
+
+    private sealed class AiFieldDraft
+    {
+        public string? Key { get; set; }
+        public string? Label { get; set; }
+        public string? Type { get; set; }
+        public bool IsRequired { get; set; }
+    }
 }

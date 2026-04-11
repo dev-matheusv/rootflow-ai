@@ -1,5 +1,10 @@
 namespace RootFlow.Api.Contracts.DocumentTemplates;
 
+public sealed record DocumentTemplateDraftResponse(
+    string Name,
+    string Body,
+    TemplateFieldResponse[] Fields);
+
 public sealed record TemplateFieldResponse(
     string Key,
     string Label,
