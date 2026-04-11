@@ -160,7 +160,11 @@ public sealed partial class DocumentTemplateService
 
             if (string.IsNullOrWhiteSpace(extractedText))
             {
-                throw new InvalidOperationException("Não foi possível extrair texto do arquivo enviado.");
+                var ext = Path.GetExtension(command.FileName).ToUpperInvariant();
+                throw new InvalidOperationException(
+                    ext == ".PDF"
+                        ? "Não foi possível extrair texto do PDF. Se for um documento escaneado (imagem), converta para DOCX ou TXT antes de importar."
+                        : "Não foi possível extrair texto do arquivo enviado. Tente converter para DOCX ou TXT.");
             }
 
             var truncated = extractedText.Length > 6000 ? extractedText[..6000] : extractedText;
