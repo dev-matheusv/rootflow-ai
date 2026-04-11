@@ -20,6 +20,11 @@ using RootFlow.Application.Auth.Commands;
 using RootFlow.Application.Abstractions.Documents;
 using RootFlow.Application.Chat;
 using RootFlow.Application.Chat.Commands;
+using RootFlow.Application.DocumentTemplates;
+using RootFlow.Application.DocumentTemplates.Commands;
+using RootFlow.Application.DocumentTemplates.Queries;
+using RootFlow.Api.Contracts.DocumentTemplates;
+using Microsoft.AspNetCore.Http.Features;
 using RootFlow.Application.Conversations;
 using RootFlow.Application.Conversations.Queries;
 using RootFlow.Application.Documents;
@@ -157,12 +162,14 @@ var auth = app.MapGroup("/api/auth");
 var billing = app.MapGroup("/api/billing");
 var admin = app.MapGroup("/api/admin");
 var workspaces = app.MapGroup("/api/workspaces");
+var documentTemplates = app.MapGroup("/api/document-templates");
 
 documents.RequireAuthorization();
 conversations.RequireAuthorization();
 billing.RequireAuthorization();
 admin.RequireAuthorization();
 workspaces.RequireAuthorization();
+documentTemplates.RequireAuthorization();
 
 auth.MapPost("/signup", async (
     SignupRequest request,
@@ -699,6 +706,63 @@ workspaces.MapPost("/invites/accept", async (
     }
 });
 
+workspaces.MapGet("/invites/lookup", async (
+    string token,
+    WorkspaceCollaborationService workspaceCollaborationService,
+    CancellationToken cancellationToken) =>
+{
+    var result = await workspaceCollaborationService.LookupInviteAsync(
+        new LookupInviteQuery(token ?? string.Empty),
+        cancellationToken);
+
+    return Results.Ok(new InviteLookupResponse(
+        result.Email,
+        result.WorkspaceName,
+        result.InviterName,
+        result.IsExistingUser,
+        result.IsValid,
+        result.ErrorMessage));
+}).AllowAnonymous();
+
+workspaces.MapPost("/invites/signup", async (
+    SignupAndAcceptInviteRequest request,
+    WorkspaceCollaborationService workspaceCollaborationService,
+    JwtTokenGenerator jwtTokenGenerator,
+    CancellationToken cancellationToken) =>
+{
+    var validationErrors = new Dictionary<string, string[]>();
+    if (string.IsNullOrWhiteSpace(request.Token))
+        validationErrors["token"] = ["Invite token is required."];
+    if (string.IsNullOrWhiteSpace(request.FullName))
+        validationErrors["fullName"] = ["Full name is required."];
+    if (string.IsNullOrWhiteSpace(request.Password))
+        validationErrors["password"] = ["Password is required."];
+    if (validationErrors.Count > 0)
+        return Results.ValidationProblem(validationErrors);
+
+    try
+    {
+        var session = await workspaceCollaborationService.SignupAndAcceptInviteAsync(
+            new SignupAndAcceptInviteCommand(request.FullName, request.Password, request.Token),
+            cancellationToken);
+
+        var jwtToken = jwtTokenGenerator.Generate(session);
+        return Results.Ok(jwtToken.ToResponse(session));
+    }
+    catch (InvalidWorkspaceInvitationException exception)
+    {
+        return Results.BadRequest(new { error = exception.Message });
+    }
+    catch (WorkspaceInviteConflictException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.BadRequest(new { error = exception.Message });
+    }
+}).AllowAnonymous();
+
 workspaces.MapGet("/{workspaceId:guid}/members", async (
     Guid workspaceId,
     ClaimsPrincipal user,
@@ -1016,6 +1080,185 @@ conversations.MapGet("/{conversationId:guid}", async (
         cancellationToken);
 
     return conversation is null ? Results.NotFound() : Results.Ok(conversation);
+});
+
+// ── Document Templates ───────────────────────────────────────────────────────
+
+documentTemplates.MapGet("/", async (
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    var templates = await documentTemplateService.ListAsync(
+        new ListDocumentTemplatesQuery(user.GetRequiredWorkspaceId()),
+        cancellationToken);
+
+    return Results.Ok(templates.Select(t => new DocumentTemplateSummaryResponse(
+        t.Id, t.WorkspaceId, t.Name, t.Slug, t.Description, t.IsActive,
+        t.Fields.Select(f => new TemplateFieldResponse(f.Key, f.Label, f.Type, f.IsRequired)).ToArray(),
+        t.CreatedAtUtc, t.UpdatedAtUtc)));
+});
+
+documentTemplates.MapGet("/{templateId:guid}", async (
+    Guid templateId,
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    var template = await documentTemplateService.GetByIdAsync(
+        new GetDocumentTemplateByIdQuery(templateId, user.GetRequiredWorkspaceId()),
+        cancellationToken);
+
+    if (template is null) return Results.NotFound();
+
+    return Results.Ok(new DocumentTemplateDetailResponse(
+        template.Id, template.WorkspaceId, template.Name, template.Slug, template.Description,
+        template.Body, template.IsActive,
+        template.Fields.Select(f => new TemplateFieldResponse(f.Key, f.Label, f.Type, f.IsRequired)).ToArray(),
+        template.CreatedAtUtc, template.UpdatedAtUtc));
+});
+
+documentTemplates.MapPost("/ai-suggest", async (
+    AiSuggestTemplateRequest request,
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Description))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["description"] = ["Descreva o documento que deseja gerar."]
+        });
+    }
+
+    try
+    {
+        var draft = await documentTemplateService.SuggestFromDescriptionAsync(
+            new SuggestTemplateFromDescriptionCommand(request.Description),
+            cancellationToken);
+
+        return Results.Ok(new DocumentTemplateDraftResponse(
+            draft.Name, draft.Body,
+            draft.Fields.Select(f => new TemplateFieldResponse(f.Key, f.Label, f.Type, f.IsRequired)).ToArray()));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: StatusCodes.Status422UnprocessableEntity);
+    }
+});
+
+documentTemplates.MapPost("/import-file", async (
+    HttpRequest httpRequest,
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    if (!httpRequest.HasFormContentType || httpRequest.Form.Files.Count == 0)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["file"] = ["Envie um arquivo para importar."]
+        });
+    }
+
+    var file = httpRequest.Form.Files[0];
+    var allowedExtensions = new HashSet<string>([".pdf", ".docx", ".txt", ".md"], StringComparer.OrdinalIgnoreCase);
+    var ext = Path.GetExtension(file.FileName);
+    if (!allowedExtensions.Contains(ext))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["file"] = ["Formatos aceitos: PDF, DOCX, TXT, MD."]
+        });
+    }
+
+    try
+    {
+        await using var stream = file.OpenReadStream();
+        var draft = await documentTemplateService.SuggestFromFileAsync(
+            new SuggestTemplateFromFileCommand(file.FileName, file.ContentType, stream),
+            cancellationToken);
+
+        return Results.Ok(new DocumentTemplateDraftResponse(
+            draft.Name, draft.Body,
+            draft.Fields.Select(f => new TemplateFieldResponse(f.Key, f.Label, f.Type, f.IsRequired)).ToArray()));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Problem(ex.Message, statusCode: StatusCodes.Status422UnprocessableEntity);
+    }
+});
+
+documentTemplates.MapPost("/", async (
+    CreateDocumentTemplateRequest request,
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var fields = (request.Fields ?? [])
+            .Select(f => new CreateTemplateFieldCommand(f.Key, f.Label, f.Type, f.IsRequired))
+            .ToList();
+
+        var template = await documentTemplateService.CreateAsync(
+            new CreateDocumentTemplateCommand(
+                user.GetRequiredWorkspaceId(),
+                request.Name,
+                request.Description,
+                request.Body,
+                fields,
+                request.Slug),
+            cancellationToken);
+
+        return Results.Created($"/api/document-templates/{template.Id}", new DocumentTemplateSummaryResponse(
+            template.Id, template.WorkspaceId, template.Name, template.Slug, template.Description, template.IsActive,
+            template.Fields.Select(f => new TemplateFieldResponse(f.Key, f.Label, f.Type, f.IsRequired)).ToArray(),
+            template.CreatedAtUtc, template.UpdatedAtUtc));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Conflict(new { error = ex.Message });
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [ex.ParamName ?? "request"] = [ex.Message]
+        });
+    }
+});
+
+documentTemplates.MapPost("/{templateId:guid}/generate", async (
+    Guid templateId,
+    GenerateDocumentRequest request,
+    ClaimsPrincipal user,
+    DocumentTemplateService documentTemplateService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var pdfBytes = await documentTemplateService.GenerateAsync(
+            new GenerateDocumentCommand(
+                templateId,
+                user.GetRequiredWorkspaceId(),
+                request.FieldValues ?? new Dictionary<string, string>()),
+            cancellationToken);
+
+        return Results.File(pdfBytes, "application/pdf", $"document-{templateId:N}.pdf");
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [ex.ParamName ?? "request"] = [ex.Message]
+        });
+    }
 });
 
 app.Run();

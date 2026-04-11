@@ -1,6 +1,15 @@
 import { env } from "@/lib/config/env";
 import { clearStoredAuthSession, getStoredAuthSession } from "@/lib/auth/session-storage";
 
+function extractErrorMessage(payload: unknown, status: number): string {
+  if (typeof payload === "object" && payload !== null) {
+    if ("error" in payload && typeof payload.error === "string") return payload.error;
+    if ("detail" in payload && typeof payload.detail === "string") return payload.detail;
+    if ("title" in payload && typeof payload.title === "string") return payload.title;
+  }
+  return `Request failed with status ${status}.`;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly payload: unknown;
@@ -51,10 +60,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       }
     }
 
-    const message =
-      typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string"
-        ? payload.error
-        : `Request failed with status ${response.status}.`;
+    const message = extractErrorMessage(payload, response.status);
 
     if (response.status === 401 && storedSession) {
       clearStoredAuthSession();
@@ -72,6 +78,35 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return (await response.json()) as T;
+}
+
+export async function apiRequestBlob(path: string, options: RequestInit = {}): Promise<Blob> {
+  const { headers, ...init } = options;
+  const storedSession = getStoredAuthSession();
+
+  if (!env.isApiBaseUrlConfigured) {
+    throw new ApiError(env.apiConfigurationError ?? "The frontend API base URL is not configured.", 0);
+  }
+
+  const response = await fetch(`${env.apiBaseUrl}${path}`, {
+    ...init,
+    headers: {
+      ...(storedSession ? { Authorization: `Bearer ${storedSession.token}` } : {}),
+      ...headers,
+    },
+  });
+
+  if (!response.ok) {
+    let payload: unknown = null;
+    try { payload = await response.json(); } catch { payload = null; }
+
+    const message = extractErrorMessage(payload, response.status);
+
+    if (response.status === 401 && storedSession) clearStoredAuthSession();
+    throw new ApiError(message, response.status, payload);
+  }
+
+  return response.blob();
 }
 
 export function getApiErrorCode(error: unknown): string | null {

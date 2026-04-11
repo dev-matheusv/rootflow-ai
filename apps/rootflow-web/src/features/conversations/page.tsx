@@ -1,4 +1,4 @@
-import { Clock3, Pin, Sparkles } from "lucide-react";
+import { Clock3, FileDown, Pin, Sparkles } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -148,6 +148,14 @@ export function ConversationsPage() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">{t("conversations.messagesCount", { count: selectedConversationSummary.messageCount })}</Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(`/conversations/print?id=${selectedConversationId}`, "_blank")}
+                      >
+                        <FileDown className="size-3.5" />
+                        {t("common.actions.exportPdf")}
+                      </Button>
                       <Button variant="outline" size="sm" asChild>
                         <Link to={`/assistant?conversationId=${selectedConversationId}`}>{t("common.actions.continueConversation")}</Link>
                       </Button>

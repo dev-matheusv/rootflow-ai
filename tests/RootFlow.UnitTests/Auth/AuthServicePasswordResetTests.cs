@@ -129,6 +129,9 @@ public sealed class AuthServicePasswordResetTests
             throw new NotSupportedException();
         }
 
+        public Task CreateUserAsync(AppUser user, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
         public Task CreateUserWorkspaceAsync(
             AppUser user,
             Workspace workspace,

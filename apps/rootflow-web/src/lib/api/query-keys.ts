@@ -8,4 +8,6 @@ export const queryKeys = {
   documents: ["documents"] as const,
   conversations: ["conversations"] as const,
   conversation: (conversationId: string) => ["conversation", conversationId] as const,
+  documentTemplates: ["document-templates"] as const,
+  documentTemplate: (templateId: string) => ["document-template", templateId] as const,
 };

@@ -17,6 +17,10 @@ import type {
   ConversationHistory,
   ConversationSummary,
   DocumentSummary,
+  DocumentTemplateDetail,
+  DocumentTemplateSummary,
+  CreateDocumentTemplatePayload,
+  GenerateDocumentPayload,
   ForgotPasswordPayload,
   HealthResponse,
   InviteWorkspaceMemberPayload,
@@ -29,7 +33,7 @@ import type {
   WorkspaceInvitationResult,
   WorkspaceMember,
 } from "@/lib/api/contracts";
-import { apiRequest } from "@/lib/api/client";
+import { apiRequest, apiRequestBlob } from "@/lib/api/client";
 
 export const rootflowApi = {
   getHealth: () => apiRequest<HealthResponse>("/health"),
@@ -92,6 +96,16 @@ export const rootflowApi = {
       },
       body: JSON.stringify(payload),
     }),
+  lookupInvite: (token: string) =>
+    apiRequest<InviteLookupResult>(`/api/workspaces/invites/lookup?token=${encodeURIComponent(token)}`),
+  signupViaInvite: (payload: SignupViaInvitePayload) =>
+    apiRequest<AuthResponse>("/api/workspaces/invites/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
   getCurrentSession: () => apiRequest<SessionInfo>("/api/auth/me"),
   getWorkspaceBillingSummary: (workspaceId: string) =>
     apiRequest<WorkspaceBillingSummary>(`/api/workspaces/${workspaceId}/billing/summary`),
@@ -141,4 +155,20 @@ export const rootflowApi = {
     }),
   getConversationHistory: (conversationId: string) =>
     apiRequest<ConversationHistory>(`/api/conversations/${conversationId}`),
+  listDocumentTemplates: () =>
+    apiRequest<DocumentTemplateSummary[]>("/api/document-templates"),
+  getDocumentTemplate: (templateId: string) =>
+    apiRequest<DocumentTemplateDetail>(`/api/document-templates/${templateId}`),
+  createDocumentTemplate: (payload: CreateDocumentTemplatePayload) =>
+    apiRequest<DocumentTemplateSummary>("/api/document-templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  generateDocument: (templateId: string, payload: GenerateDocumentPayload) =>
+    apiRequestBlob(`/api/document-templates/${templateId}/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
 };

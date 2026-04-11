@@ -63,6 +63,21 @@ export interface AcceptWorkspaceInvitePayload {
   token: string;
 }
 
+export interface SignupViaInvitePayload {
+  fullName: string;
+  password: string;
+  token: string;
+}
+
+export interface InviteLookupResult {
+  email: string;
+  workspaceName: string;
+  inviterName: string;
+  isExistingUser: boolean;
+  isValid: boolean;
+  errorMessage?: string | null;
+}
+
 export interface WorkspaceInvitationResult {
   message: string;
   email: string;
@@ -382,6 +397,51 @@ export interface ConversationHistory {
   workspaceId: string;
   title: string;
   messages: ConversationMessage[];
+}
+
+export interface TemplateFieldSummary {
+  key: string;
+  label: string;
+  type: string;
+  isRequired: boolean;
+}
+
+export interface DocumentTemplateSummary {
+  id: string;
+  workspaceId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  isActive: boolean;
+  fields: TemplateFieldSummary[];
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface DocumentTemplateDetail extends DocumentTemplateSummary {
+  body: string;
+}
+
+export interface CreateDocumentTemplatePayload {
+  name: string;
+  slug: string;
+  description?: string | null;
+  body: string;
+  fields: TemplateFieldSummary[];
+}
+
+export interface GenerateDocumentPayload {
+  fieldValues: Record<string, string>;
+}
+
+export interface DocumentTemplateDraft {
+  name: string;
+  body: string;
+  fields: TemplateFieldSummary[];
+}
+
+export interface AiSuggestTemplatePayload {
+  description: string;
 }
 
 export interface ConversationSummary {

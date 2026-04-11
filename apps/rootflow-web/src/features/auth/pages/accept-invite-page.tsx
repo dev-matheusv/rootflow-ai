@@ -1,15 +1,18 @@
-import { ArrowRight, CheckCircle2, LogIn, MailPlus, ShieldCheck, UserRoundPlus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowRight, CheckCircle2, KeyRound, LogIn, MailPlus, ShieldCheck, UserRoundPlus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 
 import { useI18n } from "@/app/providers/i18n-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/features/auth/auth-provider";
 import { AuthScaffold } from "@/features/auth/components/auth-scaffold";
 import { ApiError } from "@/lib/api/client";
 import { rootflowApi } from "@/lib/api/rootflow-api";
+import type { InviteLookupResult } from "@/lib/api/contracts";
 
 export function AcceptInvitePage() {
   const location = useLocation();
@@ -32,9 +35,24 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [acceptedWorkspaceName, setAcceptedWorkspaceName] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [inviteLookup, setInviteLookup] = useState<InviteLookupResult | null>(null);
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [password, setPassword] = useState("");
   const isMissingToken = token.length === 0;
   const authRedirect = useMemo(() => encodeURIComponent(redirectTo), [redirectTo]);
   const requiresDifferentAccount = Boolean(errorMessage && /different email address/i.test(errorMessage));
+
+  useEffect(() => {
+    if (isMissingToken || isAuthenticated) return;
+
+    setIsLookingUp(true);
+    rootflowApi
+      .lookupInvite(token)
+      .then(setInviteLookup)
+      .catch(() => setInviteLookup(null))
+      .finally(() => setIsLookingUp(false));
+  }, [token, isMissingToken, isAuthenticated]);
 
   async function handleAcceptInvite() {
     setErrorMessage(null);
@@ -42,6 +60,23 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
 
     try {
       const response = await rootflowApi.acceptWorkspaceInvite({ token });
+      applyAuthResponse(response);
+      setAcceptedWorkspaceName(response.session.workspace.name);
+      setSuccessMessage(t("auth.acceptInvite.successMessage", { workspace: response.session.workspace.name }));
+    } catch (error) {
+      setErrorMessage(error instanceof ApiError ? error.message : t("auth.acceptInvite.fallbackError"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleSignupViaInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await rootflowApi.signupViaInvite({ fullName, password, token });
       applyAuthResponse(response);
       setAcceptedWorkspaceName(response.session.workspace.name);
       setSuccessMessage(t("auth.acceptInvite.successMessage", { workspace: response.session.workspace.name }));
@@ -116,25 +151,87 @@ function AcceptInviteContent({ token, redirectTo }: AcceptInviteContentProps) {
               </Button>
             </div>
           ) : !isAuthenticated ? (
-            <div className="space-y-5">
+            isLookingUp ? (
               <div className="rounded-[22px] border border-border/75 bg-background/80 px-4 py-3 text-sm text-muted-foreground">
-                {t("auth.acceptInvite.signInFirst")}
+                Verificando convite...
               </div>
-              <div className="flex flex-col gap-3">
+            ) : inviteLookup && !inviteLookup.isValid ? (
+              <div className="space-y-5">
+                <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                  {inviteLookup.errorMessage ?? t("auth.acceptInvite.incompleteLink")}
+                </div>
+                <Button variant="outline" className="w-full" asChild>
+                  <Link to="/auth/login">{t("common.actions.backToLogin")}</Link>
+                </Button>
+              </div>
+            ) : inviteLookup?.isExistingUser ? (
+              <div className="space-y-5">
+                <div className="rounded-[22px] border border-border/75 bg-background/80 px-4 py-3 text-sm text-muted-foreground">
+                  O convite é para <strong>{inviteLookup.email}</strong>. Entre com essa conta para aceitar.
+                </div>
                 <Button className="w-full justify-between" asChild>
                   <Link to={`/auth/login?redirect=${authRedirect}`}>
                     {t("common.actions.signInToContinue")}
                     <LogIn />
                   </Link>
                 </Button>
-                <Button variant="outline" className="w-full justify-between" asChild>
-                  <Link to={`/auth/signup?redirect=${authRedirect}`}>
-                    {t("common.actions.createAccountFirst")}
-                    <UserRoundPlus />
-                  </Link>
-                </Button>
               </div>
-            </div>
+            ) : inviteLookup && !inviteLookup.isExistingUser ? (
+              <form onSubmit={handleSignupViaInvite} className="space-y-5">
+                {inviteLookup.workspaceName && (
+                  <div className="rounded-[22px] border border-border/75 bg-background/80 px-4 py-3 text-sm text-muted-foreground">
+                    Você foi convidado para <strong>{inviteLookup.workspaceName}</strong> por <strong>{inviteLookup.inviterName}</strong>. Crie sua senha para entrar.
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Nome completo</Label>
+                  <Input
+                    id="fullName"
+                    type="text"
+                    placeholder="Seu nome"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Mínimo 8 caracteres"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+                {errorMessage && (
+                  <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                    {errorMessage}
+                  </div>
+                )}
+                <Button type="submit" className="w-full justify-between" disabled={isSubmitting}>
+                  {isSubmitting ? "Criando conta..." : "Criar conta e entrar"}
+                  <UserRoundPlus />
+                </Button>
+              </form>
+            ) : (
+              <div className="space-y-5">
+                <div className="rounded-[22px] border border-border/75 bg-background/80 px-4 py-3 text-sm text-muted-foreground">
+                  {t("auth.acceptInvite.signInFirst")}
+                </div>
+                <div className="flex flex-col gap-3">
+                  <Button className="w-full justify-between" asChild>
+                    <Link to={`/auth/login?redirect=${authRedirect}`}>
+                      {t("common.actions.signInToContinue")}
+                      <LogIn />
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            )
           ) : (
             <div className="space-y-5">
               <div className="rounded-[22px] border border-border/75 bg-background/80 px-4 py-4">

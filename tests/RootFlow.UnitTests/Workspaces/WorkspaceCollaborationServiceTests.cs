@@ -1,3 +1,4 @@
+using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Abstractions.Time;
 using RootFlow.Application.Abstractions.Workspaces;
@@ -220,6 +221,7 @@ public sealed class WorkspaceCollaborationServiceTests
             membershipRepository,
             invitationRepository,
             notifier,
+            new FakePasswordHashingService(),
             null,
             clock);
     }
@@ -257,6 +259,9 @@ public sealed class WorkspaceCollaborationServiceTests
         {
             throw new NotSupportedException();
         }
+
+        public Task CreateUserAsync(AppUser user, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
 
         public Task CreateUserWorkspaceAsync(AppUser user, Workspace workspace, WorkspaceMembership membership, CancellationToken cancellationToken = default)
         {
@@ -422,5 +427,11 @@ public sealed class WorkspaceCollaborationServiceTests
         }
 
         public DateTime UtcNow { get; set; }
+    }
+
+    private sealed class FakePasswordHashingService : IPasswordHashingService
+    {
+        public string HashPassword(string password) => $"HASH::{password}";
+        public bool VerifyPassword(string passwordHash, string providedPassword) => passwordHash == $"HASH::{providedPassword}";
     }
 }

@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   AskQuestionPayload,
   CreateBillingCheckoutPayload,
+  CreateDocumentTemplatePayload,
   CreateWorkspaceCreditPurchaseCheckoutPayload,
   CreateWorkspaceSubscriptionCheckoutPayload,
   DocumentSummary,
+  GenerateDocumentPayload,
   InviteWorkspaceMemberPayload,
   UploadDocumentPayload,
 } from "@/lib/api/contracts";
@@ -169,5 +171,38 @@ export function useCreditPurchaseCheckoutMutation() {
 export function useBillingCheckoutMutation() {
   return useMutation({
     mutationFn: (payload: CreateBillingCheckoutPayload) => rootflowApi.createBillingCheckout(payload),
+  });
+}
+
+export function useDocumentTemplatesQuery() {
+  return useQuery({
+    queryKey: queryKeys.documentTemplates,
+    queryFn: rootflowApi.listDocumentTemplates,
+  });
+}
+
+export function useDocumentTemplateQuery(templateId?: string | null) {
+  return useQuery({
+    queryKey: templateId ? queryKeys.documentTemplate(templateId) : ["document-template", "none"],
+    queryFn: () => rootflowApi.getDocumentTemplate(templateId!),
+    enabled: Boolean(templateId),
+  });
+}
+
+export function useCreateDocumentTemplateMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: CreateDocumentTemplatePayload) => rootflowApi.createDocumentTemplate(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.documentTemplates });
+    },
+  });
+}
+
+export function useGenerateDocumentMutation() {
+  return useMutation({
+    mutationFn: ({ templateId, payload }: { templateId: string; payload: GenerateDocumentPayload }) =>
+      rootflowApi.generateDocument(templateId, payload),
   });
 }

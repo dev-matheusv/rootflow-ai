@@ -40,6 +40,7 @@ export const commonMessages = {
         openBilling: "Open billing",
         buyCredits: "Buy credits",
         upgradePlan: "Upgrade plan",
+        exportPdf: "Export PDF",
       },
       labels: {
         loading: "Loading",
@@ -132,6 +133,8 @@ export const commonMessages = {
       assistantCaption: "Grounded answers and sources",
       conversations: "Conversations",
       conversationsCaption: "Stored sessions and trails",
+      documentEngine: "Documents",
+      documentEngineCaption: "PDF generation from templates",
       billing: "Billing",
       billingCaption: "Plans and workspace credits",
       admin: "Admin",
@@ -199,6 +202,7 @@ export const commonMessages = {
         openBilling: "Abrir faturamento",
         buyCredits: "Comprar créditos",
         upgradePlan: "Fazer upgrade do plano",
+        exportPdf: "Exportar PDF",
       },
       labels: {
         loading: "Carregando",
@@ -291,6 +295,8 @@ export const commonMessages = {
       assistantCaption: "Respostas fundamentadas e fontes",
       conversations: "Conversas",
       conversationsCaption: "Sessões e trilhas salvas",
+      documentEngine: "Documentos",
+      documentEngineCaption: "Geração de PDF por templates",
       billing: "Faturamento",
       billingCaption: "Planos e creditos do workspace",
       admin: "Admin",
