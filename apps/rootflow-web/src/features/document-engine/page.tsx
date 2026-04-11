@@ -2,7 +2,7 @@ import { Bot, Download, FileOutput, FileText, FilePlus, Loader2, Pencil, Sparkle
 import { useRef, useState } from "react";
 
 import { useI18n } from "@/app/providers/i18n-provider";
-import { ApiError, apiRequest, apiRequestBlob } from "@/lib/api/client";
+import { ApiError, apiRequest } from "@/lib/api/client";
 import { ErrorState } from "@/components/feedback/error-state";
 import { LoadingState } from "@/components/feedback/loading-state";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,7 @@ import {
   useDocumentTemplatesQuery,
   useGenerateDocumentMutation,
 } from "@/hooks/use-rootflow-data";
-import type { DocumentTemplateSummary, TemplateFieldSummary } from "@/lib/api/contracts";
+import type { TemplateFieldSummary } from "@/lib/api/contracts";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 
 interface TemplateDraft {

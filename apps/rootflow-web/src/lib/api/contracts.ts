@@ -424,7 +424,7 @@ export interface DocumentTemplateDetail extends DocumentTemplateSummary {
 
 export interface CreateDocumentTemplatePayload {
   name: string;
-  slug: string;
+  slug?: string | null;
   description?: string | null;
   body: string;
   fields: TemplateFieldSummary[];

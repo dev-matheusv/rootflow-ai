@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2, KeyRound, LogIn, MailPlus, ShieldCheck, UserRoundPlus } from "lucide-react";
+import { ArrowRight, CheckCircle2, LogIn, MailPlus, ShieldCheck, UserRoundPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 
