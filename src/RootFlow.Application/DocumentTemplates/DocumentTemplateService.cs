@@ -188,27 +188,50 @@ public sealed partial class DocumentTemplateService
     {
         var messages = new List<ChatPromptMessage>
         {
-            new(MessageRole.System, "Você é um assistente especializado em geração de templates de documentos corporativos. Responda APENAS com JSON válido, sem markdown."),
+            new(MessageRole.System,
+                "Você é um assistente especializado em geração de templates de documentos corporativos brasileiros. " +
+                "Responda APENAS com JSON válido e bem formatado, sem markdown, sem blocos de código, sem explicações."),
             new(MessageRole.User, prompt),
         };
 
         var response = await _chatCompletion.CompleteAsync(new ChatCompletionRequest(messages), cancellationToken);
+        var raw = response.Content ?? string.Empty;
 
-        var json = CleanJson(response.Content);
-        var draft = JsonSerializer.Deserialize<AiTemplateDraft>(json, new JsonSerializerOptions
+        var json = CleanJson(raw);
+
+        AiTemplateDraft? draft = null;
+        try
         {
-            PropertyNameCaseInsensitive = true,
-        }) ?? throw new InvalidOperationException("A IA retornou uma resposta inválida. Tente novamente.");
+            draft = JsonSerializer.Deserialize<AiTemplateDraft>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            });
+        }
+        catch (JsonException ex)
+        {
+            var preview = raw.Length > 200 ? raw[..200] : raw;
+            throw new InvalidOperationException(
+                $"Não foi possível interpretar a resposta da IA. Tente novamente. (Detalhe: {ex.Message} | Resposta: {preview})");
+        }
+
+        if (draft is null)
+        {
+            throw new InvalidOperationException("A IA retornou uma resposta vazia. Tente novamente.");
+        }
 
         var fields = (draft.Fields ?? [])
+            .Where(f => !string.IsNullOrWhiteSpace(f.Key))
             .Select(f => new TemplateFieldDto(
-                f.Key ?? "",
-                f.Label ?? f.Key ?? "",
+                f.Key!,
+                string.IsNullOrWhiteSpace(f.Label) ? f.Key! : f.Label,
                 f.Type ?? "Text",
                 f.IsRequired))
             .ToList();
 
-        return new DocumentTemplateDraftDto(draft.Name ?? "Novo Template", draft.Body ?? "", fields);
+        return new DocumentTemplateDraftDto(
+            string.IsNullOrWhiteSpace(draft.Name) ? "Novo Template" : draft.Name,
+            draft.Body ?? "",
+            fields);
     }
 
     private async Task<string> GenerateUniqueSlugAsync(string name, Guid workspaceId, CancellationToken cancellationToken)

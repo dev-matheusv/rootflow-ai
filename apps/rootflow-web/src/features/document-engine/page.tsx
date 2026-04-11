@@ -248,10 +248,18 @@ function AiCreateForm({ t, onDraft, onBack }: { t: (k: string) => string; onDraf
       </div>
       <div className="space-y-2">
         <textarea
-          className="min-h-[100px] w-full rounded-[14px] border border-input bg-transparent px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="min-h-[100px] w-full rounded-[14px] border border-border bg-transparent px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           placeholder={t("documentEngine.aiDescribePlaceholder")}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (description.trim() && !loading) {
+                e.currentTarget.form?.requestSubmit();
+              }
+            }
+          }}
           required
           disabled={loading}
         />
@@ -377,7 +385,7 @@ function ReviewAndSaveForm({ t, draft, onCreated, onBack }: { t: (k: string) => 
         <Label htmlFor="rev-body">{t("documentEngine.templateBody")}</Label>
         <textarea
           id="rev-body"
-          className="min-h-[180px] w-full rounded-[14px] border border-input bg-transparent px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+          className="min-h-[180px] w-full rounded-[14px] border border-border bg-transparent px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
           value={body}
           onChange={(e) => setBody(e.target.value)}
           required
@@ -455,7 +463,7 @@ function ManualCreateForm({ t, onCreated, onBack }: { t: (k: string) => string; 
         <Label htmlFor="m-body">{t("documentEngine.templateBody")}</Label>
         <textarea
           id="m-body"
-          className="min-h-[140px] w-full rounded-[14px] border border-input bg-transparent px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+          className="min-h-[140px] w-full rounded-[14px] border border-border bg-transparent px-4 py-3 text-sm leading-6 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
           value={body} onChange={(e) => setBody(e.target.value)}
           placeholder={t("documentEngine.templateBodyPlaceholder")} required disabled={createMutation.isPending}
         />
