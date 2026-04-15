@@ -95,16 +95,23 @@ public sealed class SimpleDocumentTextExtractor : IDocumentTextExtractor
 
         foreach (var page in document.GetPages())
         {
-            // Try page.Text first; fall back to word extraction if empty
-            var text = page.Text;
-            if (string.IsNullOrWhiteSpace(text))
+            try
             {
-                var words = page.GetWords();
-                text = string.Join(" ", words.Select(w => w.Text));
-            }
+                // Try page.Text first; fall back to word extraction if empty
+                var text = page.Text;
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    var words = page.GetWords();
+                    text = string.Join(" ", words.Select(w => w.Text));
+                }
 
-            if (!string.IsNullOrWhiteSpace(text))
-                builder.AppendLine(text);
+                if (!string.IsNullOrWhiteSpace(text))
+                    builder.AppendLine(text);
+            }
+            catch (Exception)
+            {
+                // Skip pages that cannot be parsed (e.g. malformed PDF font dictionaries)
+            }
         }
 
         return builder.ToString();

@@ -9,4 +9,6 @@ public sealed class OpenAiOptions
     public string ChatModel { get; set; } = "gpt-4.1-mini";
 
     public string EmbeddingModel { get; set; } = "text-embedding-3-small";
+
+    public int TimeoutSeconds { get; set; } = 600;
 }

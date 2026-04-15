@@ -8,6 +8,8 @@ namespace RootFlow.Infrastructure.AI;
 
 public sealed class OpenAiEmbeddingService : IEmbeddingService
 {
+    private const int EmbeddingBatchSize = 100;
+
     private readonly HttpClient _httpClient;
     private readonly OpenAiOptions _options;
 
@@ -34,6 +36,26 @@ public sealed class OpenAiEmbeddingService : IEmbeddingService
 
         EnsureConfigured();
 
+        var allEmbeddings = new List<float[]>(inputs.Count);
+
+        for (var offset = 0; offset < inputs.Count; offset += EmbeddingBatchSize)
+        {
+            var batch = inputs
+                .Skip(offset)
+                .Take(EmbeddingBatchSize)
+                .ToArray();
+
+            var batchEmbeddings = await SendEmbeddingBatchAsync(batch, cancellationToken);
+            allEmbeddings.AddRange(batchEmbeddings);
+        }
+
+        return allEmbeddings;
+    }
+
+    private async Task<IReadOnlyList<float[]>> SendEmbeddingBatchAsync(
+        IReadOnlyList<string> inputs,
+        CancellationToken cancellationToken)
+    {
         using var response = await _httpClient.PostAsJsonAsync(
             "embeddings",
             new

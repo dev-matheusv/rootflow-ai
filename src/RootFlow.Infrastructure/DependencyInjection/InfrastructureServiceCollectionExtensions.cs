@@ -259,6 +259,7 @@ public static class InfrastructureServiceCollectionExtensions
             : $"{options.BaseUrl}/";
 
         client.BaseAddress = new Uri(baseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
         client.DefaultRequestHeaders.Accept.Clear();
         client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
