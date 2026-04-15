@@ -93,15 +93,32 @@ public sealed class SimpleDocumentTextExtractor : IDocumentTextExtractor
         using var document = PdfDocument.Open(path);
         var builder = new StringBuilder();
 
-        foreach (var page in document.GetPages())
+        // Use explicit iterator so we can catch exceptions thrown by MoveNext()
+        // (e.g. PdfPig's ArgumentNullException "dictionaryToken") as well as
+        // exceptions thrown while reading page content.
+        using var enumerator = document.GetPages().GetEnumerator();
+        while (true)
         {
+            bool hasNext;
+            try
+            {
+                hasNext = enumerator.MoveNext();
+            }
+            catch (Exception)
+            {
+                // Malformed page dictionary — stop iterating this document
+                break;
+            }
+
+            if (!hasNext) break;
+
             try
             {
                 // Try page.Text first; fall back to word extraction if empty
-                var text = page.Text;
+                var text = enumerator.Current.Text;
                 if (string.IsNullOrWhiteSpace(text))
                 {
-                    var words = page.GetWords();
+                    var words = enumerator.Current.GetWords();
                     text = string.Join(" ", words.Select(w => w.Text));
                 }
 
@@ -110,7 +127,7 @@ public sealed class SimpleDocumentTextExtractor : IDocumentTextExtractor
             }
             catch (Exception)
             {
-                // Skip pages that cannot be parsed (e.g. malformed PDF font dictionaries)
+                // Skip pages whose content cannot be parsed
             }
         }
 
