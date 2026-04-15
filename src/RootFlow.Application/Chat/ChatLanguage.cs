@@ -1,5 +1,3 @@
-using RootFlow.Application.Abstractions.Search;
-
 namespace RootFlow.Application.Chat;
 
 public enum ChatLanguage
@@ -41,7 +39,12 @@ public static class ChatLanguageDetector
                 portugueseScore += 2;
             }
 
-            foreach (var token in SemanticQueryExpander.Tokenize(original))
+            // Use a simple word split (without stop-word filtering) so that hint
+            // words like "what", "when", "qual", "minha" score correctly even
+            // though they are stop words in the semantic query expander.
+            foreach (var token in original.ToLowerInvariant()
+                         .Split([' ', '\t', '\n', '\r', '.', ',', '?', '!', ';', ':', '-', '(', ')'],
+                             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 if (PortugueseHints.Contains(token))
                 {
