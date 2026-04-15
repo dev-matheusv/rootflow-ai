@@ -59,7 +59,7 @@ public sealed class ChatServiceTests
         var response = await chatService.AskAsync(
             new AskQuestionCommand(Guid.NewGuid(), "What hotline should I use for a security incident?", MaxContextChunks: 3));
 
-        Assert.Contains("limited evidence", response.Answer, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("evidência limitada", response.Answer, StringComparison.OrdinalIgnoreCase);
         Assert.Single(response.Sources);
         Assert.Equal("travel-policy.md", response.Sources[0].DocumentName);
         Assert.Equal(0, completionService.CallCount);
