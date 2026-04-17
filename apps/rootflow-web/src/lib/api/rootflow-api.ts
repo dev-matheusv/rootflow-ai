@@ -50,6 +50,10 @@ export const rootflowApi = {
     apiRequest<PlatformAdminBillingMonitoringRunResult>("/api/admin/billing/run-monitoring", {
       method: "POST",
     }),
+  syncSubscriptionTransaction: (transactionId: string) =>
+    apiRequest<MessageResponse>(`/api/admin/billing/transactions/${transactionId}/sync`, {
+      method: "POST",
+    }),
   signup: (payload: SignupPayload) =>
     apiRequest<AuthResponse>("/api/auth/signup", {
       method: "POST",

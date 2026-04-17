@@ -640,6 +640,43 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task<WorkspaceBillingTransaction?> GetBillingTransactionByIdAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           SELECT id,
+                                  workspace_id,
+                                  provider,
+                                  type,
+                                  status,
+                                  billing_plan_id,
+                                  credit_amount,
+                                  amount,
+                                  currency_code,
+                                  external_checkout_session_id,
+                                  external_payment_intent_id,
+                                  external_subscription_id,
+                                  external_invoice_id,
+                                  external_customer_id,
+                                  created_at_utc,
+                                  updated_at_utc,
+                                  completed_at_utc
+                           FROM workspace_billing_transactions
+                           WHERE id = @transactionId
+                           LIMIT 1;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("transactionId", transactionId);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? MapBillingTransaction(reader)
+            : null;
+    }
+
     public async Task<WorkspaceBillingTransaction?> GetBillingTransactionByCheckoutSessionIdAsync(
         string provider,
         string externalCheckoutSessionId,

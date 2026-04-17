@@ -79,6 +79,10 @@ public interface IWorkspaceBillingRepository
         WorkspaceBillingTransaction transaction,
         CancellationToken cancellationToken = default);
 
+    Task<WorkspaceBillingTransaction?> GetBillingTransactionByIdAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default);
+
     Task<WorkspaceBillingTransaction?> GetBillingTransactionByCheckoutSessionIdAsync(
         string provider,
         string externalCheckoutSessionId,

@@ -60,6 +60,17 @@ export function useRunBillingMonitoringMutation() {
   });
 }
 
+export function useSyncSubscriptionTransactionMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (transactionId: string) => rootflowApi.syncSubscriptionTransaction(transactionId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.platformAdminDashboard });
+    },
+  });
+}
+
 export function useBillingPlansQuery() {
   return useQuery({
     queryKey: queryKeys.billingPlans,

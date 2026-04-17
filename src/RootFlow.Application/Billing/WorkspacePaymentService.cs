@@ -404,6 +404,61 @@ public sealed class WorkspacePaymentService
         return processedCount;
     }
 
+    public async Task<string> ForceSyncSubscriptionTransactionAsync(
+        Guid transactionId,
+        CancellationToken cancellationToken = default)
+    {
+        var transaction = await _workspaceBillingRepository.GetBillingTransactionByIdAsync(transactionId, cancellationToken);
+
+        if (transaction is null)
+            throw new InvalidOperationException($"Billing transaction {transactionId} not found.");
+
+        if (!string.Equals(transaction.Type, "SubscriptionCheckout", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Transaction {transactionId} is not a SubscriptionCheckout (type: {transaction.Type}).");
+
+        if (string.IsNullOrWhiteSpace(transaction.ExternalSubscriptionId))
+            throw new InvalidOperationException($"Transaction {transactionId} does not have a Stripe subscription ID. The checkout may not have completed yet.");
+
+        _logger.LogInformation(
+            "Admin force-syncing subscription transaction {TransactionId} for workspace {WorkspaceId}, subscription {SubscriptionId}.",
+            transactionId,
+            transaction.WorkspaceId,
+            transaction.ExternalSubscriptionId);
+
+        var stripeSubscription = await _stripePaymentGateway.GetSubscriptionAsync(
+            transaction.ExternalSubscriptionId,
+            cancellationToken);
+
+        var utcNow = _clock.UtcNow;
+
+        var syncContext = await SyncStripeSubscriptionAsync(
+            stripeSubscription,
+            "admin_force_sync",
+            utcNow,
+            fallbackWorkspaceId: transaction.WorkspaceId,
+            fallbackBillingPlanId: transaction.BillingPlanId,
+            cancellationToken);
+
+        if (syncContext is not null)
+        {
+            await EnsureIncludedCreditsGrantedForCurrentPeriodAsync(
+                syncContext,
+                utcNow,
+                "admin_force_sync",
+                transactionId.ToString(),
+                cancellationToken);
+        }
+
+        if (!transaction.IsCompleted)
+        {
+            transaction.MarkCompleted(utcNow, externalSubscriptionId: transaction.ExternalSubscriptionId);
+            await _workspaceBillingRepository.UpdateBillingTransactionAsync(transaction, cancellationToken);
+        }
+
+        var status = syncContext?.Subscription.Status.ToString() ?? "unknown";
+        return $"Subscription {transaction.ExternalSubscriptionId} synced successfully. Status: {status}.";
+    }
+
     private async Task HandleCheckoutCompletedAsync(
         StripeCheckoutCompletedEvent checkoutCompletedEvent,
         CancellationToken cancellationToken)

@@ -461,6 +461,50 @@ admin.MapPost("/billing/run-monitoring", async (
         $"Monitoring completed with {result.PaymentIssueCount} payment issue(s) and {result.ReplayableWebhookCount} replayable webhook(s)."));
 });
 
+admin.MapPost("/billing/transactions/{transactionId:guid}/sync", async (
+    Guid transactionId,
+    ClaimsPrincipal user,
+    IPlatformAdminAccessService platformAdminAccessService,
+    WorkspacePaymentService workspacePaymentService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    string adminEmail;
+    try
+    {
+        adminEmail = user.GetRequiredUserEmail();
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogWarning(
+            exception,
+            "Rejected force-sync transaction request because the authenticated admin email claim was missing or invalid.");
+        return Results.Unauthorized();
+    }
+
+    if (!platformAdminAccessService.HasAccess(adminEmail))
+    {
+        return Results.Forbid();
+    }
+
+    try
+    {
+        var message = await workspacePaymentService.ForceSyncSubscriptionTransactionAsync(transactionId, cancellationToken);
+
+        logger.LogInformation(
+            "Platform admin {AdminEmail} force-synced billing transaction {TransactionId}. Result: {Message}.",
+            adminEmail,
+            transactionId,
+            message);
+
+        return Results.Ok(new MessageResponse(message));
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.BadRequest(new MessageResponse(ex.Message));
+    }
+});
+
 billing.MapPost("/checkout/subscription", async (
     CreateWorkspaceSubscriptionCheckoutRequest request,
     ClaimsPrincipal user,
