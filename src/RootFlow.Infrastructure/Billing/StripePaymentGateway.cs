@@ -368,7 +368,13 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         }
 
         var signedPayload = $"{timestampValue}.{payload}";
-        var secretBytes = Encoding.UTF8.GetBytes(webhookSecret);
+
+        // Stripe signing secrets are prefixed with "whsec_" followed by the base64-encoded key bytes.
+        // The HMAC key must be the decoded bytes, NOT the raw UTF-8 string.
+        var secretBase64 = webhookSecret.StartsWith("whsec_", StringComparison.OrdinalIgnoreCase)
+            ? webhookSecret["whsec_".Length..]
+            : webhookSecret;
+        var secretBytes = Convert.FromBase64String(secretBase64);
         var payloadBytes = Encoding.UTF8.GetBytes(signedPayload);
 
         using var hmac = new HMACSHA256(secretBytes);
