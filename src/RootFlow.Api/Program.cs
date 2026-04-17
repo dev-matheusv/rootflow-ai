@@ -634,6 +634,10 @@ app.MapPost("/api/billing/webhooks/stripe", async (
     }
     catch (BillingWebhookValidationException exception)
     {
+        logger.LogWarning(
+            "Stripe webhook rejected due to validation failure: {Reason}. " +
+            "Check that ROOTFLOW_STRIPE_WEBHOOK_SECRET matches the signing secret in the Stripe dashboard.",
+            exception.Message);
         return Results.BadRequest(new { error = exception.Message });
     }
     catch (BillingWebhookProcessingException exception)
