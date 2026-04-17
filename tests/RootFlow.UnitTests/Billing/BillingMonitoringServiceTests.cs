@@ -337,6 +337,10 @@ public sealed class BillingMonitoringServiceTests
             WorkspaceBillingTransaction transaction,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public Task<WorkspaceBillingTransaction?> GetBillingTransactionByIdAsync(
+            Guid transactionId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<WorkspaceBillingTransaction?> GetBillingTransactionByCheckoutSessionIdAsync(
             string provider,
             string externalCheckoutSessionId,

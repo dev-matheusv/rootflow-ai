@@ -13,6 +13,7 @@ import {
   usePlatformAdminDashboardQuery,
   useReplayStripeWebhooksMutation,
   useRunBillingMonitoringMutation,
+  useSyncSubscriptionTransactionMutation,
 } from "@/hooks/use-rootflow-data";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 import type { ApiError } from "@/lib/api/client";
@@ -34,8 +35,14 @@ export function AdminPage() {
   const dashboardQuery = usePlatformAdminDashboardQuery();
   const replayStripeWebhooksMutation = useReplayStripeWebhooksMutation();
   const runBillingMonitoringMutation = useRunBillingMonitoringMutation();
+  const syncTransactionMutation = useSyncSubscriptionTransactionMutation();
   const [billingOpsFeedback, setBillingOpsFeedback] = useState<{
     tone: "success" | "error" | "info";
+    message: string;
+  } | null>(null);
+  const [syncFeedback, setSyncFeedback] = useState<{
+    transactionId: string;
+    tone: "success" | "error";
     message: string;
   } | null>(null);
   const dashboard = dashboardQuery.data;
@@ -137,6 +144,25 @@ export function AdminPage() {
       });
     } catch (error) {
       setBillingOpsFeedback({
+        tone: "error",
+        message: getErrorMessage(error, t("admin.billingOpsErrorFallback")),
+      });
+    }
+  };
+
+  const handleSyncTransaction = async (transactionId: string) => {
+    setSyncFeedback(null);
+
+    try {
+      const result = await syncTransactionMutation.mutateAsync(transactionId);
+      setSyncFeedback({
+        transactionId,
+        tone: "success",
+        message: result.message,
+      });
+    } catch (error) {
+      setSyncFeedback({
+        transactionId,
         tone: "error",
         message: getErrorMessage(error, t("admin.billingOpsErrorFallback")),
       });
@@ -283,6 +309,9 @@ export function AdminPage() {
                 webhookItems={dashboard.stripeWebhookIssues}
                 locale={locale}
                 t={t}
+                syncPendingId={syncTransactionMutation.isPending ? syncTransactionMutation.variables : null}
+                syncFeedback={syncFeedback}
+                onSyncTransaction={handleSyncTransaction}
               />
             </div>
 
@@ -614,11 +643,17 @@ function PaymentIssuesCard({
   webhookItems,
   locale,
   t,
+  syncPendingId,
+  syncFeedback,
+  onSyncTransaction,
 }: {
   items: PlatformAdminPaymentIssue[];
   webhookItems: PlatformAdminStripeWebhookIssue[];
   locale: string;
   t: (key: string, values?: Record<string, string | number>) => string;
+  syncPendingId: string | null | undefined;
+  syncFeedback: { transactionId: string; tone: "success" | "error"; message: string } | null;
+  onSyncTransaction: (transactionId: string) => Promise<void>;
 }) {
   const totalIssues = items.length + webhookItems.length;
 
@@ -652,22 +687,52 @@ function PaymentIssuesCard({
                 <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   {t("admin.paymentIssuesSectionTitle")}
                 </div>
-                {items.map((issue) => (
-                  <div key={issue.transactionId} className="rounded-[20px] border border-border/78 bg-background/82 p-3.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-foreground">{issue.workspaceName}</div>
-                        <div className="truncate text-xs text-muted-foreground">@{issue.workspaceSlug}</div>
+                {items.map((issue) => {
+                  const isSyncing = syncPendingId === issue.transactionId;
+                  const feedback = syncFeedback?.transactionId === issue.transactionId ? syncFeedback : null;
+                  const canSync = issue.type === "SubscriptionCheckout" && issue.status === "Pending";
+
+                  return (
+                    <div key={issue.transactionId} className="rounded-[20px] border border-border/78 bg-background/82 p-3.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-foreground">{issue.workspaceName}</div>
+                          <div className="truncate text-xs text-muted-foreground">@{issue.workspaceSlug}</div>
+                        </div>
+                        <Badge variant="warning">{issue.status}</Badge>
                       </div>
-                      <Badge variant="warning">{issue.status}</Badge>
+                      <div className="mt-3 grid gap-2 text-sm">
+                        <MetricRow label={t("common.labels.type")} value={issue.type} />
+                        <MetricRow label={t("admin.amountLabel")} value={formatCurrency(issue.amount, issue.currencyCode, locale)} />
+                        <MetricRow label={t("common.labels.updatedLabel")} value={formatRelativeDate(issue.updatedAtUtc, locale as "en" | "pt-BR")} />
+                      </div>
+                      {canSync && (
+                        <div className="mt-3 flex flex-col gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isSyncing || syncPendingId != null}
+                            onClick={() => { void onSyncTransaction(issue.transactionId); }}
+                          >
+                            <RotateCw className={cn("mr-2 size-3.5", isSyncing ? "animate-spin" : "")} />
+                            {isSyncing ? t("admin.syncTransactionRunning") : t("admin.syncTransactionAction")}
+                          </Button>
+                          {feedback && (
+                            <div className={cn(
+                              "rounded-[14px] border px-3 py-2 text-xs",
+                              feedback.tone === "success"
+                                ? "border-emerald-500/24 bg-emerald-500/[0.08] text-emerald-100"
+                                : "border-rose-500/24 bg-rose-500/[0.1] text-rose-100",
+                            )}>
+                              {feedback.message}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="mt-3 grid gap-2 text-sm">
-                      <MetricRow label={t("common.labels.type")} value={issue.type} />
-                      <MetricRow label={t("admin.amountLabel")} value={formatCurrency(issue.amount, issue.currencyCode, locale)} />
-                      <MetricRow label={t("common.labels.updatedLabel")} value={formatRelativeDate(issue.updatedAtUtc, locale as "en" | "pt-BR")} />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : null}
 

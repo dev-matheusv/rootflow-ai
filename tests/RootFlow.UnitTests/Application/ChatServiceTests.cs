@@ -549,6 +549,14 @@ public sealed class ChatServiceTests
             return Task.CompletedTask;
         }
 
+        public Task<WorkspaceBillingTransaction?> GetBillingTransactionByIdAsync(
+            Guid transactionId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<WorkspaceBillingTransaction?>(
+                _billingTransactions.GetValueOrDefault(transactionId));
+        }
+
         public Task<WorkspaceBillingTransaction?> GetBillingTransactionByCheckoutSessionIdAsync(
             string provider,
             string externalCheckoutSessionId,
