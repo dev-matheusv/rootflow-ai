@@ -982,6 +982,13 @@ public sealed class WorkspacePaymentServiceTests
             throw new InvalidOperationException("Stripe subscription snapshot was not configured.");
         }
 
+        public Task<string?> GetCheckoutSessionSubscriptionIdAsync(
+            string checkoutSessionId,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<string?>(null);
+        }
+
         public StripeWebhookEvent ParseWebhook(string payload, string signatureHeader)
         {
             return NextWebhookEvent ?? throw new InvalidOperationException("Webhook event was not configured.");

@@ -14,5 +14,9 @@ public interface IStripePaymentGateway
         string subscriptionId,
         CancellationToken cancellationToken = default);
 
+    Task<string?> GetCheckoutSessionSubscriptionIdAsync(
+        string checkoutSessionId,
+        CancellationToken cancellationToken = default);
+
     StripeWebhookEvent ParseWebhook(string payload, string signatureHeader);
 }

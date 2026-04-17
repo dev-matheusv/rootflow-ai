@@ -110,6 +110,43 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         return ParseSubscriptionSnapshot(document.RootElement);
     }
 
+    public async Task<string?> GetCheckoutSessionSubscriptionIdAsync(
+        string checkoutSessionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(checkoutSessionId))
+            throw new ArgumentException("Stripe checkout session id is required.", nameof(checkoutSessionId));
+
+        if (string.IsNullOrWhiteSpace(_options.SecretKey))
+            throw new BillingCheckoutUnavailableException("Stripe checkout is not configured.");
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"v1/checkout/sessions/{Uri.EscapeDataString(checkoutSessionId.Trim())}?expand[]=subscription");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.SecretKey);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+            return null;
+
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+
+        if (root.TryGetProperty("subscription", out var subscriptionEl))
+        {
+            if (subscriptionEl.ValueKind == JsonValueKind.String)
+                return subscriptionEl.GetString();
+
+            if (subscriptionEl.ValueKind == JsonValueKind.Object &&
+                subscriptionEl.TryGetProperty("id", out var idEl))
+                return idEl.GetString();
+        }
+
+        return null;
+    }
+
     public StripeWebhookEvent ParseWebhook(string payload, string signatureHeader)
     {
         if (string.IsNullOrWhiteSpace(signatureHeader))

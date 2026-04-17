@@ -413,20 +413,31 @@ public sealed class WorkspacePaymentService
         if (transaction is null)
             throw new InvalidOperationException($"Billing transaction {transactionId} not found.");
 
-        if (!string.Equals(transaction.Type, "SubscriptionCheckout", StringComparison.OrdinalIgnoreCase))
+        if (transaction.Type != WorkspaceBillingTransactionType.SubscriptionCheckout)
             throw new InvalidOperationException($"Transaction {transactionId} is not a SubscriptionCheckout (type: {transaction.Type}).");
 
-        if (string.IsNullOrWhiteSpace(transaction.ExternalSubscriptionId))
-            throw new InvalidOperationException($"Transaction {transactionId} does not have a Stripe subscription ID. The checkout may not have completed yet.");
+        // ExternalSubscriptionId may be null if the webhook never fired — look it up via the checkout session
+        var subscriptionId = transaction.ExternalSubscriptionId;
+        if (string.IsNullOrWhiteSpace(subscriptionId))
+        {
+            if (string.IsNullOrWhiteSpace(transaction.ExternalCheckoutSessionId))
+                throw new InvalidOperationException($"Transaction {transactionId} has no Stripe subscription ID and no checkout session ID to look up.");
+
+            subscriptionId = await _stripePaymentGateway.GetCheckoutSessionSubscriptionIdAsync(
+                transaction.ExternalCheckoutSessionId, cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(subscriptionId))
+                throw new InvalidOperationException($"Could not resolve a Stripe subscription ID for checkout session {transaction.ExternalCheckoutSessionId}. The checkout may not have been completed.");
+        }
 
         _logger.LogInformation(
             "Admin force-syncing subscription transaction {TransactionId} for workspace {WorkspaceId}, subscription {SubscriptionId}.",
             transactionId,
             transaction.WorkspaceId,
-            transaction.ExternalSubscriptionId);
+            subscriptionId);
 
         var stripeSubscription = await _stripePaymentGateway.GetSubscriptionAsync(
-            transaction.ExternalSubscriptionId,
+            subscriptionId,
             cancellationToken);
 
         var utcNow = _clock.UtcNow;
@@ -451,7 +462,7 @@ public sealed class WorkspacePaymentService
 
         if (!transaction.IsCompleted)
         {
-            transaction.MarkCompleted(utcNow, externalSubscriptionId: transaction.ExternalSubscriptionId);
+            transaction.MarkCompleted(utcNow, externalSubscriptionId: subscriptionId);
             await _workspaceBillingRepository.UpdateBillingTransactionAsync(transaction, cancellationToken);
         }
 
