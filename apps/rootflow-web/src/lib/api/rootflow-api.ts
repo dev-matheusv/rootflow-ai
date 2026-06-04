@@ -4,6 +4,7 @@ import type {
   AuthResponse,
   BillingCheckoutRedirect,
   BillingCheckoutSession,
+  BillingPortalSession,
   BillingCreditPackSummary,
   BillingPlanSummary,
   PlatformAdminDashboard,
@@ -130,6 +131,10 @@ export const rootflowApi = {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
+    }),
+  createBillingPortalSession: () =>
+    apiRequest<BillingPortalSession>("/api/billing/portal", {
+      method: "POST",
     }),
   createBillingCheckout: (payload: CreateBillingCheckoutPayload) =>
     apiRequest<BillingCheckoutRedirect>("/api/billing/checkout", {

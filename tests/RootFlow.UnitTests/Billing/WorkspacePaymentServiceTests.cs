@@ -970,6 +970,18 @@ public sealed class WorkspacePaymentServiceTests
             return Task.FromResult(NextCreditCheckout ?? throw new InvalidOperationException("Credit checkout was not configured."));
         }
 
+        public StripeBillingPortalSessionResult? NextBillingPortalSession { get; set; }
+
+        public StripeBillingPortalSessionRequest? LastBillingPortalRequest { get; private set; }
+
+        public Task<StripeBillingPortalSessionResult> CreateBillingPortalSessionAsync(
+            StripeBillingPortalSessionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastBillingPortalRequest = request;
+            return Task.FromResult(NextBillingPortalSession ?? throw new InvalidOperationException("Billing portal session was not configured."));
+        }
+
         public Task<StripeSubscriptionSnapshot> GetSubscriptionAsync(
             string subscriptionId,
             CancellationToken cancellationToken = default)

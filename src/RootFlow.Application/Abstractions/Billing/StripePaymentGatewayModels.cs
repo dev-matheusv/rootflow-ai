@@ -24,6 +24,14 @@ public sealed record StripeCheckoutSessionResult(
     string? SubscriptionId,
     string? PaymentIntentId);
 
+public sealed record StripeBillingPortalSessionRequest(
+    string CustomerId,
+    string ReturnUrl);
+
+public sealed record StripeBillingPortalSessionResult(
+    string SessionId,
+    string Url);
+
 public sealed record StripeSubscriptionSnapshot(
     string SubscriptionId,
     Guid? WorkspaceId,

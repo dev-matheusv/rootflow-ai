@@ -612,6 +612,27 @@ billing.MapPost("/checkout", async (
     }
 });
 
+billing.MapPost("/portal", async (
+    ClaimsPrincipal user,
+    WorkspacePaymentService workspacePaymentService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var portalSession = await workspacePaymentService.CreateBillingPortalSessionAsync(
+            user.GetRequiredWorkspaceId(),
+            cancellationToken);
+
+        return Results.Ok(new BillingPortalSessionResponse(
+            portalSession.SessionId,
+            portalSession.PortalUrl));
+    }
+    catch (BillingCheckoutUnavailableException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+});
+
 app.MapPost("/api/billing/webhooks/stripe", async (
     HttpRequest request,
     WorkspacePaymentService workspacePaymentService,
