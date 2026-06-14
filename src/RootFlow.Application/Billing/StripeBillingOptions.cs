@@ -16,6 +16,9 @@ public sealed class StripeBillingOptions
     public string CheckoutCancelUrl { get; set; } =
         "https://www.rootflow.com.br/billing?checkout=cancel";
 
+    public string BillingPortalReturnUrl { get; set; } =
+        "https://www.rootflow.com.br/settings";
+
     public List<StripePlanPriceOptions> PlanPrices { get; set; } = [];
 
     public List<StripeCreditPackOptions> CreditPacks { get; set; } = [];

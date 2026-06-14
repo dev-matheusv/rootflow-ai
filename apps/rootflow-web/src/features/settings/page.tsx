@@ -1,4 +1,5 @@
-import { BellDot, LockKeyhole, Search, SlidersHorizontal } from "lucide-react";
+import { BellDot, CreditCard, Loader2, LockKeyhole, Search, SlidersHorizontal } from "lucide-react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { useI18n } from "@/app/providers/i18n-provider";
@@ -8,11 +9,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from "@/features/auth/auth-provider";
 import { WorkspaceCollaborationPanel } from "@/features/settings/components/workspace-collaboration-panel";
+import { ApiError } from "@/lib/api/client";
+import { rootflowApi } from "@/lib/api/rootflow-api";
 import { cn } from "@/lib/utils";
 
 export function SettingsPage() {
   const { t } = useI18n();
   const { session } = useAuth();
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
+
+  async function handleOpenBillingPortal() {
+    setPortalError(null);
+    setIsOpeningPortal(true);
+    try {
+      const { portalUrl } = await rootflowApi.createBillingPortalSession();
+      window.location.assign(portalUrl);
+    } catch (error) {
+      setPortalError(
+        error instanceof ApiError
+          ? error.message
+          : "Não foi possível abrir o portal de cobrança. Tente novamente.",
+      );
+      setIsOpeningPortal(false);
+    }
+  }
   const settingsSections = [
     {
       id: "workspace",
@@ -80,7 +101,11 @@ export function SettingsPage() {
         description={t("settings.description")}
         actions={
           <>
-            <Button asChild>
+            <Button onClick={handleOpenBillingPortal} disabled={isOpeningPortal}>
+              {isOpeningPortal ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
+              Gerenciar assinatura
+            </Button>
+            <Button variant="outline" asChild>
               <Link to="/assistant">{t("common.actions.openAssistant")}</Link>
             </Button>
             <Button variant="outline" asChild>
@@ -89,6 +114,12 @@ export function SettingsPage() {
           </>
         }
       />
+
+      {portalError ? (
+        <div className="rounded-[18px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+          {portalError}
+        </div>
+      ) : null}
 
       <section className="grid gap-3 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Card className="border-border/80 bg-card/86">

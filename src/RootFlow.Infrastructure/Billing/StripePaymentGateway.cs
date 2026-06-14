@@ -78,6 +78,54 @@ public sealed class StripePaymentGateway : IStripePaymentGateway
         return CreateCheckoutSessionAsync(values, cancellationToken);
     }
 
+    public async Task<StripeBillingPortalSessionResult> CreateBillingPortalSessionAsync(
+        StripeBillingPortalSessionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.CustomerId))
+        {
+            throw new ArgumentException("Stripe customer id is required.", nameof(request));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ReturnUrl))
+        {
+            throw new ArgumentException("Stripe billing portal return URL is required.", nameof(request));
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.SecretKey))
+        {
+            throw new BillingCheckoutUnavailableException("Stripe checkout is not configured.");
+        }
+
+        var values = new Dictionary<string, string>
+        {
+            ["customer"] = request.CustomerId.Trim(),
+            ["return_url"] = request.ReturnUrl.Trim()
+        };
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "v1/billing_portal/sessions");
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.SecretKey);
+        httpRequest.Content = new FormUrlEncodedContent(values);
+
+        using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        var payload = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new BillingCheckoutUnavailableException(
+                $"Stripe billing portal session creation failed with status {(int)response.StatusCode}. Body: {payload}");
+        }
+
+        using var document = JsonDocument.Parse(payload);
+        var root = document.RootElement;
+        var sessionId = root.GetProperty("id").GetString()
+            ?? throw new BillingCheckoutUnavailableException("Stripe billing portal response did not include a session id.");
+        var url = root.GetProperty("url").GetString()
+            ?? throw new BillingCheckoutUnavailableException("Stripe billing portal response did not include a session URL.");
+
+        return new StripeBillingPortalSessionResult(sessionId, url);
+    }
+
     public async Task<StripeSubscriptionSnapshot> GetSubscriptionAsync(
         string subscriptionId,
         CancellationToken cancellationToken = default)

@@ -10,6 +10,10 @@ public interface IStripePaymentGateway
         StripeCreditPurchaseCheckoutRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<StripeBillingPortalSessionResult> CreateBillingPortalSessionAsync(
+        StripeBillingPortalSessionRequest request,
+        CancellationToken cancellationToken = default);
+
     Task<StripeSubscriptionSnapshot> GetSubscriptionAsync(
         string subscriptionId,
         CancellationToken cancellationToken = default);

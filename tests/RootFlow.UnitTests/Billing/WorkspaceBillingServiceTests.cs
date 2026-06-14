@@ -126,7 +126,7 @@ public sealed class WorkspaceBillingServiceTests
     }
 
     [Fact]
-    public async Task EnsureAssistantUsageAllowedAsync_Throws_WhenTrialHasExpired()
+    public async Task EnsureAssistantUsageAllowedAsync_Throws_WhenTrialHasExpiredAndCreditsExhausted()
     {
         var workspaceId = Guid.NewGuid();
         var starterPlan = new BillingPlan(
@@ -145,9 +145,18 @@ public sealed class WorkspaceBillingServiceTests
             starterPlan,
             new StubUsagePricingCalculator(estimatedCost: 0.01m, creditsCharged: 1),
             out _,
+            trialIncludedCredits: 1,
             existingRepository: sharedRepository);
 
         await provisioningService.GetCreditSummaryAsync(new GetWorkspaceCreditSummaryQuery(workspaceId));
+        // Exhaust the trial credit so we can exercise the inactive-subscription path
+        // without being intercepted by the credit-first authorization.
+        await provisioningService.ConsumeCreditsAsync(
+            new ConsumeWorkspaceCreditsCommand(
+                workspaceId,
+                1,
+                WorkspaceCreditLedgerType.ManualAdjustment,
+                "Exhaust trial credits"));
 
         var expiredTrialService = CreateService(
             workspaceId,
@@ -165,6 +174,44 @@ public sealed class WorkspaceBillingServiceTests
         Assert.Contains("active subscription", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.NotNull(latestSubscription);
         Assert.Equal(WorkspaceSubscriptionStatus.Expired, latestSubscription!.Status);
+    }
+
+    [Fact]
+    public async Task EnsureAssistantUsageAllowedAsync_Allows_WhenSubscriptionInactiveButCreditsAvailable()
+    {
+        var workspaceId = Guid.NewGuid();
+        var starterPlan = new BillingPlan(
+            Guid.NewGuid(),
+            "starter",
+            "Starter",
+            49m,
+            "USD",
+            10_000,
+            3,
+            FixedClock.UtcNow);
+        var sharedRepository = new InMemoryWorkspaceBillingRepository();
+
+        var provisioningService = CreateService(
+            workspaceId,
+            starterPlan,
+            new StubUsagePricingCalculator(estimatedCost: 0.01m, creditsCharged: 1),
+            out _,
+            trialIncludedCredits: 100,
+            existingRepository: sharedRepository);
+
+        await provisioningService.GetCreditSummaryAsync(new GetWorkspaceCreditSummaryQuery(workspaceId));
+
+        // Credits remain on the balance, but the trial has expired. Credits already on the
+        // balance must remain usable; subscription status alone should not lock them.
+        var expiredTrialService = CreateService(
+            workspaceId,
+            starterPlan,
+            new StubUsagePricingCalculator(estimatedCost: 0.01m, creditsCharged: 1),
+            out _,
+            clock: new FrozenClock(FixedClock.UtcNow.AddDays(8)),
+            existingRepository: sharedRepository);
+
+        await expiredTrialService.EnsureAssistantUsageAllowedAsync(workspaceId);
     }
 
     [Fact]

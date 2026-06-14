@@ -126,6 +126,45 @@ public sealed class WorkspacePaymentService
             cancellationToken);
     }
 
+    public async Task<BillingPortalSessionDto> CreateBillingPortalSessionAsync(
+        Guid workspaceId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureWorkspaceExistsAsync(workspaceId, cancellationToken);
+
+        var subscription = await _workspaceBillingRepository.GetLatestSubscriptionAsync(
+            workspaceId,
+            cancellationToken);
+
+        if (subscription is null
+            || !string.Equals(subscription.Provider, StripeProvider, StringComparison.Ordinal)
+            || string.IsNullOrWhiteSpace(subscription.ProviderCustomerId))
+        {
+            _logger.LogWarning(
+                "Cannot create Stripe billing portal session for workspace {WorkspaceId} because no Stripe customer is linked. Subscription provider: {Provider}, customer id: {ProviderCustomerId}.",
+                workspaceId,
+                subscription?.Provider,
+                subscription?.ProviderCustomerId);
+
+            throw new BillingCheckoutUnavailableException(
+                "No Stripe customer is linked to this workspace yet. Complete a checkout first.");
+        }
+
+        var returnUrl = ResolveBillingPortalReturnUrl();
+
+        var portalSession = await _stripePaymentGateway.CreateBillingPortalSessionAsync(
+            new StripeBillingPortalSessionRequest(subscription.ProviderCustomerId!, returnUrl),
+            cancellationToken);
+
+        _logger.LogInformation(
+            "Created Stripe billing portal session {SessionId} for workspace {WorkspaceId}, customer {CustomerId}.",
+            portalSession.SessionId,
+            workspaceId,
+            subscription.ProviderCustomerId);
+
+        return new BillingPortalSessionDto(portalSession.SessionId, portalSession.Url);
+    }
+
     private async Task<BillingCheckoutSessionDto> CreateSubscriptionCheckoutInternalAsync(
         Guid workspaceId,
         string planCode,
@@ -1484,6 +1523,17 @@ public sealed class WorkspacePaymentService
         }
 
         return cancelUrl;
+    }
+
+    private string ResolveBillingPortalReturnUrl()
+    {
+        var returnUrl = _stripeOptions.BillingPortalReturnUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(returnUrl))
+        {
+            throw new BillingCheckoutUnavailableException("Stripe billing portal return URL is not configured.");
+        }
+
+        return returnUrl;
     }
 
     private static WorkspaceSubscriptionStatus MapStripeSubscriptionStatus(

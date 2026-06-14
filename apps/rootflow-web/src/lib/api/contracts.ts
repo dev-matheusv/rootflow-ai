@@ -149,6 +149,11 @@ export interface BillingCheckoutRedirect {
   url: string;
 }
 
+export interface BillingPortalSession {
+  sessionId: string;
+  portalUrl: string;
+}
+
 export interface CreateBillingCheckoutPayload {
   priceId: string;
 }

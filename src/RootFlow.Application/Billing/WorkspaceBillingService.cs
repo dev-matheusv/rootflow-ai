@@ -161,12 +161,27 @@ public sealed class WorkspaceBillingService
     {
         await EnsureProvisionedAsync(workspaceId, cancellationToken);
 
+        // Credit-first authorization: if the workspace has enough available credits,
+        // allow usage regardless of subscription status. Paid-for credits should not
+        // be locked away just because the subscription expired or got marked inactive.
+        var balance = await RequireBalanceAsync(workspaceId, cancellationToken);
+        var minimumCreditsRequired = Math.Max(1, _options.MinimumAssistantCreditsRequired);
+
+        if (balance.HasAvailableCredits(minimumCreditsRequired))
+        {
+            return;
+        }
+
+        // No credits available — resolve the subscription only to produce the most
+        // accurate error message (trial limit vs. inactive subscription vs. depleted credits).
         var subscription = await GetEffectiveSubscriptionAsync(workspaceId, cancellationToken);
+
         if (subscription is null || !subscription.IsActiveAt(_clock.UtcNow))
         {
             _logger.LogWarning(
-                "Blocked assistant usage for workspace {WorkspaceId} because no current billable subscription was found. Subscription status: {SubscriptionStatus}, trial ends at: {TrialEndsAtUtc}, current period end: {CurrentPeriodEndUtc}.",
+                "Blocked assistant usage for workspace {WorkspaceId} because credits ran out and no active subscription was found. Available credits: {AvailableCredits}, subscription status: {SubscriptionStatus}, trial ends at: {TrialEndsAtUtc}, current period end: {CurrentPeriodEndUtc}.",
                 workspaceId,
+                balance.AvailableCredits,
                 subscription?.Status,
                 subscription?.TrialEndsAtUtc,
                 subscription?.CurrentPeriodEndUtc);
@@ -174,22 +189,16 @@ public sealed class WorkspaceBillingService
             throw new WorkspaceSubscriptionInactiveException("Your workspace needs an active subscription.");
         }
 
-        var balance = await RequireBalanceAsync(workspaceId, cancellationToken);
-        var minimumCreditsRequired = Math.Max(1, _options.MinimumAssistantCreditsRequired);
+        _logger.LogWarning(
+            "Blocked assistant usage for workspace {WorkspaceId} because available credits {AvailableCredits} are below the assistant preflight requirement {RequiredCredits}.",
+            workspaceId,
+            balance.AvailableCredits,
+            minimumCreditsRequired);
 
-        if (!balance.HasAvailableCredits(minimumCreditsRequired))
-        {
-            _logger.LogWarning(
-                "Blocked assistant usage for workspace {WorkspaceId} because available credits {AvailableCredits} are below the assistant preflight requirement {RequiredCredits}.",
-                workspaceId,
-                balance.AvailableCredits,
-                minimumCreditsRequired);
-
-            ThrowCreditLimitException(
-                subscription,
-                "Your workspace reached the trial usage limit. Choose a plan to continue.",
-                "Your workspace has no credits available.");
-        }
+        ThrowCreditLimitException(
+            subscription,
+            "Your workspace reached the trial usage limit. Choose a plan to continue.",
+            "Your workspace has no credits available.");
     }
 
     public async Task<WorkspaceCreditSummaryDto> GrantCreditsAsync(

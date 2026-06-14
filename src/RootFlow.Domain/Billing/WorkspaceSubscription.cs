@@ -47,9 +47,18 @@ public sealed class WorkspaceSubscription
             throw new ArgumentException("Trial subscriptions must include a trial end timestamp.", nameof(trialEndsAtUtc));
         }
 
+        // For non-trial subscriptions, a stale trialEndsAtUtc (before or equal to current period
+        // start) is treated as null silently instead of throwing. Throwing crashed billing summary
+        // resolution for legacy rows that carried a leftover trial end. Trial subscriptions still
+        // require a valid trial end and reject stale values.
         if (trialEndsAtUtc.HasValue && trialEndsAtUtc.Value <= currentPeriodStartUtc)
         {
-            throw new ArgumentException("Trial end must be after the current period start.", nameof(trialEndsAtUtc));
+            if (status == WorkspaceSubscriptionStatus.Trial)
+            {
+                throw new ArgumentException("Trial end must be after the current period start.", nameof(trialEndsAtUtc));
+            }
+
+            trialEndsAtUtc = null;
         }
 
         Id = id;

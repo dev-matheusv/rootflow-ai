@@ -37,8 +37,13 @@ export function getWorkspaceCreditSnapshot(summary?: WorkspaceBillingSummary | n
   const isDegraded = Boolean(summary.isDegraded);
   const trialDaysRemaining = isTrial ? getDaysRemaining(trialEndsAtUtc) : null;
 
+  const isSubscriptionInactive =
+    Boolean(subscriptionStatus) && subscriptionStatus !== "Active" && subscriptionStatus !== "Trial";
+
   let tone: WorkspaceCreditTone;
-  if (subscriptionStatus && subscriptionStatus !== "Active" && subscriptionStatus !== "Trial") {
+  if (isSubscriptionInactive && availableCredits <= 0) {
+    // Inactive subscription only blocks usage once credits are depleted. While
+    // there is still balance, the user must remain able to consume it.
     tone = "inactive";
   } else if (isTrial) {
     tone = isTrialUsageLimited ? "empty" : "healthy";
