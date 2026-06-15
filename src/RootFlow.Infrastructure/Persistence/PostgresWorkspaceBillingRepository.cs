@@ -346,6 +346,28 @@ public sealed class PostgresWorkspaceBillingRepository : IWorkspaceBillingReposi
         return rowsAffected;
     }
 
+    public async Task<int> NormalizeStaleTrialEndsAsync(
+        DateTime updatedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        // For non-trial subscriptions whose trial_ends_at_utc is at or before the
+        // current period start, NULL it out. These legacy rows crash the domain
+        // constructor and break billing summary resolution.
+        const string sql = """
+                           UPDATE workspace_subscriptions
+                           SET trial_ends_at_utc = NULL,
+                               updated_at_utc = @updatedAtUtc
+                           WHERE status != 'Trial'
+                             AND trial_ends_at_utc IS NOT NULL
+                             AND trial_ends_at_utc <= current_period_start_utc;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("updatedAtUtc", updatedAtUtc);
+        return await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(
         Guid workspaceId,
         CancellationToken cancellationToken = default)

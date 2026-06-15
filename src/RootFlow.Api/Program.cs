@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using RootFlow.Api.Admin;
@@ -44,6 +46,23 @@ ConfigurePlatformUrlsFromPort();
 
 var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "RootFlowFrontend";
+
+// Sentry is opt-in: only initialized when SENTRY_DSN env var (or Sentry:Dsn config)
+// is set. Keeps local dev quiet and avoids accidental noise from unconfigured envs.
+var sentryDsn = builder.Configuration["Sentry:Dsn"]
+    ?? Environment.GetEnvironmentVariable("SENTRY_DSN");
+if (!string.IsNullOrWhiteSpace(sentryDsn))
+{
+    builder.WebHost.UseSentry(options =>
+    {
+        options.Dsn = sentryDsn;
+        options.Environment = builder.Environment.EnvironmentName;
+        options.TracesSampleRate = builder.Environment.IsProduction() ? 0.1 : 1.0;
+        options.SendDefaultPii = false;
+        options.AttachStacktrace = true;
+        options.MaxBreadcrumbs = 50;
+    });
+}
 
 builder.Logging.ClearProviders();
 if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("IntegrationTesting"))
@@ -96,6 +115,40 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<JwtTokenGenerator>();
+builder.Services.AddRateLimiter(rateLimiter =>
+{
+    rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Anonymous auth endpoints (signup, login, password flows): protect against
+    // credential stuffing and password-spray. 20 req/min per source IP.
+    rateLimiter.AddPolicy("auth_anonymous", context =>
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        });
+    });
+
+    // Authenticated billing endpoints (checkout, portal): protect against
+    // accidental/abusive repeated Stripe session creation. 30 req/min per user.
+    rateLimiter.AddPolicy("billing_authenticated", context =>
+    {
+        var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(userId, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30,
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        });
+    });
+});
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(FrontendCorsPolicy, policy =>
@@ -135,6 +188,12 @@ app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
+// Skip rate limiting in integration tests — they spin up many users from a single
+// loopback IP and would otherwise trip the auth_anonymous limit.
+if (!app.Environment.IsEnvironment("IntegrationTesting"))
+{
+    app.UseRateLimiter();
+}
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
@@ -158,7 +217,7 @@ app.MapGet("/health", () => Results.Ok(new
 
 var documents = app.MapGroup("/api/documents");
 var conversations = app.MapGroup("/api/conversations");
-var auth = app.MapGroup("/api/auth");
+var auth = app.MapGroup("/api/auth").RequireRateLimiting("auth_anonymous");
 var billing = app.MapGroup("/api/billing");
 var admin = app.MapGroup("/api/admin");
 var workspaces = app.MapGroup("/api/workspaces");
@@ -461,6 +520,45 @@ admin.MapPost("/billing/run-monitoring", async (
         $"Monitoring completed with {result.PaymentIssueCount} payment issue(s) and {result.ReplayableWebhookCount} replayable webhook(s)."));
 });
 
+admin.MapPost("/billing/normalize-subscriptions", async (
+    ClaimsPrincipal user,
+    IPlatformAdminAccessService platformAdminAccessService,
+    WorkspaceBillingService workspaceBillingService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    string adminEmail;
+    try
+    {
+        adminEmail = user.GetRequiredUserEmail();
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogWarning(
+            exception,
+            "Rejected subscription normalization request because the authenticated admin email claim was missing or invalid.");
+        return Results.Unauthorized();
+    }
+
+    if (!platformAdminAccessService.HasAccess(adminEmail))
+    {
+        return Results.Forbid();
+    }
+
+    var rowsAffected = await workspaceBillingService.NormalizeStaleSubscriptionsAsync(cancellationToken);
+
+    logger.LogInformation(
+        "Platform admin {AdminEmail} triggered subscription normalization. Rows affected: {RowsAffected}.",
+        adminEmail,
+        rowsAffected);
+
+    return Results.Ok(new NormalizeSubscriptionsResponse(
+        rowsAffected,
+        rowsAffected == 0
+            ? "No stale subscriptions found."
+            : $"Normalized {rowsAffected} subscription(s) with stale trial end timestamps."));
+});
+
 admin.MapPost("/billing/transactions/{transactionId:guid}/sync", async (
     Guid transactionId,
     ClaimsPrincipal user,
@@ -538,7 +636,7 @@ billing.MapPost("/checkout/subscription", async (
             [exception.ParamName ?? "request"] = [exception.Message]
         });
     }
-});
+}).RequireRateLimiting("billing_authenticated");
 
 billing.MapPost("/checkout/credits", async (
     CreateWorkspaceCreditPurchaseCheckoutRequest request,
@@ -573,7 +671,7 @@ billing.MapPost("/checkout/credits", async (
             [exception.ParamName ?? "request"] = [exception.Message]
         });
     }
-});
+}).RequireRateLimiting("billing_authenticated");
 
 billing.MapPost("/checkout", async (
     CreateBillingCheckoutRequest request,
@@ -610,7 +708,7 @@ billing.MapPost("/checkout", async (
             [exception.ParamName ?? "request"] = [exception.Message]
         });
     }
-});
+}).RequireRateLimiting("billing_authenticated");
 
 billing.MapPost("/portal", async (
     ClaimsPrincipal user,
@@ -631,7 +729,7 @@ billing.MapPost("/portal", async (
     {
         return Results.Conflict(new { error = exception.Message });
     }
-});
+}).RequireRateLimiting("billing_authenticated");
 
 app.MapPost("/api/billing/webhooks/stripe", async (
     HttpRequest request,

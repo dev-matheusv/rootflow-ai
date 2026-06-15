@@ -33,6 +33,10 @@ public interface IWorkspaceBillingRepository
         WorkspaceSubscription subscription,
         CancellationToken cancellationToken = default);
 
+    Task<int> NormalizeStaleTrialEndsAsync(
+        DateTime updatedAtUtc,
+        CancellationToken cancellationToken = default);
+
     Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(
         Guid workspaceId,
         CancellationToken cancellationToken = default);

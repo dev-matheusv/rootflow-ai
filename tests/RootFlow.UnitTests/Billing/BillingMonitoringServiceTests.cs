@@ -291,6 +291,10 @@ public sealed class BillingMonitoringServiceTests
             WorkspaceSubscription subscription,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public Task<int> NormalizeStaleTrialEndsAsync(
+            DateTime updatedAtUtc,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(
             Guid workspaceId,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
