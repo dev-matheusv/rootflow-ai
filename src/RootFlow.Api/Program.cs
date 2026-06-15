@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using RootFlow.Api.Admin;
@@ -96,6 +98,40 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<JwtTokenGenerator>();
+builder.Services.AddRateLimiter(rateLimiter =>
+{
+    rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Anonymous auth endpoints (signup, login, password flows): protect against
+    // credential stuffing and password-spray. 20 req/min per source IP.
+    rateLimiter.AddPolicy("auth_anonymous", context =>
+    {
+        var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        });
+    });
+
+    // Authenticated billing endpoints (checkout, portal): protect against
+    // accidental/abusive repeated Stripe session creation. 30 req/min per user.
+    rateLimiter.AddPolicy("billing_authenticated", context =>
+    {
+        var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(userId, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30,
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        });
+    });
+});
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(FrontendCorsPolicy, policy =>
@@ -135,6 +171,7 @@ app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
@@ -158,7 +195,7 @@ app.MapGet("/health", () => Results.Ok(new
 
 var documents = app.MapGroup("/api/documents");
 var conversations = app.MapGroup("/api/conversations");
-var auth = app.MapGroup("/api/auth");
+var auth = app.MapGroup("/api/auth").RequireRateLimiting("auth_anonymous");
 var billing = app.MapGroup("/api/billing");
 var admin = app.MapGroup("/api/admin");
 var workspaces = app.MapGroup("/api/workspaces");
@@ -538,7 +575,7 @@ billing.MapPost("/checkout/subscription", async (
             [exception.ParamName ?? "request"] = [exception.Message]
         });
     }
-});
+}).RequireRateLimiting("billing_authenticated");
 
 billing.MapPost("/checkout/credits", async (
     CreateWorkspaceCreditPurchaseCheckoutRequest request,
@@ -573,7 +610,7 @@ billing.MapPost("/checkout/credits", async (
             [exception.ParamName ?? "request"] = [exception.Message]
         });
     }
-});
+}).RequireRateLimiting("billing_authenticated");
 
 billing.MapPost("/checkout", async (
     CreateBillingCheckoutRequest request,
@@ -610,7 +647,7 @@ billing.MapPost("/checkout", async (
             [exception.ParamName ?? "request"] = [exception.Message]
         });
     }
-});
+}).RequireRateLimiting("billing_authenticated");
 
 billing.MapPost("/portal", async (
     ClaimsPrincipal user,
@@ -631,7 +668,7 @@ billing.MapPost("/portal", async (
     {
         return Results.Conflict(new { error = exception.Message });
     }
-});
+}).RequireRateLimiting("billing_authenticated");
 
 app.MapPost("/api/billing/webhooks/stripe", async (
     HttpRequest request,
