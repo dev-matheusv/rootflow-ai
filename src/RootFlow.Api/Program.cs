@@ -11,6 +11,7 @@ using RootFlow.Api.Contracts.Admin;
 using RootFlow.Api.Contracts.Auth;
 using RootFlow.Api.Contracts.Billing;
 using RootFlow.Api.Contracts.Chat;
+using RootFlow.Api.Contracts.Training;
 using RootFlow.Api.Contracts.Workspaces;
 using RootFlow.Application.Abstractions.Auth;
 using RootFlow.Application.Auth;
@@ -34,6 +35,9 @@ using RootFlow.Application.Documents.Commands;
 using RootFlow.Application.Documents.Queries;
 using RootFlow.Application.PlatformAdmin;
 using RootFlow.Application.PlatformAdmin.Queries;
+using RootFlow.Application.Training;
+using RootFlow.Application.Training.Commands;
+using RootFlow.Application.Training.Dtos;
 using RootFlow.Application.Workspaces;
 using RootFlow.Application.Workspaces.Commands;
 using RootFlow.Application.Workspaces.Queries;
@@ -113,7 +117,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("WorkspaceOwnerOrAdmin", policy =>
+        policy.RequireAssertion(context =>
+        {
+            var role = context.User.FindFirstValue(ClaimTypes.Role);
+            return string.Equals(role, "Owner", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase);
+        }));
+});
 builder.Services.AddSingleton<JwtTokenGenerator>();
 builder.Services.AddRateLimiter(rateLimiter =>
 {
@@ -222,6 +235,7 @@ var billing = app.MapGroup("/api/billing");
 var admin = app.MapGroup("/api/admin");
 var workspaces = app.MapGroup("/api/workspaces");
 var documentTemplates = app.MapGroup("/api/document-templates");
+var trainingAdmin = app.MapGroup("/api/training");
 
 documents.RequireAuthorization();
 conversations.RequireAuthorization();
@@ -229,6 +243,9 @@ billing.RequireAuthorization();
 admin.RequireAuthorization();
 workspaces.RequireAuthorization();
 documentTemplates.RequireAuthorization();
+// Phase B endpoints are authoring-only; require Owner/Admin via the policy.
+// Phase C will add read/consumer endpoints under a separate group with just RequireAuthorization().
+trainingAdmin.RequireAuthorization("WorkspaceOwnerOrAdmin");
 
 auth.MapPost("/signup", async (
     SignupRequest request,
@@ -1428,6 +1445,298 @@ documentTemplates.MapPost("/{templateId:guid}/generate", async (
     }
 });
 
+// ────────────────────────────────────────────────────────────────────────
+// Training authoring endpoints (Phase B). Owner/Admin only — gated by the
+// "WorkspaceOwnerOrAdmin" policy applied on the trainingAdmin group.
+// ────────────────────────────────────────────────────────────────────────
+
+trainingAdmin.MapPost("/programs", async (
+    CreateTrainingProgramRequest request,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var program = await trainingAuthoringService.CreateProgramAsync(
+            new CreateTrainingProgramCommand(
+                user.GetRequiredWorkspaceId(),
+                user.GetRequiredUserId(),
+                request.Name,
+                request.Slug,
+                request.Description),
+            cancellationToken);
+        return Results.Ok(MapProgramToResponse(program));
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [ex.ParamName ?? "request"] = [ex.Message]
+        });
+    }
+});
+
+trainingAdmin.MapPatch("/programs/{programId:guid}", async (
+    Guid programId,
+    UpdateTrainingProgramRequest request,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var program = await trainingAuthoringService.UpdateProgramAsync(
+            new UpdateTrainingProgramCommand(
+                programId,
+                user.GetRequiredWorkspaceId(),
+                request.Name,
+                request.Description,
+                request.PassingScore),
+            cancellationToken);
+        return Results.Ok(MapProgramToResponse(program));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+    catch (ArgumentException ex)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [ex.ParamName ?? "request"] = [ex.Message]
+        });
+    }
+});
+
+trainingAdmin.MapPost("/programs/{programId:guid}/publish", async (
+    Guid programId,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var program = await trainingAuthoringService.PublishProgramAsync(
+            new PublishTrainingProgramCommand(programId, user.GetRequiredWorkspaceId()),
+            cancellationToken);
+        return Results.Ok(MapProgramToResponse(program));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+    catch (TrainingPublishValidationException ex) { return Results.Conflict(new { error = ex.Message }); }
+});
+
+trainingAdmin.MapPost("/programs/{programId:guid}/unpublish", async (
+    Guid programId,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var program = await trainingAuthoringService.UnpublishProgramAsync(
+            programId, user.GetRequiredWorkspaceId(), cancellationToken);
+        return Results.Ok(MapProgramToResponse(program));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
+trainingAdmin.MapGet("/programs", async (
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    var programs = await trainingAuthoringService.ListProgramsAsync(
+        user.GetRequiredWorkspaceId(), publishedOnly: false, cancellationToken);
+    return Results.Ok(programs.Select(MapProgramToResponse));
+});
+
+trainingAdmin.MapGet("/programs/{programId:guid}", async (
+    Guid programId,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var detail = await trainingAuthoringService.GetProgramDetailAsync(
+            programId, user.GetRequiredWorkspaceId(), cancellationToken);
+        return Results.Ok(new TrainingProgramDetailResponse(
+            MapProgramToResponse(detail.Program),
+            detail.Modules.Select(MapModuleToResponse).ToList()));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
+trainingAdmin.MapPost("/programs/{programId:guid}/modules", async (
+    Guid programId,
+    AddTrainingModuleRequest request,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var module = await trainingAuthoringService.AddModuleAsync(
+            new AddTrainingModuleCommand(
+                programId,
+                user.GetRequiredWorkspaceId(),
+                request.Title,
+                request.Description,
+                request.OrderIndex,
+                request.SourceDocumentIds ?? []),
+            cancellationToken);
+        return Results.Ok(MapModuleToResponse(module));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+    catch (ArgumentException ex)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [ex.ParamName ?? "request"] = [ex.Message]
+        });
+    }
+});
+
+trainingAdmin.MapPatch("/modules/{moduleId:guid}", async (
+    Guid moduleId,
+    UpdateTrainingModuleRequest request,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var module = await trainingAuthoringService.UpdateModuleAsync(
+            new UpdateTrainingModuleCommand(
+                moduleId,
+                user.GetRequiredWorkspaceId(),
+                request.Title,
+                request.Description,
+                request.OrderIndex,
+                request.SourceDocumentIds ?? []),
+            cancellationToken);
+        return Results.Ok(MapModuleToResponse(module));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
+trainingAdmin.MapDelete("/modules/{moduleId:guid}", async (
+    Guid moduleId,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        await trainingAuthoringService.DeleteModuleAsync(
+            new DeleteTrainingModuleCommand(moduleId, user.GetRequiredWorkspaceId()),
+            cancellationToken);
+        return Results.NoContent();
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
+trainingAdmin.MapGet("/modules/{moduleId:guid}/questions", async (
+    Guid moduleId,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var questions = await trainingAuthoringService.ListModuleQuestionsAsync(
+            moduleId, user.GetRequiredWorkspaceId(), publishedOnly: false, cancellationToken);
+        return Results.Ok(questions.Select(MapQuestionToResponse));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
+trainingAdmin.MapPost("/modules/{moduleId:guid}/generate-quiz", async (
+    Guid moduleId,
+    GenerateTrainingQuizRequest request,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var questions = await trainingAuthoringService.GenerateQuizAsync(
+            new GenerateTrainingQuizCommand(moduleId, user.GetRequiredWorkspaceId(), request.QuestionCount),
+            cancellationToken);
+        return Results.Ok(questions.Select(MapQuestionToResponse));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+    catch (ArgumentException ex)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [ex.ParamName ?? "request"] = [ex.Message]
+        });
+    }
+    catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+});
+
+trainingAdmin.MapPatch("/questions/{questionId:guid}", async (
+    Guid questionId,
+    UpdateTrainingQuestionRequest request,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var question = await trainingAuthoringService.UpdateQuestionAsync(
+            new UpdateTrainingQuestionCommand(
+                questionId,
+                user.GetRequiredWorkspaceId(),
+                request.Prompt,
+                request.Type,
+                request.Options ?? [],
+                request.CorrectAnswerIndices ?? [],
+                request.Explanation),
+            cancellationToken);
+        return Results.Ok(MapQuestionToResponse(question));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+    catch (ArgumentException ex)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            [ex.ParamName ?? "request"] = [ex.Message]
+        });
+    }
+});
+
+trainingAdmin.MapPost("/questions/{questionId:guid}/publish", async (
+    Guid questionId,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var question = await trainingAuthoringService.PublishQuestionAsync(
+            new PublishTrainingQuestionCommand(questionId, user.GetRequiredWorkspaceId()),
+            cancellationToken);
+        return Results.Ok(MapQuestionToResponse(question));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
+trainingAdmin.MapDelete("/questions/{questionId:guid}", async (
+    Guid questionId,
+    ClaimsPrincipal user,
+    TrainingAuthoringService trainingAuthoringService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        await trainingAuthoringService.DeleteQuestionAsync(
+            new DeleteTrainingQuestionCommand(questionId, user.GetRequiredWorkspaceId()),
+            cancellationToken);
+        return Results.NoContent();
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
 app.Run();
 
 static Dictionary<string, string[]> ValidateSignupRequest(SignupRequest request)
@@ -1655,6 +1964,48 @@ static PlatformAdminBillingOpsReadinessResponse BuildPlatformAdminBillingOpsRead
         outboundEmailConfigured,
         backgroundMonitoringEnabled);
 }
+
+static TrainingProgramResponse MapProgramToResponse(TrainingProgramDto program) =>
+    new(
+        program.Id,
+        program.WorkspaceId,
+        program.Name,
+        program.Slug,
+        program.Description,
+        program.PassingScore,
+        program.IsPublished,
+        program.CreatedByUserId,
+        program.CreatedAtUtc,
+        program.UpdatedAtUtc);
+
+static TrainingModuleResponse MapModuleToResponse(TrainingModuleDto module) =>
+    new(
+        module.Id,
+        module.ProgramId,
+        module.OrderIndex,
+        module.Title,
+        module.Description,
+        module.SourceDocumentIds,
+        module.QuestionCount,
+        module.PublishedQuestionCount,
+        module.CreatedAtUtc,
+        module.UpdatedAtUtc);
+
+static TrainingQuestionResponse MapQuestionToResponse(TrainingQuestionDto question) =>
+    new(
+        question.Id,
+        question.ModuleId,
+        question.OrderIndex,
+        question.Prompt,
+        question.Type,
+        question.Options,
+        question.CorrectAnswerIndices,
+        question.Explanation,
+        question.SourceDocumentId,
+        question.SourceChunkId,
+        question.Status,
+        question.CreatedAtUtc,
+        question.UpdatedAtUtc);
 
 public partial class Program
 {
