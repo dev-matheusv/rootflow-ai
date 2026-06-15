@@ -236,6 +236,7 @@ var admin = app.MapGroup("/api/admin");
 var workspaces = app.MapGroup("/api/workspaces");
 var documentTemplates = app.MapGroup("/api/document-templates");
 var trainingAdmin = app.MapGroup("/api/training");
+var trainingMe = app.MapGroup("/api/me/training");
 
 documents.RequireAuthorization();
 conversations.RequireAuthorization();
@@ -243,9 +244,10 @@ billing.RequireAuthorization();
 admin.RequireAuthorization();
 workspaces.RequireAuthorization();
 documentTemplates.RequireAuthorization();
-// Phase B endpoints are authoring-only; require Owner/Admin via the policy.
-// Phase C will add read/consumer endpoints under a separate group with just RequireAuthorization().
+// Authoring endpoints require Owner/Admin (Phase B).
 trainingAdmin.RequireAuthorization("WorkspaceOwnerOrAdmin");
+// Consumer endpoints are open to any authenticated workspace member (Phase C).
+trainingMe.RequireAuthorization();
 
 auth.MapPost("/signup", async (
     SignupRequest request,
@@ -1733,6 +1735,130 @@ trainingAdmin.MapDelete("/questions/{questionId:guid}", async (
             new DeleteTrainingQuestionCommand(questionId, user.GetRequiredWorkspaceId()),
             cancellationToken);
         return Results.NoContent();
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Training consumer endpoints (Phase C). Open to any authenticated member.
+// ────────────────────────────────────────────────────────────────────────
+
+trainingMe.MapGet("/programs", async (
+    ClaimsPrincipal user,
+    TrainingConsumerService trainingConsumerService,
+    CancellationToken cancellationToken) =>
+{
+    var programs = await trainingConsumerService.ListAvailableProgramsAsync(
+        user.GetRequiredWorkspaceId(),
+        user.GetRequiredUserId(),
+        cancellationToken);
+
+    return Results.Ok(programs.Select(p => new AvailableTrainingProgramResponse(
+        p.Id, p.Name, p.Slug, p.Description, p.PassingScore,
+        p.ModuleCount, p.PassedModuleCount, p.UpdatedAtUtc)));
+});
+
+trainingMe.MapGet("/programs/{programId:guid}", async (
+    Guid programId,
+    ClaimsPrincipal user,
+    TrainingConsumerService trainingConsumerService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var detail = await trainingConsumerService.GetProgramDetailAsync(
+            programId,
+            user.GetRequiredWorkspaceId(),
+            user.GetRequiredUserId(),
+            cancellationToken);
+
+        return Results.Ok(new AvailableTrainingProgramDetailResponse(
+            detail.Id, detail.Name, detail.Slug, detail.Description, detail.PassingScore,
+            detail.Modules.Select(m => new ConsumerModuleResponse(
+                m.Id, m.OrderIndex, m.Title, m.Description, m.QuestionCount,
+                m.Status, m.LatestScore, m.LastAttemptedAtUtc)).ToList()));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
+trainingMe.MapPost("/modules/{moduleId:guid}/attempts", async (
+    Guid moduleId,
+    ClaimsPrincipal user,
+    TrainingConsumerService trainingConsumerService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var result = await trainingConsumerService.StartAttemptAsync(
+            new StartTrainingAttemptCommand(moduleId, user.GetRequiredWorkspaceId(), user.GetRequiredUserId()),
+            cancellationToken);
+
+        return Results.Ok(new StartAttemptResponse(
+            result.AttemptId, result.ModuleId, result.PassingScore, result.StartedAtUtc,
+            result.Questions.Select(q => new ConsumerQuestionResponse(
+                q.Id, q.OrderIndex, q.Prompt, q.Type, q.Options)).ToList()));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+    catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+});
+
+trainingMe.MapPost("/attempts/{attemptId:guid}/answer", async (
+    Guid attemptId,
+    SubmitTrainingAnswerRequest request,
+    ClaimsPrincipal user,
+    TrainingConsumerService trainingConsumerService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        await trainingConsumerService.SubmitAnswerAsync(
+            new SubmitTrainingAnswerCommand(
+                attemptId,
+                request.QuestionId,
+                user.GetRequiredUserId(),
+                request.SelectedIndices ?? []),
+            cancellationToken);
+        return Results.NoContent();
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+    catch (InvalidOperationException ex) { return Results.Conflict(new { error = ex.Message }); }
+});
+
+trainingMe.MapPost("/attempts/{attemptId:guid}/submit", async (
+    Guid attemptId,
+    ClaimsPrincipal user,
+    TrainingConsumerService trainingConsumerService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var result = await trainingConsumerService.SubmitAttemptAsync(
+            new SubmitTrainingAttemptCommand(attemptId, user.GetRequiredUserId()),
+            cancellationToken);
+
+        return Results.Ok(new AttemptResultResponse(
+            result.AttemptId, result.ModuleId, result.ProgramId, result.Status,
+            result.Score, result.PassingScore, result.CompletedAtUtc,
+            result.CorrectAnswerCount, result.TotalQuestionCount));
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
+trainingMe.MapGet("/attempts/{attemptId:guid}", async (
+    Guid attemptId,
+    ClaimsPrincipal user,
+    TrainingConsumerService trainingConsumerService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var result = await trainingConsumerService.GetAttemptResultAsync(
+            attemptId, user.GetRequiredUserId(), cancellationToken);
+
+        return Results.Ok(new AttemptResultResponse(
+            result.AttemptId, result.ModuleId, result.ProgramId, result.Status,
+            result.Score, result.PassingScore, result.CompletedAtUtc,
+            result.CorrectAnswerCount, result.TotalQuestionCount));
     }
     catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
 });

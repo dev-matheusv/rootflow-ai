@@ -250,6 +250,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ConversationService>();
         services.AddScoped<WorkspaceCollaborationService>();
         services.AddScoped<TrainingAuthoringService>();
+        services.AddScoped<TrainingConsumerService>();
         services.AddHostedService<BillingMonitoringBackgroundService>();
         services.AddHostedService<StripeWebhookReplayBackgroundService>();
 
