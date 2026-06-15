@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Abstractions.Time;
@@ -9,6 +10,9 @@ namespace RootFlow.Application.Training;
 
 public sealed class TrainingConsumerService
 {
+    private const string CertificatePdfStorageKey = "inline";
+    private const string CertificateCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // ambiguous chars removed
+
     private readonly ITrainingRepository _trainingRepository;
     private readonly IClock _clock;
     private readonly ILogger<TrainingConsumerService> _logger;
@@ -220,6 +224,13 @@ public sealed class TrainingConsumerService
             "Completed training attempt {AttemptId} for user {UserId} on module {ModuleId}. Score: {Score}/{Passing}. Status: {Status}.",
             attempt.Id, attempt.UserId, attempt.ModuleId, score, program.PassingScore, attempt.Status);
 
+        // If this attempt put the user over the line on every module in the
+        // program, issue a certificate (unless one already exists).
+        if (attempt.Status == TrainingAttemptStatus.Passed)
+        {
+            await TryIssueCertificateAsync(program, attempt.UserId, attempt.WorkspaceId, cancellationToken);
+        }
+
         return new AttemptResultDto(
             attempt.Id,
             attempt.ModuleId,
@@ -269,6 +280,71 @@ public sealed class TrainingConsumerService
             attempt.CompletedAtUtc,
             correct,
             publishedQuestions.Count);
+    }
+
+    private async Task TryIssueCertificateAsync(
+        TrainingProgram program,
+        Guid userId,
+        Guid workspaceId,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _trainingRepository.GetCertificateByProgramAndUserAsync(program.Id, userId, cancellationToken);
+        if (existing is not null)
+        {
+            return;
+        }
+
+        var modules = await _trainingRepository.ListModulesByProgramAsync(program.Id, cancellationToken);
+        if (modules.Count == 0) return;
+
+        foreach (var module in modules)
+        {
+            var attempts = await _trainingRepository.ListAttemptsByUserAndModuleAsync(userId, module.Id, cancellationToken);
+            if (!attempts.Any(a => a.Status == TrainingAttemptStatus.Passed))
+            {
+                // At least one module is not yet passed; no cert this time.
+                return;
+            }
+        }
+
+        var certificate = new TrainingCertificate(
+            Guid.NewGuid(),
+            program.Id,
+            userId,
+            workspaceId,
+            GenerateCertificateCode(),
+            CertificatePdfStorageKey,
+            _clock.UtcNow);
+
+        try
+        {
+            await _trainingRepository.AddCertificateAsync(certificate, cancellationToken);
+            _logger.LogInformation(
+                "Issued training certificate {CertificateId} (code {Code}) for user {UserId} in program {ProgramId}.",
+                certificate.Id, certificate.Code, userId, program.Id);
+        }
+        catch (Exception exception)
+        {
+            // A concurrent submit could race us. The UNIQUE (program_id, user_id)
+            // constraint makes the duplicate insert fail — that's fine, the other
+            // request issued the cert. Swallow to keep the attempt submission idempotent.
+            _logger.LogWarning(
+                exception,
+                "Skipped certificate issuance for user {UserId} in program {ProgramId} (likely a race with a concurrent submit).",
+                userId, program.Id);
+        }
+    }
+
+    private static string GenerateCertificateCode()
+    {
+        Span<byte> bytes = stackalloc byte[12];
+        RandomNumberGenerator.Fill(bytes);
+        Span<char> chars = stackalloc char[12];
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            chars[i] = CertificateCodeAlphabet[bytes[i] % CertificateCodeAlphabet.Length];
+        }
+        return new string(chars);
     }
 
     private async Task<(TrainingModule Module, TrainingProgram Program)> RequireModuleForConsumerAsync(

@@ -1863,6 +1863,56 @@ trainingMe.MapGet("/attempts/{attemptId:guid}", async (
     catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
 });
 
+// ────────────────────────────────────────────────────────────────────────
+// Training certificate endpoints (Phase D).
+// Consumer endpoints under /api/me/training (auth required).
+// Public verification endpoint outside any auth group.
+// ────────────────────────────────────────────────────────────────────────
+
+trainingMe.MapGet("/certificates", async (
+    ClaimsPrincipal user,
+    TrainingCertificateService trainingCertificateService,
+    CancellationToken cancellationToken) =>
+{
+    var certs = await trainingCertificateService.ListForUserAsync(user.GetRequiredUserId(), cancellationToken);
+    return Results.Ok(certs.Select(c => new TrainingCertificateSummaryResponse(
+        c.Id, c.ProgramId, c.ProgramName, c.IssuedAtUtc, c.Code, c.VerificationUrl)));
+});
+
+trainingMe.MapGet("/certificates/{certificateId:guid}/pdf", async (
+    Guid certificateId,
+    ClaimsPrincipal user,
+    TrainingCertificateService trainingCertificateService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var pdf = await trainingCertificateService.RenderCertificatePdfAsync(
+            certificateId,
+            user.GetRequiredUserId(),
+            user.GetRequiredWorkspaceId(),
+            cancellationToken);
+
+        return Results.File(pdf.Content, "application/pdf", pdf.FileName);
+    }
+    catch (TrainingNotFoundException ex) { return Results.NotFound(new { error = ex.Message }); }
+});
+
+app.MapGet("/api/public/training/verify/{code}", async (
+    string code,
+    TrainingCertificateService trainingCertificateService,
+    CancellationToken cancellationToken) =>
+{
+    var result = await trainingCertificateService.VerifyByCodeAsync(code, cancellationToken);
+    return Results.Ok(new PublicCertificateVerificationResponse(
+        result.IsValid,
+        result.EmployeeName,
+        result.ProgramName,
+        result.WorkspaceName,
+        result.IssuedAtUtc,
+        result.Code));
+}).AllowAnonymous();
+
 app.Run();
 
 static Dictionary<string, string[]> ValidateSignupRequest(SignupRequest request)
