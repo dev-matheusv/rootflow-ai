@@ -700,6 +700,102 @@ public sealed class PostgresDatabaseInitializer
                     END,
                     is_active = TRUE
                 WHERE code IN ('starter', 'pro', 'business');
+                """),
+
+            new DatabaseMigration(
+                "202606150001_training_mode_foundation",
+                "Create Training Mode schema (programs, modules, questions, attempts, answers, certificates)",
+                """
+                CREATE TABLE IF NOT EXISTS training_programs (
+                    id uuid PRIMARY KEY,
+                    workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    name text NOT NULL,
+                    slug text NOT NULL,
+                    description text,
+                    passing_score int NOT NULL DEFAULT 70,
+                    is_published boolean NOT NULL DEFAULT false,
+                    created_by_user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+                    created_at_utc timestamptz NOT NULL,
+                    updated_at_utc timestamptz NOT NULL,
+                    UNIQUE (workspace_id, slug)
+                );
+
+                CREATE INDEX IF NOT EXISTS ix_training_programs_workspace_published
+                    ON training_programs (workspace_id, is_published);
+
+                CREATE TABLE IF NOT EXISTS training_modules (
+                    id uuid PRIMARY KEY,
+                    program_id uuid NOT NULL REFERENCES training_programs(id) ON DELETE CASCADE,
+                    order_index int NOT NULL,
+                    title text NOT NULL,
+                    description text,
+                    source_document_ids uuid[] NOT NULL DEFAULT '{}',
+                    created_at_utc timestamptz NOT NULL,
+                    updated_at_utc timestamptz NOT NULL,
+                    UNIQUE (program_id, order_index)
+                );
+
+                CREATE TABLE IF NOT EXISTS training_questions (
+                    id uuid PRIMARY KEY,
+                    module_id uuid NOT NULL REFERENCES training_modules(id) ON DELETE CASCADE,
+                    order_index int NOT NULL,
+                    prompt text NOT NULL,
+                    type text NOT NULL,
+                    options jsonb NOT NULL,
+                    correct_answer_indices int[] NOT NULL,
+                    explanation text,
+                    source_document_id uuid REFERENCES knowledge_documents(id) ON DELETE SET NULL,
+                    source_chunk_id uuid REFERENCES document_chunks(id) ON DELETE SET NULL,
+                    status text NOT NULL DEFAULT 'Draft',
+                    created_at_utc timestamptz NOT NULL,
+                    updated_at_utc timestamptz NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS ix_training_questions_module
+                    ON training_questions (module_id, order_index);
+
+                CREATE TABLE IF NOT EXISTS training_attempts (
+                    id uuid PRIMARY KEY,
+                    module_id uuid NOT NULL REFERENCES training_modules(id) ON DELETE CASCADE,
+                    user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+                    workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    started_at_utc timestamptz NOT NULL,
+                    completed_at_utc timestamptz,
+                    score int,
+                    status text NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS ix_training_attempts_user_module
+                    ON training_attempts (user_id, module_id, started_at_utc DESC);
+
+                CREATE INDEX IF NOT EXISTS ix_training_attempts_workspace_started
+                    ON training_attempts (workspace_id, started_at_utc DESC);
+
+                CREATE TABLE IF NOT EXISTS training_answers (
+                    id uuid PRIMARY KEY,
+                    attempt_id uuid NOT NULL REFERENCES training_attempts(id) ON DELETE CASCADE,
+                    question_id uuid NOT NULL REFERENCES training_questions(id) ON DELETE CASCADE,
+                    selected_indices int[] NOT NULL,
+                    is_correct boolean NOT NULL,
+                    UNIQUE (attempt_id, question_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS training_certificates (
+                    id uuid PRIMARY KEY,
+                    program_id uuid NOT NULL REFERENCES training_programs(id) ON DELETE CASCADE,
+                    user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+                    workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    issued_at_utc timestamptz NOT NULL,
+                    code text NOT NULL UNIQUE,
+                    pdf_storage_key text NOT NULL,
+                    UNIQUE (program_id, user_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS ix_training_certificates_user_issued
+                    ON training_certificates (user_id, issued_at_utc DESC);
+
+                CREATE INDEX IF NOT EXISTS ix_training_certificates_workspace_issued
+                    ON training_certificates (workspace_id, issued_at_utc DESC);
                 """)
         ];
     }
