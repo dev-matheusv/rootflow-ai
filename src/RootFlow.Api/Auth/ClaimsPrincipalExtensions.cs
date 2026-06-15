@@ -1,9 +1,22 @@
 using System.Security.Claims;
+using RootFlow.Domain.Workspaces;
 
 namespace RootFlow.Api.Auth;
 
 public static class ClaimsPrincipalExtensions
 {
+    public static WorkspaceRole? GetWorkspaceRole(this ClaimsPrincipal principal)
+    {
+        var value = principal.FindFirstValue(ClaimTypes.Role);
+        return Enum.TryParse<WorkspaceRole>(value, ignoreCase: true, out var role) ? role : null;
+    }
+
+    public static bool IsWorkspaceOwnerOrAdmin(this ClaimsPrincipal principal)
+    {
+        var role = principal.GetWorkspaceRole();
+        return role is WorkspaceRole.Owner or WorkspaceRole.Admin;
+    }
+
     public static Guid GetRequiredUserId(this ClaimsPrincipal principal)
     {
         var value = principal.FindFirstValue(ClaimTypes.NameIdentifier);

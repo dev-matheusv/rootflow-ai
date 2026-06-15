@@ -20,6 +20,7 @@ using RootFlow.Application.Conversations;
 using RootFlow.Application.Documents;
 using RootFlow.Application.DocumentTemplates;
 using RootFlow.Application.PlatformAdmin;
+using RootFlow.Application.Training;
 using RootFlow.Application.Workspaces;
 using RootFlow.Infrastructure.AI;
 using RootFlow.Infrastructure.Auth;
@@ -230,11 +231,13 @@ public static class InfrastructureServiceCollectionExtensions
         {
             services.AddSingleton<IEmbeddingService, FakeEmbeddingService>();
             services.AddSingleton<IChatCompletionService, PremiumFakeChatCompletionService>();
+            services.AddSingleton<ITrainingQuizGenerator, FakeTrainingQuizGenerator>();
         }
         else
         {
             services.AddHttpClient<IEmbeddingService, OpenAiEmbeddingService>(ConfigureOpenAiClient);
             services.AddHttpClient<IChatCompletionService, OpenAiChatCompletionService>(ConfigureOpenAiClient);
+            services.AddHttpClient<ITrainingQuizGenerator, OpenAiTrainingQuizGenerator>(ConfigureOpenAiClient);
         }
 
         services.AddScoped<AuthService>();
@@ -246,6 +249,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();
         services.AddScoped<WorkspaceCollaborationService>();
+        services.AddScoped<TrainingAuthoringService>();
         services.AddHostedService<BillingMonitoringBackgroundService>();
         services.AddHostedService<StripeWebhookReplayBackgroundService>();
 
