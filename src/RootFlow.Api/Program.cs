@@ -47,6 +47,23 @@ ConfigurePlatformUrlsFromPort();
 var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "RootFlowFrontend";
 
+// Sentry is opt-in: only initialized when SENTRY_DSN env var (or Sentry:Dsn config)
+// is set. Keeps local dev quiet and avoids accidental noise from unconfigured envs.
+var sentryDsn = builder.Configuration["Sentry:Dsn"]
+    ?? Environment.GetEnvironmentVariable("SENTRY_DSN");
+if (!string.IsNullOrWhiteSpace(sentryDsn))
+{
+    builder.WebHost.UseSentry(options =>
+    {
+        options.Dsn = sentryDsn;
+        options.Environment = builder.Environment.EnvironmentName;
+        options.TracesSampleRate = builder.Environment.IsProduction() ? 0.1 : 1.0;
+        options.SendDefaultPii = false;
+        options.AttachStacktrace = true;
+        options.MaxBreadcrumbs = 50;
+    });
+}
+
 builder.Logging.ClearProviders();
 if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("IntegrationTesting"))
 {

@@ -6,7 +6,10 @@ import "@fontsource-variable/sora/index.css";
 
 import App from "@/App";
 import { AppProviders } from "@/app/providers/app-providers";
+import { initSentry } from "@/lib/observability/sentry";
 import "@/index.css";
+
+initSentry();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
