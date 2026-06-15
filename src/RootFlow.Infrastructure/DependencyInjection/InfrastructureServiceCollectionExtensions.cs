@@ -184,6 +184,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDocumentRenderer, QuestPdfDocumentRenderer>();
         services.AddScoped<IDocumentTemplateRepository, PostgresDocumentTemplateRepository>();
         services.AddScoped<DocumentTemplateService>();
+        services.AddScoped<ITrainingRepository, PostgresTrainingRepository>();
         services.AddScoped<ITextChunker, SimpleTextChunker>();
         services.AddScoped<SmtpEmailSender>();
         services.AddHttpClient<ResendEmailSender>((serviceProvider, client) =>
