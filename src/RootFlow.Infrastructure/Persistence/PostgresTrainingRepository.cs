@@ -515,6 +515,26 @@ public sealed class PostgresTrainingRepository : ITrainingRepository
         return await reader.ReadAsync(cancellationToken) ? MapCertificate(reader) : null;
     }
 
+    public async Task<TrainingCertificate?> GetCertificateByProgramAndUserAsync(
+        Guid programId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            SELECT id, program_id, user_id, workspace_id, issued_at_utc, code, pdf_storage_key
+            FROM training_certificates
+            WHERE program_id = @programId AND user_id = @userId;
+            """;
+
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("programId", programId);
+        cmd.Parameters.AddWithValue("userId", userId);
+
+        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? MapCertificate(reader) : null;
+    }
+
     public async Task<TrainingCertificate?> GetCertificateByCodeAsync(string code, CancellationToken cancellationToken = default)
     {
         const string sql = """

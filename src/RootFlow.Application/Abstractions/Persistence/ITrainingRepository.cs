@@ -50,5 +50,6 @@ public interface ITrainingRepository
     Task AddCertificateAsync(TrainingCertificate certificate, CancellationToken cancellationToken = default);
     Task<TrainingCertificate?> GetCertificateByIdAsync(Guid certificateId, Guid workspaceId, CancellationToken cancellationToken = default);
     Task<TrainingCertificate?> GetCertificateByCodeAsync(string code, CancellationToken cancellationToken = default);
+    Task<TrainingCertificate?> GetCertificateByProgramAndUserAsync(Guid programId, Guid userId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TrainingCertificate>> ListCertificatesByUserAsync(Guid userId, CancellationToken cancellationToken = default);
 }

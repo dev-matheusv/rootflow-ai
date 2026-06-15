@@ -183,6 +183,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IFileStorage, LocalFileStorage>();
         services.AddScoped<IDocumentTextExtractor, SimpleDocumentTextExtractor>();
         services.AddScoped<IDocumentRenderer, QuestPdfDocumentRenderer>();
+        services.AddScoped<ITrainingCertificateRenderer, QuestPdfTrainingCertificateRenderer>();
         services.AddScoped<IDocumentTemplateRepository, PostgresDocumentTemplateRepository>();
         services.AddScoped<DocumentTemplateService>();
         services.AddScoped<ITrainingRepository, PostgresTrainingRepository>();
@@ -249,8 +250,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();
         services.AddScoped<WorkspaceCollaborationService>();
+        var trainingOptions = configuration.GetSection("Training").Get<TrainingOptions>()
+            ?? new TrainingOptions();
+        services.AddSingleton(trainingOptions);
         services.AddScoped<TrainingAuthoringService>();
         services.AddScoped<TrainingConsumerService>();
+        services.AddScoped<TrainingCertificateService>();
         services.AddHostedService<BillingMonitoringBackgroundService>();
         services.AddHostedService<StripeWebhookReplayBackgroundService>();
 
