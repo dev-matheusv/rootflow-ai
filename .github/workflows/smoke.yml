@@ -1,0 +1,98 @@
+name: smoke
+
+# Validates production after Railway (backend) and Vercel (frontend)
+# finish their auto-deploys. Both providers watch this repo directly
+# and do not signal completion back to GitHub Actions, so we poll the
+# public endpoints with retries until they either return the expected
+# response or the timeout elapses.
+#
+# Goal: catch silent regressions (missing env var, broken connection
+# string, removed route) within a few minutes of merging to main,
+# rather than discovering them when a user reports a bug.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false # never cancel a smoke run, we always want the result
+
+jobs:
+  smoke:
+    name: Production smoke checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      BACKEND_URL: https://rootflow-ai.up.railway.app
+      FRONTEND_URL: https://www.rootflow.com.br
+      # Total wait budget per check: 20 attempts × 15s = 5 minutes.
+      MAX_ATTEMPTS: 20
+      RETRY_DELAY_SECONDS: 15
+
+    steps:
+      - name: Backend health check
+        run: |
+          set -euo pipefail
+          attempt=1
+          while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
+            echo "Attempt $attempt: GET $BACKEND_URL/health"
+            response=$(curl -sS -o /tmp/body -w '%{http_code}' "$BACKEND_URL/health" || echo "000")
+            body=$(cat /tmp/body 2>/dev/null || echo "")
+            echo "  HTTP $response — body: $body"
+            if [ "$response" = "200" ] && echo "$body" | grep -q '"status":"healthy"'; then
+              echo "::notice::Backend health check passed on attempt $attempt."
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            sleep "$RETRY_DELAY_SECONDS"
+          done
+          echo "::error::Backend health check failed after $MAX_ATTEMPTS attempts ($(( MAX_ATTEMPTS * RETRY_DELAY_SECONDS ))s total). Last response: HTTP $response, body: $body"
+          exit 1
+
+      - name: Backend billing-plans endpoint (sanity)
+        run: |
+          set -euo pipefail
+          # This endpoint requires auth, so a 401 is the expected healthy response.
+          # A 500 or a redirect means the route is misconfigured.
+          attempt=1
+          while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
+            echo "Attempt $attempt: GET $BACKEND_URL/api/billing/plans"
+            response=$(curl -sS -o /dev/null -w '%{http_code}' "$BACKEND_URL/api/billing/plans" || echo "000")
+            echo "  HTTP $response"
+            if [ "$response" = "401" ] || [ "$response" = "200" ]; then
+              echo "::notice::Billing plans endpoint reachable (HTTP $response) on attempt $attempt."
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            sleep "$RETRY_DELAY_SECONDS"
+          done
+          echo "::error::Billing plans endpoint did not respond with 200/401 after $MAX_ATTEMPTS attempts. Last HTTP $response."
+          exit 1
+
+      - name: Frontend landing page check
+        run: |
+          set -euo pipefail
+          attempt=1
+          while [ "$attempt" -le "$MAX_ATTEMPTS" ]; do
+            echo "Attempt $attempt: GET $FRONTEND_URL/"
+            response=$(curl -sSL -o /tmp/landing.html -w '%{http_code}' "$FRONTEND_URL/" || echo "000")
+            echo "  HTTP $response"
+            if [ "$response" = "200" ]; then
+              # The HTML must include the React root div and a script tag —
+              # if either is missing, Vercel served a fallback or error page.
+              if grep -q 'id="root"' /tmp/landing.html && grep -q '<script' /tmp/landing.html; then
+                echo "::notice::Frontend landing check passed on attempt $attempt."
+                exit 0
+              else
+                echo "  Response was 200 but HTML did not contain expected markers."
+              fi
+            fi
+            attempt=$((attempt + 1))
+            sleep "$RETRY_DELAY_SECONDS"
+          done
+          echo "::error::Frontend landing check failed after $MAX_ATTEMPTS attempts. Last HTTP $response."
+          exit 1
