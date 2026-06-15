@@ -171,6 +171,7 @@ public sealed class SimpleDocumentTextExtractor : IDocumentTextExtractor
             if (relationshipId is null) continue;
             if (!presentationPart.TryGetPartById(relationshipId!, out var part)) continue;
             if (part is not SlidePart slidePart) continue;
+            if (slidePart.Slide is null) continue;
 
             foreach (var text in slidePart.Slide.Descendants<DocumentFormat.OpenXml.Drawing.Text>())
             {
