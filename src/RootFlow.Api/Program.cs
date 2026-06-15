@@ -188,7 +188,12 @@ app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseRateLimiter();
+// Skip rate limiting in integration tests — they spin up many users from a single
+// loopback IP and would otherwise trip the auth_anonymous limit.
+if (!app.Environment.IsEnvironment("IntegrationTesting"))
+{
+    app.UseRateLimiter();
+}
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
