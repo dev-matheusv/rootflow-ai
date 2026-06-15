@@ -498,6 +498,45 @@ admin.MapPost("/billing/run-monitoring", async (
         $"Monitoring completed with {result.PaymentIssueCount} payment issue(s) and {result.ReplayableWebhookCount} replayable webhook(s)."));
 });
 
+admin.MapPost("/billing/normalize-subscriptions", async (
+    ClaimsPrincipal user,
+    IPlatformAdminAccessService platformAdminAccessService,
+    WorkspaceBillingService workspaceBillingService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    string adminEmail;
+    try
+    {
+        adminEmail = user.GetRequiredUserEmail();
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogWarning(
+            exception,
+            "Rejected subscription normalization request because the authenticated admin email claim was missing or invalid.");
+        return Results.Unauthorized();
+    }
+
+    if (!platformAdminAccessService.HasAccess(adminEmail))
+    {
+        return Results.Forbid();
+    }
+
+    var rowsAffected = await workspaceBillingService.NormalizeStaleSubscriptionsAsync(cancellationToken);
+
+    logger.LogInformation(
+        "Platform admin {AdminEmail} triggered subscription normalization. Rows affected: {RowsAffected}.",
+        adminEmail,
+        rowsAffected);
+
+    return Results.Ok(new NormalizeSubscriptionsResponse(
+        rowsAffected,
+        rowsAffected == 0
+            ? "No stale subscriptions found."
+            : $"Normalized {rowsAffected} subscription(s) with stale trial end timestamps."));
+});
+
 admin.MapPost("/billing/transactions/{transactionId:guid}/sync", async (
     Guid transactionId,
     ClaimsPrincipal user,

@@ -1242,6 +1242,11 @@ public sealed class WorkspacePaymentServiceTests
             return Task.FromResult(1);
         }
 
+        public Task<int> NormalizeStaleTrialEndsAsync(DateTime updatedAtUtc, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0);
+        }
+
         public Task<WorkspaceCreditBalance?> GetCreditBalanceAsync(Guid workspaceId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<WorkspaceCreditBalance?>(_balances.GetValueOrDefault(workspaceId));

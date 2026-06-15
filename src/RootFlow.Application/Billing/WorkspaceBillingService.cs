@@ -55,6 +55,20 @@ public sealed class WorkspaceBillingService
         return EnsureProvisionedAsync(workspaceId, cancellationToken);
     }
 
+    public async Task<int> NormalizeStaleSubscriptionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var rowsAffected = await _workspaceBillingRepository.NormalizeStaleTrialEndsAsync(
+            _clock.UtcNow,
+            cancellationToken);
+
+        _logger.LogInformation(
+            "Normalized {RowsAffected} subscription row(s) with stale trial_ends_at_utc values.",
+            rowsAffected);
+
+        return rowsAffected;
+    }
+
     public async Task<WorkspaceCreditSummaryDto> GetCreditSummaryAsync(
         GetWorkspaceCreditSummaryQuery query,
         CancellationToken cancellationToken = default)
