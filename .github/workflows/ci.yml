@@ -1,13 +1,50 @@
 name: ci
 
+# Runs on PRs and on push to main. No deploy here — Railway and Vercel
+# watch the repository directly and trigger their own pipelines.
+
 on:
   push:
     branches:
       - main
   pull_request:
 
+# Cancel stale runs when a newer commit lands on the same PR/branch.
+# Avoids wasted CI minutes during rapid iteration.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-and-test:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # On push events (no base ref to diff against) fall back to "everything changed".
+          filters: |
+            backend:
+              - 'src/**'
+              - 'tests/**'
+              - 'RootFlow.sln'
+              - 'global.json'
+              - 'Dockerfile'
+              - 'docker-compose.yml'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'apps/rootflow-web/**'
+              - '.github/workflows/ci.yml'
+
+  backend:
+    name: BE (build + test)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
 
     services:
@@ -34,6 +71,14 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Restore
         run: dotnet restore RootFlow.sln -p:RestoreDisableParallel=true -m:1
 
@@ -42,3 +87,60 @@ jobs:
 
       - name: Test
         run: dotnet test RootFlow.sln --no-build --no-restore -m:1 --configuration Release
+
+  frontend:
+    name: FE (lint + typecheck + build)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/rootflow-web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/rootflow-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        env:
+          # Dummy URL — the CI build just verifies that the bundle compiles.
+          # Production builds use the real VITE_API_BASE_URL set in Vercel.
+          VITE_API_BASE_URL: https://api.example.invalid
+        run: npm run build
+
+  # Required status check: green even when no relevant paths changed.
+  # Branch protection rules can require "ci-status" instead of the
+  # individual jobs so PRs that touch only docs/CI still pass.
+  ci-status:
+    name: CI status
+    needs: [backend, frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate result
+        run: |
+          backend_result="${{ needs.backend.result }}"
+          frontend_result="${{ needs.frontend.result }}"
+          echo "backend: $backend_result, frontend: $frontend_result"
+          # "skipped" is OK (path filter didn't match). Anything else must be "success".
+          for r in "$backend_result" "$frontend_result"; do
+            if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
+              echo "::error::A required job did not succeed."
+              exit 1
+            fi
+          done
