@@ -21,6 +21,7 @@ public sealed class Workspace
         Slug = slug.Trim().ToLowerInvariant();
         CreatedAtUtc = createdAtUtc;
         IsActive = true;
+        TrainingEnabled = false;
     }
 
     public Guid Id { get; private set; }
@@ -32,6 +33,16 @@ public sealed class Workspace
     public DateTime CreatedAtUtc { get; private set; }
 
     public bool IsActive { get; private set; }
+
+    // Feature flag for the T&D add-on. Off by default. Flipped by a platform
+    // admin (Phase E1) or by the Stripe webhook when the customer buys the
+    // add-on (Phase E2 — not in this MVP).
+    public bool TrainingEnabled { get; private set; }
+
+    public void SetTrainingEnabled(bool enabled)
+    {
+        TrainingEnabled = enabled;
+    }
 
     public void Rename(string name)
     {

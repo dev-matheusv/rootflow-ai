@@ -796,6 +796,14 @@ public sealed class PostgresDatabaseInitializer
 
                 CREATE INDEX IF NOT EXISTS ix_training_certificates_workspace_issued
                     ON training_certificates (workspace_id, issued_at_utc DESC);
+                """),
+
+            new DatabaseMigration(
+                "202606150002_workspace_training_feature_flag",
+                "Add training_enabled feature flag to workspaces",
+                """
+                ALTER TABLE workspaces
+                    ADD COLUMN IF NOT EXISTS training_enabled boolean NOT NULL DEFAULT false;
                 """)
         ];
     }

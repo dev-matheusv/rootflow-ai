@@ -21,6 +21,7 @@ using RootFlow.Application.Billing.Dtos;
 using RootFlow.Application.Billing.Queries;
 using RootFlow.Application.Auth.Commands;
 using RootFlow.Application.Abstractions.Documents;
+using RootFlow.Application.Abstractions.Persistence;
 using RootFlow.Application.Chat;
 using RootFlow.Application.Chat.Commands;
 using RootFlow.Application.DocumentTemplates;
@@ -207,6 +208,21 @@ if (!app.Environment.IsEnvironment("IntegrationTesting"))
 {
     app.UseRateLimiter();
 }
+
+// Convert workspace-training-disabled exceptions to 403 across all training
+// endpoints in one place, so we don't repeat the catch in every handler.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (WorkspaceTrainingDisabledException ex)
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+});
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
@@ -576,6 +592,45 @@ admin.MapPost("/billing/normalize-subscriptions", async (
         rowsAffected == 0
             ? "No stale subscriptions found."
             : $"Normalized {rowsAffected} subscription(s) with stale trial end timestamps."));
+});
+
+admin.MapPost("/workspaces/{workspaceId:guid}/training/toggle", async (
+    Guid workspaceId,
+    WorkspaceTrainingToggleRequest request,
+    ClaimsPrincipal user,
+    IPlatformAdminAccessService platformAdminAccessService,
+    IWorkspaceRepository workspaceRepository,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    string adminEmail;
+    try
+    {
+        adminEmail = user.GetRequiredUserEmail();
+    }
+    catch (InvalidOperationException exception)
+    {
+        logger.LogWarning(exception, "Rejected training toggle: admin email claim missing.");
+        return Results.Unauthorized();
+    }
+
+    if (!platformAdminAccessService.HasAccess(adminEmail))
+    {
+        return Results.Forbid();
+    }
+
+    var workspace = await workspaceRepository.GetByIdAsync(workspaceId, cancellationToken);
+    if (workspace is null)
+    {
+        return Results.NotFound(new { error = $"Workspace {workspaceId} was not found." });
+    }
+
+    await workspaceRepository.UpdateTrainingEnabledAsync(workspaceId, request.Enabled, cancellationToken);
+    logger.LogInformation(
+        "Platform admin {AdminEmail} set training_enabled={Enabled} on workspace {WorkspaceId}.",
+        adminEmail, request.Enabled, workspaceId);
+
+    return Results.Ok(new WorkspaceTrainingToggleResponse(workspaceId, request.Enabled));
 });
 
 admin.MapPost("/billing/transactions/{transactionId:guid}/sync", async (
@@ -1874,7 +1929,10 @@ trainingMe.MapGet("/certificates", async (
     TrainingCertificateService trainingCertificateService,
     CancellationToken cancellationToken) =>
 {
-    var certs = await trainingCertificateService.ListForUserAsync(user.GetRequiredUserId(), cancellationToken);
+    var certs = await trainingCertificateService.ListForUserAsync(
+        user.GetRequiredUserId(),
+        user.GetRequiredWorkspaceId(),
+        cancellationToken);
     return Results.Ok(certs.Select(c => new TrainingCertificateSummaryResponse(
         c.Id, c.ProgramId, c.ProgramName, c.IssuedAtUtc, c.Code, c.VerificationUrl)));
 });

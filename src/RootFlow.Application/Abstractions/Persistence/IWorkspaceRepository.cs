@@ -9,4 +9,6 @@ public interface IWorkspaceRepository
     Task<bool> ExistsAsync(Guid workspaceId, CancellationToken cancellationToken = default);
 
     Task<Workspace?> GetByIdAsync(Guid workspaceId, CancellationToken cancellationToken = default);
+
+    Task UpdateTrainingEnabledAsync(Guid workspaceId, bool enabled, CancellationToken cancellationToken = default);
 }

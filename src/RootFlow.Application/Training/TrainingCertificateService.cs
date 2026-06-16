@@ -12,6 +12,7 @@ public sealed class TrainingCertificateService
     private readonly IWorkspaceRepository _workspaceRepository;
     private readonly IAuthRepository _authRepository;
     private readonly ITrainingCertificateRenderer _renderer;
+    private readonly TrainingFeatureGate _featureGate;
     private readonly TrainingOptions _options;
     private readonly ILogger<TrainingCertificateService> _logger;
 
@@ -20,6 +21,7 @@ public sealed class TrainingCertificateService
         IWorkspaceRepository workspaceRepository,
         IAuthRepository authRepository,
         ITrainingCertificateRenderer renderer,
+        TrainingFeatureGate featureGate,
         TrainingOptions options,
         ILogger<TrainingCertificateService> logger)
     {
@@ -27,14 +29,17 @@ public sealed class TrainingCertificateService
         _workspaceRepository = workspaceRepository;
         _authRepository = authRepository;
         _renderer = renderer;
+        _featureGate = featureGate;
         _options = options;
         _logger = logger;
     }
 
     public async Task<IReadOnlyList<TrainingCertificateSummaryDto>> ListForUserAsync(
         Guid userId,
+        Guid workspaceId,
         CancellationToken cancellationToken = default)
     {
+        await _featureGate.EnsureEnabledAsync(workspaceId, cancellationToken);
         var certs = await _trainingRepository.ListCertificatesByUserAsync(userId, cancellationToken);
         var summaries = new List<TrainingCertificateSummaryDto>(certs.Count);
         foreach (var cert in certs)
@@ -57,6 +62,7 @@ public sealed class TrainingCertificateService
         Guid workspaceId,
         CancellationToken cancellationToken = default)
     {
+        await _featureGate.EnsureEnabledAsync(workspaceId, cancellationToken);
         var cert = await _trainingRepository.GetCertificateByIdAsync(certificateId, workspaceId, cancellationToken);
         if (cert is null || cert.UserId != userId)
         {
