@@ -14,15 +14,18 @@ public sealed class TrainingConsumerService
     private const string CertificateCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // ambiguous chars removed
 
     private readonly ITrainingRepository _trainingRepository;
+    private readonly TrainingFeatureGate _featureGate;
     private readonly IClock _clock;
     private readonly ILogger<TrainingConsumerService> _logger;
 
     public TrainingConsumerService(
         ITrainingRepository trainingRepository,
+        TrainingFeatureGate featureGate,
         IClock clock,
         ILogger<TrainingConsumerService> logger)
     {
         _trainingRepository = trainingRepository;
+        _featureGate = featureGate;
         _clock = clock;
         _logger = logger;
     }
@@ -32,6 +35,7 @@ public sealed class TrainingConsumerService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        await _featureGate.EnsureEnabledAsync(workspaceId, cancellationToken);
         var programs = await _trainingRepository.ListProgramsByWorkspaceAsync(workspaceId, publishedOnly: true, cancellationToken);
 
         var results = new List<AvailableTrainingProgramDto>(programs.Count);
@@ -68,6 +72,7 @@ public sealed class TrainingConsumerService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        await _featureGate.EnsureEnabledAsync(workspaceId, cancellationToken);
         var program = await _trainingRepository.GetProgramByIdAsync(programId, workspaceId, cancellationToken);
         if (program is null || !program.IsPublished)
         {
@@ -117,6 +122,7 @@ public sealed class TrainingConsumerService
         StartTrainingAttemptCommand command,
         CancellationToken cancellationToken = default)
     {
+        await _featureGate.EnsureEnabledAsync(command.WorkspaceId, cancellationToken);
         var (module, program) = await RequireModuleForConsumerAsync(command.ModuleId, command.WorkspaceId, cancellationToken);
 
         if (!program.IsPublished)
@@ -163,6 +169,7 @@ public sealed class TrainingConsumerService
         {
             throw new TrainingNotFoundException($"Training attempt {command.AttemptId} was not found.");
         }
+        await _featureGate.EnsureEnabledAsync(attempt.WorkspaceId, cancellationToken);
 
         if (attempt.Status != TrainingAttemptStatus.InProgress)
         {
@@ -195,6 +202,7 @@ public sealed class TrainingConsumerService
         {
             throw new TrainingNotFoundException($"Training attempt {command.AttemptId} was not found.");
         }
+        await _featureGate.EnsureEnabledAsync(attempt.WorkspaceId, cancellationToken);
 
         if (attempt.Status != TrainingAttemptStatus.InProgress)
         {
@@ -253,6 +261,7 @@ public sealed class TrainingConsumerService
         {
             throw new TrainingNotFoundException($"Training attempt {attemptId} was not found.");
         }
+        await _featureGate.EnsureEnabledAsync(attempt.WorkspaceId, cancellationToken);
 
         return await BuildAttemptResultAsync(attempt, cancellationToken);
     }

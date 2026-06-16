@@ -53,7 +53,7 @@ public sealed class PostgresWorkspaceRepository : IWorkspaceRepository
     public async Task<Workspace?> GetByIdAsync(Guid workspaceId, CancellationToken cancellationToken = default)
     {
         const string sql = """
-                           SELECT id, name, slug, created_at_utc, is_active
+                           SELECT id, name, slug, created_at_utc, is_active, training_enabled
                            FROM workspaces
                            WHERE id = @workspaceId;
                            """;
@@ -79,6 +79,22 @@ public sealed class PostgresWorkspaceRepository : IWorkspaceRepository
             workspace.Deactivate();
         }
 
+        workspace.SetTrainingEnabled(reader.GetBoolean(5));
         return workspace;
+    }
+
+    public async Task UpdateTrainingEnabledAsync(Guid workspaceId, bool enabled, CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+                           UPDATE workspaces
+                           SET training_enabled = @enabled
+                           WHERE id = @id;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("id", workspaceId);
+        command.Parameters.AddWithValue("enabled", enabled);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }

@@ -253,6 +253,7 @@ public static class InfrastructureServiceCollectionExtensions
         var trainingOptions = configuration.GetSection("Training").Get<TrainingOptions>()
             ?? new TrainingOptions();
         services.AddSingleton(trainingOptions);
+        services.AddScoped<TrainingFeatureGate>();
         services.AddScoped<TrainingAuthoringService>();
         services.AddScoped<TrainingConsumerService>();
         services.AddScoped<TrainingCertificateService>();

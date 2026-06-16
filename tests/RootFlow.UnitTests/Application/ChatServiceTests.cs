@@ -189,6 +189,7 @@ public sealed class ChatServiceTests
         public Task<bool> ExistsAsync(Guid workspaceId, CancellationToken cancellationToken = default) => Task.FromResult(true);
 
         public Task<Workspace?> GetByIdAsync(Guid workspaceId, CancellationToken cancellationToken = default) => Task.FromResult<Workspace?>(null);
+        public Task UpdateTrainingEnabledAsync(Guid workspaceId, bool enabled, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class InMemoryConversationRepository : IConversationRepository

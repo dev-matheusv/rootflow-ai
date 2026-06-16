@@ -1064,6 +1064,8 @@ public sealed class WorkspacePaymentServiceTests
         {
             return Task.FromResult<Workspace?>(workspaceId == _workspace.Id ? _workspace : null);
         }
+
+        public Task UpdateTrainingEnabledAsync(Guid workspaceId, bool enabled, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class InMemoryBillingPlanRepository : IBillingPlanRepository

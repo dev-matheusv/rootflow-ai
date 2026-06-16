@@ -13,3 +13,11 @@ public sealed class TrainingPublishValidationException : Exception
     {
     }
 }
+
+public sealed class WorkspaceTrainingDisabledException : Exception
+{
+    public WorkspaceTrainingDisabledException()
+        : base("Training is not enabled for this workspace.")
+    {
+    }
+}

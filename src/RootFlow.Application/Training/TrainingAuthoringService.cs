@@ -16,6 +16,7 @@ public sealed class TrainingAuthoringService
     private readonly IKnowledgeDocumentRepository _documentRepository;
     private readonly IDocumentChunkRepository _chunkRepository;
     private readonly ITrainingQuizGenerator _quizGenerator;
+    private readonly TrainingFeatureGate _featureGate;
     private readonly IClock _clock;
     private readonly ILogger<TrainingAuthoringService> _logger;
 
@@ -24,6 +25,7 @@ public sealed class TrainingAuthoringService
         IKnowledgeDocumentRepository documentRepository,
         IDocumentChunkRepository chunkRepository,
         ITrainingQuizGenerator quizGenerator,
+        TrainingFeatureGate featureGate,
         IClock clock,
         ILogger<TrainingAuthoringService> logger)
     {
@@ -31,6 +33,7 @@ public sealed class TrainingAuthoringService
         _documentRepository = documentRepository;
         _chunkRepository = chunkRepository;
         _quizGenerator = quizGenerator;
+        _featureGate = featureGate;
         _clock = clock;
         _logger = logger;
     }
@@ -43,6 +46,7 @@ public sealed class TrainingAuthoringService
         CreateTrainingProgramCommand command,
         CancellationToken cancellationToken = default)
     {
+        await _featureGate.EnsureEnabledAsync(command.WorkspaceId, cancellationToken);
         ArgumentException.ThrowIfNullOrWhiteSpace(command.Name);
 
         var slug = NormalizeSlug(command.Slug ?? command.Name);
@@ -120,6 +124,7 @@ public sealed class TrainingAuthoringService
         bool publishedOnly,
         CancellationToken cancellationToken = default)
     {
+        await _featureGate.EnsureEnabledAsync(workspaceId, cancellationToken);
         var programs = await _trainingRepository.ListProgramsByWorkspaceAsync(workspaceId, publishedOnly, cancellationToken);
         return programs.Select(MapProgram).ToList();
     }
@@ -333,6 +338,7 @@ public sealed class TrainingAuthoringService
 
     private async Task<TrainingProgram> RequireProgramAsync(Guid programId, Guid workspaceId, CancellationToken cancellationToken)
     {
+        await _featureGate.EnsureEnabledAsync(workspaceId, cancellationToken);
         var program = await _trainingRepository.GetProgramByIdAsync(programId, workspaceId, cancellationToken);
         if (program is null)
         {
@@ -343,6 +349,7 @@ public sealed class TrainingAuthoringService
 
     private async Task<TrainingModule> RequireModuleInWorkspaceAsync(Guid moduleId, Guid workspaceId, CancellationToken cancellationToken)
     {
+        await _featureGate.EnsureEnabledAsync(workspaceId, cancellationToken);
         var module = await _trainingRepository.GetModuleByIdAsync(moduleId, cancellationToken);
         if (module is null)
         {

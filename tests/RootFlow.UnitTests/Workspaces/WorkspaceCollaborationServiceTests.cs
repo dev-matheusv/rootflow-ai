@@ -329,6 +329,15 @@ public sealed class WorkspaceCollaborationServiceTests
             Workspaces.TryGetValue(workspaceId, out var workspace);
             return Task.FromResult<Workspace?>(workspace);
         }
+
+        public Task UpdateTrainingEnabledAsync(Guid workspaceId, bool enabled, CancellationToken cancellationToken = default)
+        {
+            if (Workspaces.TryGetValue(workspaceId, out var workspace))
+            {
+                workspace.SetTrainingEnabled(enabled);
+            }
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeWorkspaceMembershipRepository : IWorkspaceMembershipRepository

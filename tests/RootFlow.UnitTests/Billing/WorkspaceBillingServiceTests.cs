@@ -331,6 +331,8 @@ public sealed class WorkspaceBillingServiceTests
         {
             return Task.FromResult<Workspace?>(null);
         }
+
+        public Task UpdateTrainingEnabledAsync(Guid workspaceId, bool enabled, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class InMemoryBillingPlanRepository : IBillingPlanRepository
