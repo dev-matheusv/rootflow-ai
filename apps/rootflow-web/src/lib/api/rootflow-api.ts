@@ -35,6 +35,17 @@ import type {
   UploadDocumentPayload,
   WorkspaceInvitationResult,
   WorkspaceMember,
+  // Training Mode
+  TrainingProgramSummary,
+  TrainingModuleSummary,
+  TrainingProgramDetail,
+  TrainingQuestion,
+  CreateTrainingProgramPayload,
+  UpdateTrainingProgramPayload,
+  AddTrainingModulePayload,
+  UpdateTrainingModulePayload,
+  GenerateTrainingQuizPayload,
+  UpdateTrainingQuestionPayload,
 } from "@/lib/api/contracts";
 import { apiRequest, apiRequestBlob } from "@/lib/api/client";
 
@@ -182,4 +193,58 @@ export const rootflowApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
+
+  // ── Training Mode (admin / authoring) ────────────────────────────────
+  listTrainingPrograms: () =>
+    apiRequest<TrainingProgramSummary[]>("/api/training/programs"),
+  getTrainingProgramDetail: (programId: string) =>
+    apiRequest<TrainingProgramDetail>(`/api/training/programs/${programId}`),
+  createTrainingProgram: (payload: CreateTrainingProgramPayload) =>
+    apiRequest<TrainingProgramSummary>("/api/training/programs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  updateTrainingProgram: (programId: string, payload: UpdateTrainingProgramPayload) =>
+    apiRequest<TrainingProgramSummary>(`/api/training/programs/${programId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  publishTrainingProgram: (programId: string) =>
+    apiRequest<TrainingProgramSummary>(`/api/training/programs/${programId}/publish`, { method: "POST" }),
+  unpublishTrainingProgram: (programId: string) =>
+    apiRequest<TrainingProgramSummary>(`/api/training/programs/${programId}/unpublish`, { method: "POST" }),
+  addTrainingModule: (programId: string, payload: AddTrainingModulePayload) =>
+    apiRequest<TrainingModuleSummary>(`/api/training/programs/${programId}/modules`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  updateTrainingModule: (moduleId: string, payload: UpdateTrainingModulePayload) =>
+    apiRequest<TrainingModuleSummary>(`/api/training/modules/${moduleId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  deleteTrainingModule: (moduleId: string) =>
+    apiRequest<void>(`/api/training/modules/${moduleId}`, { method: "DELETE" }),
+  listTrainingModuleQuestions: (moduleId: string) =>
+    apiRequest<TrainingQuestion[]>(`/api/training/modules/${moduleId}/questions`),
+  generateTrainingQuiz: (moduleId: string, payload: GenerateTrainingQuizPayload) =>
+    apiRequest<TrainingQuestion[]>(`/api/training/modules/${moduleId}/generate-quiz`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  updateTrainingQuestion: (questionId: string, payload: UpdateTrainingQuestionPayload) =>
+    apiRequest<TrainingQuestion>(`/api/training/questions/${questionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  publishTrainingQuestion: (questionId: string) =>
+    apiRequest<TrainingQuestion>(`/api/training/questions/${questionId}/publish`, { method: "POST" }),
+  deleteTrainingQuestion: (questionId: string) =>
+    apiRequest<void>(`/api/training/questions/${questionId}`, { method: "DELETE" }),
 };
