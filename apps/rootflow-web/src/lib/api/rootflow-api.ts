@@ -35,7 +35,7 @@ import type {
   UploadDocumentPayload,
   WorkspaceInvitationResult,
   WorkspaceMember,
-  // Training Mode
+  // Training Mode — admin
   TrainingProgramSummary,
   TrainingModuleSummary,
   TrainingProgramDetail,
@@ -46,6 +46,14 @@ import type {
   UpdateTrainingModulePayload,
   GenerateTrainingQuizPayload,
   UpdateTrainingQuestionPayload,
+  // Training Mode — consumer
+  AvailableTrainingProgram,
+  AvailableTrainingProgramDetail,
+  StartAttemptResult,
+  SubmitTrainingAnswerPayload,
+  AttemptResult,
+  TrainingCertificateSummary,
+  PublicCertificateVerification,
 } from "@/lib/api/contracts";
 import { apiRequest, apiRequestBlob } from "@/lib/api/client";
 
@@ -247,4 +255,28 @@ export const rootflowApi = {
     apiRequest<TrainingQuestion>(`/api/training/questions/${questionId}/publish`, { method: "POST" }),
   deleteTrainingQuestion: (questionId: string) =>
     apiRequest<void>(`/api/training/questions/${questionId}`, { method: "DELETE" }),
+
+  // ── Training Mode (consumer / member-facing) ─────────────────────────
+  listAvailableTrainingPrograms: () =>
+    apiRequest<AvailableTrainingProgram[]>("/api/me/training/programs"),
+  getAvailableTrainingProgram: (programId: string) =>
+    apiRequest<AvailableTrainingProgramDetail>(`/api/me/training/programs/${programId}`),
+  startTrainingAttempt: (moduleId: string) =>
+    apiRequest<StartAttemptResult>(`/api/me/training/modules/${moduleId}/attempts`, { method: "POST" }),
+  submitTrainingAnswer: (attemptId: string, payload: SubmitTrainingAnswerPayload) =>
+    apiRequest<void>(`/api/me/training/attempts/${attemptId}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  submitTrainingAttempt: (attemptId: string) =>
+    apiRequest<AttemptResult>(`/api/me/training/attempts/${attemptId}/submit`, { method: "POST" }),
+  getTrainingAttempt: (attemptId: string) =>
+    apiRequest<AttemptResult>(`/api/me/training/attempts/${attemptId}`),
+  listTrainingCertificates: () =>
+    apiRequest<TrainingCertificateSummary[]>("/api/me/training/certificates"),
+  downloadTrainingCertificatePdf: (certificateId: string) =>
+    apiRequestBlob(`/api/me/training/certificates/${certificateId}/pdf`),
+  verifyTrainingCertificate: (code: string) =>
+    apiRequest<PublicCertificateVerification>(`/api/public/training/verify/${encodeURIComponent(code)}`),
 };

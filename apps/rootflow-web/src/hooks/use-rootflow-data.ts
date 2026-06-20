@@ -381,3 +381,63 @@ export function useDeleteTrainingQuestionMutation(moduleId: string, programId: s
     },
   });
 }
+
+// ── Training Mode (consumer) ──────────────────────────────────────────
+
+export function useAvailableTrainingProgramsQuery() {
+  return useQuery({
+    queryKey: queryKeys.availableTrainingPrograms,
+    queryFn: rootflowApi.listAvailableTrainingPrograms,
+  });
+}
+
+export function useAvailableTrainingProgramQuery(programId?: string | null) {
+  return useQuery({
+    queryKey: programId ? queryKeys.availableTrainingProgram(programId) : ["available-training-program", "none"],
+    queryFn: () => rootflowApi.getAvailableTrainingProgram(programId!),
+    enabled: Boolean(programId),
+  });
+}
+
+export function useStartTrainingAttemptMutation() {
+  return useMutation({
+    mutationFn: (moduleId: string) => rootflowApi.startTrainingAttempt(moduleId),
+  });
+}
+
+export function useSubmitTrainingAnswerMutation(attemptId: string) {
+  return useMutation({
+    mutationFn: (payload: { questionId: string; selectedIndices: number[] }) =>
+      rootflowApi.submitTrainingAnswer(attemptId, payload),
+  });
+}
+
+export function useSubmitTrainingAttemptMutation(programId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (attemptId: string) => rootflowApi.submitTrainingAttempt(attemptId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.availableTrainingProgram(programId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.availableTrainingPrograms }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trainingCertificates }),
+      ]);
+    },
+  });
+}
+
+export function useTrainingCertificatesQuery() {
+  return useQuery({
+    queryKey: queryKeys.trainingCertificates,
+    queryFn: rootflowApi.listTrainingCertificates,
+  });
+}
+
+export function useTrainingCertificateVerificationQuery(code: string | null) {
+  return useQuery({
+    queryKey: code ? queryKeys.certificateVerification(code) : ["training-cert-verify", "none"],
+    queryFn: () => rootflowApi.verifyTrainingCertificate(code!),
+    enabled: Boolean(code),
+    retry: false,
+  });
+}
