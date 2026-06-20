@@ -2,6 +2,7 @@ import {
   Bot,
   CreditCard,
   FileOutput,
+  GraduationCap,
   LayoutDashboard,
   MessagesSquare,
   Settings2,
@@ -56,6 +57,14 @@ export const navigationItems = [
     icon: CreditCard,
     labelKey: "nav.billing",
     captionKey: "nav.billingCaption",
+    requiresPlatformAdmin: false,
+  },
+  {
+    id: "training",
+    to: "/training/manage",
+    icon: GraduationCap,
+    labelKey: "nav.training",
+    captionKey: "nav.trainingCaption",
     requiresPlatformAdmin: false,
   },
   {

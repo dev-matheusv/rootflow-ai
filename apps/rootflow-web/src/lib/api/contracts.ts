@@ -457,3 +457,178 @@ export interface ConversationSummary {
   messageCount: number;
   lastMessagePreview?: string | null;
 }
+
+// ── Training Mode ──────────────────────────────────────────────────────
+
+export type TrainingQuestionType = "SingleChoice" | "MultiChoice" | "TrueFalse";
+export type TrainingQuestionStatus = "Draft" | "Published";
+export type TrainingAttemptStatus = "InProgress" | "Passed" | "Failed";
+export type ConsumerModuleStatus = "NotStarted" | "InProgress" | "Failed" | "Passed";
+
+export interface TrainingProgramSummary {
+  id: string;
+  workspaceId: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  passingScore: number;
+  isPublished: boolean;
+  createdByUserId: string;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface TrainingModuleSummary {
+  id: string;
+  programId: string;
+  orderIndex: number;
+  title: string;
+  description?: string | null;
+  sourceDocumentIds: string[];
+  questionCount: number;
+  publishedQuestionCount: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface TrainingProgramDetail {
+  program: TrainingProgramSummary;
+  modules: TrainingModuleSummary[];
+}
+
+export interface TrainingQuestion {
+  id: string;
+  moduleId: string;
+  orderIndex: number;
+  prompt: string;
+  type: TrainingQuestionType;
+  options: string[];
+  correctAnswerIndices: number[];
+  explanation?: string | null;
+  sourceDocumentId?: string | null;
+  sourceChunkId?: string | null;
+  status: TrainingQuestionStatus;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface CreateTrainingProgramPayload {
+  name: string;
+  slug?: string | null;
+  description?: string | null;
+}
+
+export interface UpdateTrainingProgramPayload {
+  name: string;
+  description?: string | null;
+  passingScore: number;
+}
+
+export interface AddTrainingModulePayload {
+  title: string;
+  description?: string | null;
+  orderIndex: number;
+  sourceDocumentIds: string[];
+}
+
+export interface UpdateTrainingModulePayload {
+  title: string;
+  description?: string | null;
+  orderIndex: number;
+  sourceDocumentIds: string[];
+}
+
+export interface GenerateTrainingQuizPayload {
+  questionCount: number;
+}
+
+export interface UpdateTrainingQuestionPayload {
+  prompt: string;
+  type: TrainingQuestionType;
+  options: string[];
+  correctAnswerIndices: number[];
+  explanation?: string | null;
+}
+
+// Consumer views (no correctAnswerIndices)
+export interface AvailableTrainingProgram {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  passingScore: number;
+  moduleCount: number;
+  passedModuleCount: number;
+  updatedAtUtc: string;
+}
+
+export interface ConsumerModule {
+  id: string;
+  orderIndex: number;
+  title: string;
+  description?: string | null;
+  questionCount: number;
+  status: ConsumerModuleStatus;
+  latestScore?: number | null;
+  lastAttemptedAtUtc?: string | null;
+}
+
+export interface AvailableTrainingProgramDetail {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  passingScore: number;
+  modules: ConsumerModule[];
+}
+
+export interface ConsumerQuestion {
+  id: string;
+  orderIndex: number;
+  prompt: string;
+  type: TrainingQuestionType;
+  options: string[];
+}
+
+export interface StartAttemptResult {
+  attemptId: string;
+  moduleId: string;
+  passingScore: number;
+  startedAtUtc: string;
+  questions: ConsumerQuestion[];
+}
+
+export interface SubmitTrainingAnswerPayload {
+  questionId: string;
+  selectedIndices: number[];
+}
+
+export interface AttemptResult {
+  attemptId: string;
+  moduleId: string;
+  programId: string;
+  status: TrainingAttemptStatus;
+  score: number;
+  passingScore: number;
+  completedAtUtc?: string | null;
+  correctAnswerCount: number;
+  totalQuestionCount: number;
+}
+
+export interface TrainingCertificateSummary {
+  id: string;
+  programId: string;
+  programName: string;
+  issuedAtUtc: string;
+  code: string;
+  verificationUrl: string;
+}
+
+export interface PublicCertificateVerification {
+  isValid: boolean;
+  employeeName?: string | null;
+  programName?: string | null;
+  workspaceName?: string | null;
+  issuedAtUtc?: string | null;
+  code?: string | null;
+}

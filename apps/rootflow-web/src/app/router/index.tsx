@@ -19,6 +19,8 @@ import { DashboardPage } from "@/features/dashboard/page";
 import { KnowledgeBasePage } from "@/features/knowledge-base/page";
 import { LandingPage } from "@/features/landing/landing-page";
 import { SettingsPage } from "@/features/settings/page";
+import { TrainingAdminEditPage } from "@/features/training/admin-edit-page";
+import { TrainingAdminListPage } from "@/features/training/admin-list-page";
 
 export const router = createBrowserRouter([
   // Public landing page
@@ -93,6 +95,22 @@ export const router = createBrowserRouter([
         handle: {
           title: "Conversations",
           subtitle: "Readable answer trails and session history designed for business teams.",
+        },
+      },
+      {
+        path: "training/manage",
+        element: <TrainingAdminListPage />,
+        handle: {
+          title: "Treinamentos",
+          subtitle: "Crie e gerencie programas de treinamento do workspace.",
+        },
+      },
+      {
+        path: "training/manage/:programId",
+        element: <TrainingAdminEditPage />,
+        handle: {
+          title: "Editar programa",
+          subtitle: "Módulos, perguntas e publicação.",
         },
       },
       {

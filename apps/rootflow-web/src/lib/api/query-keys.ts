@@ -10,4 +10,7 @@ export const queryKeys = {
   conversation: (conversationId: string) => ["conversation", conversationId] as const,
   documentTemplates: ["document-templates"] as const,
   documentTemplate: (templateId: string) => ["document-template", templateId] as const,
+  trainingPrograms: ["training-programs"] as const,
+  trainingProgram: (programId: string) => ["training-program", programId] as const,
+  trainingModuleQuestions: (moduleId: string) => ["training-module-questions", moduleId] as const,
 };
