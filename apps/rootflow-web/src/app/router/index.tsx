@@ -21,6 +21,11 @@ import { LandingPage } from "@/features/landing/landing-page";
 import { SettingsPage } from "@/features/settings/page";
 import { TrainingAdminEditPage } from "@/features/training/admin-edit-page";
 import { TrainingAdminListPage } from "@/features/training/admin-list-page";
+import { TrainingCertificatesPage } from "@/features/training/certificates-page";
+import { TrainingEmployeeDetailPage } from "@/features/training/employee-detail-page";
+import { TrainingEmployeeListPage } from "@/features/training/employee-list-page";
+import { TrainingQuizAttemptPage } from "@/features/training/quiz-attempt-page";
+import { TrainingVerifyPage } from "@/features/training/verify-page";
 
 export const router = createBrowserRouter([
   // Public landing page
@@ -98,10 +103,42 @@ export const router = createBrowserRouter([
         },
       },
       {
+        path: "training",
+        element: <TrainingEmployeeListPage />,
+        handle: {
+          title: "Treinamentos",
+          subtitle: "Programas disponíveis e meu progresso.",
+        },
+      },
+      {
+        path: "training/programs/:programId",
+        element: <TrainingEmployeeDetailPage />,
+        handle: {
+          title: "Programa de treinamento",
+          subtitle: "Módulos e progresso.",
+        },
+      },
+      {
+        path: "training/programs/:programId/modules/:moduleId/attempt",
+        element: <TrainingQuizAttemptPage />,
+        handle: {
+          title: "Quiz",
+          subtitle: "Responda e finalize pra ver seu score.",
+        },
+      },
+      {
+        path: "training/certificates",
+        element: <TrainingCertificatesPage />,
+        handle: {
+          title: "Certificados",
+          subtitle: "Programas concluídos.",
+        },
+      },
+      {
         path: "training/manage",
         element: <TrainingAdminListPage />,
         handle: {
-          title: "Treinamentos",
+          title: "Gerenciar treinamentos",
           subtitle: "Crie e gerencie programas de treinamento do workspace.",
         },
       },
@@ -132,6 +169,12 @@ export const router = createBrowserRouter([
         <ConversationPrintPage />
       </RequireAuth>
     ),
+  },
+
+  // Public certificate verification (no auth, no shell)
+  {
+    path: "/verify/:code",
+    element: <TrainingVerifyPage />,
   },
 
   // Auth routes (redirect if already authenticated)

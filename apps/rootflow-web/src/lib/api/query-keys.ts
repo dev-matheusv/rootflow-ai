@@ -13,4 +13,9 @@ export const queryKeys = {
   trainingPrograms: ["training-programs"] as const,
   trainingProgram: (programId: string) => ["training-program", programId] as const,
   trainingModuleQuestions: (moduleId: string) => ["training-module-questions", moduleId] as const,
+  availableTrainingPrograms: ["available-training-programs"] as const,
+  availableTrainingProgram: (programId: string) => ["available-training-program", programId] as const,
+  trainingAttempt: (attemptId: string) => ["training-attempt", attemptId] as const,
+  trainingCertificates: ["training-certificates"] as const,
+  certificateVerification: (code: string) => ["training-cert-verify", code] as const,
 };

@@ -61,7 +61,7 @@ export const navigationItems = [
   },
   {
     id: "training",
-    to: "/training/manage",
+    to: "/training",
     icon: GraduationCap,
     labelKey: "nav.training",
     captionKey: "nav.trainingCaption",
