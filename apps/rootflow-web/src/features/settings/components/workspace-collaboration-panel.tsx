@@ -1,4 +1,4 @@
-import { Clock3, MailPlus, ShieldCheck } from "lucide-react";
+import { Clock3, MailPlus, ShieldCheck, UserMinus } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { useI18n } from "@/app/providers/i18n-provider";
@@ -7,12 +7,27 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/features/auth/auth-provider";
-import { useInviteWorkspaceMemberMutation, useWorkspaceMembersQuery } from "@/hooks/use-rootflow-data";
-import type { WorkspaceRole } from "@/lib/api/contracts";
+import {
+  useChangeWorkspaceMemberRoleMutation,
+  useInviteWorkspaceMemberMutation,
+  useRemoveWorkspaceMemberMutation,
+  useWorkspaceMembersQuery,
+} from "@/hooks/use-rootflow-data";
+import type { WorkspaceMember, WorkspaceRole } from "@/lib/api/contracts";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
-const inviteRoles: WorkspaceRole[] = ["Member", "Admin", "Owner"];
+// RF-11: the owner role is never granted by invite, and admins invite members only (enforced by the API too).
+function getInviteRoles(currentRole: WorkspaceRole): WorkspaceRole[] {
+  return currentRole === "Owner" ? ["Member", "Admin"] : ["Member"];
+}
+
+// Mirrors the API rules: nobody manages themselves or the owner; admins manage members only.
+function canManageMember(currentRole: WorkspaceRole, member: WorkspaceMember): boolean {
+  if (member.isCurrentUser || member.role === "Owner") return false;
+  if (currentRole === "Owner") return true;
+  return currentRole === "Admin" && member.role === "Member";
+}
 
 export function WorkspaceCollaborationPanel() {
   const { intlLocale, t } = useI18n();
@@ -22,6 +37,12 @@ export function WorkspaceCollaborationPanel() {
   const canInvite = currentRole === "Owner" || currentRole === "Admin";
   const membersQuery = useWorkspaceMembersQuery(workspaceId);
   const inviteMutation = useInviteWorkspaceMemberMutation(workspaceId);
+  const changeRoleMutation = useChangeWorkspaceMemberRoleMutation(workspaceId);
+  const removeMutation = useRemoveWorkspaceMemberMutation(workspaceId);
+  const inviteRoles = getInviteRoles(currentRole);
+  const [memberActionError, setMemberActionError] = useState<string | null>(null);
+  const [memberActionNotice, setMemberActionNotice] = useState<string | null>(null);
+  const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<WorkspaceRole>("Member");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -32,6 +53,34 @@ export function WorkspaceCollaborationPanel() {
       : currentRole === "Admin"
         ? t("common.labels.admin")
         : t("common.labels.member");
+
+  async function handleChangeRole(member: WorkspaceMember, nextRole: WorkspaceRole) {
+    setMemberActionError(null);
+    setMemberActionNotice(null);
+    setPendingMemberId(member.userId);
+    try {
+      await changeRoleMutation.mutateAsync({ userId: member.userId, role: nextRole });
+    } catch (error) {
+      setMemberActionError(error instanceof ApiError ? error.message : t("settings.memberActionErrorFallback"));
+    } finally {
+      setPendingMemberId(null);
+    }
+  }
+
+  async function handleRemove(member: WorkspaceMember) {
+    if (!window.confirm(t("settings.removeMemberConfirm", { name: member.fullName }))) return;
+    setMemberActionError(null);
+    setMemberActionNotice(null);
+    setPendingMemberId(member.userId);
+    try {
+      await removeMutation.mutateAsync(member.userId);
+      setMemberActionNotice(t("settings.memberRemoved", { name: member.fullName }));
+    } catch (error) {
+      setMemberActionError(error instanceof ApiError ? error.message : t("settings.memberActionErrorFallback"));
+    } finally {
+      setPendingMemberId(null);
+    }
+  }
 
   async function handleInviteSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -161,6 +210,16 @@ export function WorkspaceCollaborationPanel() {
               </div>
             ) : membersQuery.data && membersQuery.data.length > 0 ? (
               <div className="space-y-3">
+                {memberActionError ? (
+                  <div className="rounded-[22px] border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+                    {memberActionError}
+                  </div>
+                ) : null}
+                {memberActionNotice ? (
+                  <div className="rounded-[22px] border border-primary/18 bg-primary/8 px-4 py-3 text-sm text-muted-foreground">
+                    {memberActionNotice}
+                  </div>
+                ) : null}
                 {membersQuery.data.map((member) => (
                   <div
                     key={member.userId}
@@ -179,6 +238,32 @@ export function WorkspaceCollaborationPanel() {
                         {member.role === "Owner" ? t("common.labels.owner") : member.role === "Admin" ? t("common.labels.admin") : t("common.labels.member")}
                       </Badge>
                       <div className="text-xs text-muted-foreground">{t("common.labels.joined", { date: new Date(member.createdAtUtc).toLocaleDateString(intlLocale) })}</div>
+                      {canManageMember(currentRole, member) ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {currentRole === "Owner" ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={pendingMemberId === member.userId}
+                              onClick={() => handleChangeRole(member, member.role === "Admin" ? "Member" : "Admin")}
+                            >
+                              {member.role === "Admin" ? t("settings.makeMember") : t("settings.makeAdmin")}
+                            </Button>
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            disabled={pendingMemberId === member.userId}
+                            onClick={() => handleRemove(member)}
+                          >
+                            <UserMinus />
+                            {t("settings.removeMember")}
+                          </Button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 ))}

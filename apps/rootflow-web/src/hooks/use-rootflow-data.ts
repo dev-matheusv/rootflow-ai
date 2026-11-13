@@ -16,6 +16,7 @@ import type {
   UpdateTrainingProgramPayload,
   UpdateTrainingQuestionPayload,
   UploadDocumentPayload,
+  WorkspaceRole,
 } from "@/lib/api/contracts";
 import { rootflowApi } from "@/lib/api/rootflow-api";
 import { queryKeys } from "@/lib/api/query-keys";
@@ -130,6 +131,31 @@ export function useConversationsQuery() {
   return useQuery({
     queryKey: queryKeys.conversations,
     queryFn: rootflowApi.listConversations,
+  });
+}
+
+export function useChangeWorkspaceMemberRoleMutation(workspaceId?: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: WorkspaceRole }) =>
+      rootflowApi.changeWorkspaceMemberRole(workspaceId!, userId, role),
+    onSuccess: async () => {
+      if (workspaceId) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceMembers(workspaceId) });
+      }
+    },
+  });
+}
+
+export function useRemoveWorkspaceMemberMutation(workspaceId?: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => rootflowApi.removeWorkspaceMember(workspaceId!, userId),
+    onSuccess: async () => {
+      if (workspaceId) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceMembers(workspaceId) });
+      }
+    },
   });
 }
 

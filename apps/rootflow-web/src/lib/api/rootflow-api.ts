@@ -54,6 +54,7 @@ import type {
   AttemptResult,
   TrainingCertificateSummary,
   PublicCertificateVerification,
+  WorkspaceRole,
 } from "@/lib/api/contracts";
 import { apiRequest, apiRequestBlob } from "@/lib/api/client";
 
@@ -164,6 +165,19 @@ export const rootflowApi = {
       body: JSON.stringify(payload),
     }),
   listWorkspaceMembers: (workspaceId: string) => apiRequest<WorkspaceMember[]>(`/api/workspaces/${workspaceId}/members`),
+  changeWorkspaceMemberRole: (workspaceId: string, userId: string, role: WorkspaceRole) =>
+    apiRequest<WorkspaceMember>(`/api/workspaces/${workspaceId}/members/${userId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ role }),
+    }),
+  removeWorkspaceMember: (workspaceId: string, userId: string) =>
+    apiRequest<void>(`/api/workspaces/${workspaceId}/members/${userId}`, {
+      method: "DELETE",
+      parseAs: "none",
+    }),
   listDocuments: () => apiRequest<DocumentSummary[]>("/api/documents"),
   listConversations: () => apiRequest<ConversationSummary[]>("/api/conversations"),
   uploadDocument: async ({ file }: UploadDocumentPayload) => {
