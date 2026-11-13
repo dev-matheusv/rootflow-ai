@@ -234,6 +234,19 @@ app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
+// RF-10: every checkout path rejects contract-only offers with SalesLedOfferException; answer 403 in one place.
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next(context);
+    }
+    catch (SalesLedOfferException exception) when (!context.Response.HasStarted)
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsJsonAsync(new { error = exception.Message, code = "contract_only" });
+    }
+});
 // Skip rate limiting in integration tests — they spin up many users from a single
 // loopback IP and would otherwise trip the auth_anonymous limit.
 if (!app.Environment.IsEnvironment("IntegrationTesting"))
@@ -444,24 +457,35 @@ auth.MapPost("/reset-password", async (
 });
 
 billing.MapGet("/plans", async (
+    ClaimsPrincipal user,
     WorkspaceBillingService workspaceBillingService,
     StripeBillingOptions stripeBillingOptions,
+    SalesLedCatalog salesLedCatalog,
     CancellationToken cancellationToken) =>
 {
     var plans = await workspaceBillingService.ListPlansAsync(
         new ListBillingPlansQuery(),
         cancellationToken);
 
-    return Results.Ok(plans.Select(plan => plan.ToResponse(
+    // RF-10: contract-only plans (Enterprise) are hidden unless this workspace signed for them.
+    var workspaceId = user.GetRequiredWorkspaceId();
+    return Results.Ok(plans
+        .Where(plan => salesLedCatalog.IsPlanAvailableTo(workspaceId, plan.Code))
+        .Select(plan => plan.ToResponse(
         ResolveStripePlanPriceId(stripeBillingOptions, plan.Code))));
 });
 
 billing.MapGet("/credit-packs", async (
+    ClaimsPrincipal user,
     WorkspacePaymentService workspacePaymentService,
+    SalesLedCatalog salesLedCatalog,
     CancellationToken cancellationToken) =>
 {
     var creditPacks = await workspacePaymentService.ListCreditPacksAsync(cancellationToken);
-    return Results.Ok(creditPacks.Select(creditPack => creditPack.ToResponse()));
+    var workspaceId = user.GetRequiredWorkspaceId();
+    return Results.Ok(creditPacks
+        .Where(creditPack => salesLedCatalog.IsCreditPackAvailableTo(workspaceId, creditPack.Code))
+        .Select(creditPack => creditPack.ToResponse()));
 });
 
 admin.MapGet("/dashboard", async (

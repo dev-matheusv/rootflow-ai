@@ -24,6 +24,7 @@ public sealed class WorkspacePaymentService
     private readonly IClock _clock;
     private readonly StripeBillingOptions _stripeOptions;
     private readonly ILogger<WorkspacePaymentService> _logger;
+    private readonly SalesLedCatalog _salesLedCatalog;
 
     public WorkspacePaymentService(
         IWorkspaceRepository workspaceRepository,
@@ -35,8 +36,10 @@ public sealed class WorkspacePaymentService
         IStripePaymentGateway stripePaymentGateway,
         IClock clock,
         StripeBillingOptions stripeOptions,
-        ILogger<WorkspacePaymentService> logger)
+        ILogger<WorkspacePaymentService> logger,
+        SalesLedCatalog? salesLedCatalog = null)
     {
+        _salesLedCatalog = salesLedCatalog ?? new SalesLedCatalog(new SalesLedCatalogOptions());
         _workspaceRepository = workspaceRepository;
         _workspaceMembershipRepository = workspaceMembershipRepository;
         _billingPlanRepository = billingPlanRepository;
@@ -172,6 +175,11 @@ public sealed class WorkspacePaymentService
         string cancelUrl,
         CancellationToken cancellationToken)
     {
+        if (!_salesLedCatalog.IsPlanAvailableTo(workspaceId, planCode))
+        {
+            throw new SalesLedOfferException();
+        }
+
         await EnsureWorkspaceExistsAsync(workspaceId, cancellationToken);
         await _workspaceBillingService.EnsureTrialProvisionedAsync(workspaceId, cancellationToken);
 
@@ -242,6 +250,11 @@ public sealed class WorkspacePaymentService
         string cancelUrl,
         CancellationToken cancellationToken)
     {
+        if (!_salesLedCatalog.IsCreditPackAvailableTo(workspaceId, creditPackCode))
+        {
+            throw new SalesLedOfferException();
+        }
+
         await EnsureWorkspaceExistsAsync(workspaceId, cancellationToken);
         await _workspaceBillingService.EnsureTrialProvisionedAsync(workspaceId, cancellationToken);
 
