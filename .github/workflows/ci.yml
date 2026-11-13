@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - develop
   pull_request:
 
 # Cancel stale runs when a newer commit lands on the same PR/branch.
