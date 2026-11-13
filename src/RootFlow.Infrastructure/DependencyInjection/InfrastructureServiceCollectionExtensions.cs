@@ -220,6 +220,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IWorkspaceBillingRepository, PostgresWorkspaceBillingRepository>();
         services.AddScoped<IWorkspaceInvitationRepository, PostgresWorkspaceInvitationRepository>();
         services.AddScoped<IWorkspaceMembershipRepository, PostgresWorkspaceMembershipRepository>();
+        services.AddScoped<IWorkspaceAccessValidator, PostgresWorkspaceAccessValidator>();
         services.AddScoped<IWorkspaceRepository, PostgresWorkspaceRepository>();
         services.AddScoped<IKnowledgeDocumentRepository, PostgresKnowledgeDocumentRepository>();
         services.AddScoped<IDocumentChunkRepository, PostgresDocumentChunkRepository>();

@@ -62,6 +62,18 @@ public sealed class WorkspaceCollaborationService
             throw new WorkspaceAccessDeniedException("Only workspace owners and admins can send invites.");
         }
 
+        // RF-11: an invite never grants more power than the inviter has. Owner is never granted by invite
+        // (ownership transfer is a separate flow), and Admins can only invite Members.
+        if (command.Role == WorkspaceRole.Owner)
+        {
+            throw new WorkspaceAccessDeniedException("The owner role cannot be granted by invite.");
+        }
+
+        if (inviterMembership.Role == WorkspaceRole.Admin && command.Role != WorkspaceRole.Member)
+        {
+            throw new WorkspaceAccessDeniedException("Admins can only invite members.");
+        }
+
         var workspace = await _workspaceRepository.GetByIdAsync(command.WorkspaceId, cancellationToken);
         if (workspace is null || !workspace.IsActive)
         {
@@ -331,6 +343,100 @@ public sealed class WorkspaceCollaborationService
                 member.CreatedAtUtc,
                 member.UserId == query.CurrentUserId))
             .ToArray();
+    }
+
+    /// <summary>
+    /// Changes the role of another member. Rules:
+    /// only Owner and Admin manage members; nobody changes their own role;
+    /// the Owner role is never granted or taken here (ownership transfer is a separate flow);
+    /// an Admin manages Members only, an Owner manages Admins and Members.
+    /// </summary>
+    public async Task<WorkspaceMemberDto> ChangeMemberRoleAsync(
+        ChangeWorkspaceMemberRoleCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.Role == WorkspaceRole.Owner)
+        {
+            throw new WorkspaceAccessDeniedException("The owner role cannot be assigned here.");
+        }
+
+        var target = await RequireManageableMemberAsync(
+            command.WorkspaceId,
+            command.ActorUserId,
+            command.TargetUserId,
+            cancellationToken);
+
+        if (target.Role != command.Role)
+        {
+            target.ChangeRole(command.Role);
+            await _workspaceMembershipRepository.UpdateAsync(target, cancellationToken);
+        }
+
+        var members = await _workspaceMembershipRepository.ListByWorkspaceAsync(command.WorkspaceId, cancellationToken);
+        var record = members.Single(member => member.UserId == command.TargetUserId);
+
+        return new WorkspaceMemberDto(
+            record.UserId,
+            record.FullName,
+            record.Email,
+            target.Role,
+            record.CreatedAtUtc,
+            false);
+    }
+
+    /// <summary>
+    /// Removes another member from the workspace. The membership is deactivated, not deleted,
+    /// so history (conversations, attempts, audit) keeps a valid reference. Access ends on the
+    /// next request because the API revalidates the membership on every authenticated call.
+    /// </summary>
+    public async Task RemoveMemberAsync(
+        RemoveWorkspaceMemberCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var target = await RequireManageableMemberAsync(
+            command.WorkspaceId,
+            command.ActorUserId,
+            command.TargetUserId,
+            cancellationToken);
+
+        target.Deactivate();
+        await _workspaceMembershipRepository.UpdateAsync(target, cancellationToken);
+    }
+
+    private async Task<WorkspaceMembership> RequireManageableMemberAsync(
+        Guid workspaceId,
+        Guid actorUserId,
+        Guid targetUserId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await RequireWorkspaceAccessAsync(workspaceId, actorUserId, cancellationToken);
+        if (actor.Role is not (WorkspaceRole.Owner or WorkspaceRole.Admin))
+        {
+            throw new WorkspaceAccessDeniedException("Only workspace owners and admins can manage members.");
+        }
+
+        if (actorUserId == targetUserId)
+        {
+            throw new WorkspaceAccessDeniedException("You cannot change your own membership.");
+        }
+
+        var target = await _workspaceMembershipRepository.GetAsync(workspaceId, targetUserId, cancellationToken);
+        if (target is null || !target.IsActive)
+        {
+            throw new WorkspaceMemberNotFoundException("That person is not a member of this workspace.");
+        }
+
+        if (target.Role == WorkspaceRole.Owner)
+        {
+            throw new WorkspaceAccessDeniedException("The workspace owner cannot be changed or removed.");
+        }
+
+        if (actor.Role == WorkspaceRole.Admin && target.Role != WorkspaceRole.Member)
+        {
+            throw new WorkspaceAccessDeniedException("Admins can only manage members.");
+        }
+
+        return target;
     }
 
     private async Task<WorkspaceMembership> RequireWorkspaceAccessAsync(

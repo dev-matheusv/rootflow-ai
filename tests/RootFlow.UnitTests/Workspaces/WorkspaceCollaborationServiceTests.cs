@@ -207,6 +207,215 @@ public sealed class WorkspaceCollaborationServiceTests
         Assert.Empty(notifier.Notifications);
     }
 
+    // RF-11: member management rules.
+
+    [Fact]
+    public async Task RemoveMemberAsync_OwnerRemovesMember_DeactivatesMembership()
+    {
+        var team = MemberTeam.Create();
+
+        await team.Service.RemoveMemberAsync(new RemoveWorkspaceMemberCommand(team.WorkspaceId, team.Owner.UserId, team.Member.UserId));
+
+        Assert.False(team.Member.IsActive);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_AdminRemovesMember_DeactivatesMembership()
+    {
+        var team = MemberTeam.Create();
+
+        await team.Service.RemoveMemberAsync(new RemoveWorkspaceMemberCommand(team.WorkspaceId, team.Admin.UserId, team.Member.UserId));
+
+        Assert.False(team.Member.IsActive);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_AdminRemovesAdmin_IsDenied()
+    {
+        var team = MemberTeam.Create(extraAdmin: true);
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.RemoveMemberAsync(new RemoveWorkspaceMemberCommand(team.WorkspaceId, team.Admin.UserId, team.ExtraAdmin!.UserId)));
+
+        Assert.True(team.ExtraAdmin!.IsActive);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_OwnerCannotBeRemoved()
+    {
+        var team = MemberTeam.Create();
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.RemoveMemberAsync(new RemoveWorkspaceMemberCommand(team.WorkspaceId, team.Admin.UserId, team.Owner.UserId)));
+
+        Assert.True(team.Owner.IsActive);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_SelfRemoval_IsDenied()
+    {
+        var team = MemberTeam.Create();
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.RemoveMemberAsync(new RemoveWorkspaceMemberCommand(team.WorkspaceId, team.Admin.UserId, team.Admin.UserId)));
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_MemberCannotManage()
+    {
+        var team = MemberTeam.Create(extraMember: true);
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.RemoveMemberAsync(new RemoveWorkspaceMemberCommand(team.WorkspaceId, team.Member.UserId, team.ExtraMember!.UserId)));
+
+        Assert.True(team.ExtraMember!.IsActive);
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_RemovedMemberCannotManageAnymore()
+    {
+        var team = MemberTeam.Create();
+        await team.Service.RemoveMemberAsync(new RemoveWorkspaceMemberCommand(team.WorkspaceId, team.Owner.UserId, team.Admin.UserId));
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.RemoveMemberAsync(new RemoveWorkspaceMemberCommand(team.WorkspaceId, team.Admin.UserId, team.Member.UserId)));
+    }
+
+    [Fact]
+    public async Task RemoveMemberAsync_UnknownMember_ThrowsNotFound()
+    {
+        var team = MemberTeam.Create();
+
+        await Assert.ThrowsAsync<WorkspaceMemberNotFoundException>(() =>
+            team.Service.RemoveMemberAsync(new RemoveWorkspaceMemberCommand(team.WorkspaceId, team.Owner.UserId, Guid.NewGuid())));
+    }
+
+    [Fact]
+    public async Task ChangeMemberRoleAsync_OwnerPromotesMemberToAdmin()
+    {
+        var team = MemberTeam.Create();
+
+        var result = await team.Service.ChangeMemberRoleAsync(
+            new ChangeWorkspaceMemberRoleCommand(team.WorkspaceId, team.Owner.UserId, team.Member.UserId, WorkspaceRole.Admin));
+
+        Assert.Equal(WorkspaceRole.Admin, result.Role);
+        Assert.Equal(WorkspaceRole.Admin, team.Member.Role);
+    }
+
+    [Fact]
+    public async Task ChangeMemberRoleAsync_OwnerDemotesAdmin()
+    {
+        var team = MemberTeam.Create();
+
+        await team.Service.ChangeMemberRoleAsync(
+            new ChangeWorkspaceMemberRoleCommand(team.WorkspaceId, team.Owner.UserId, team.Admin.UserId, WorkspaceRole.Member));
+
+        Assert.Equal(WorkspaceRole.Member, team.Admin.Role);
+    }
+
+    [Fact]
+    public async Task ChangeMemberRoleAsync_AdminDemotesAdmin_IsDenied()
+    {
+        var team = MemberTeam.Create(extraAdmin: true);
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.ChangeMemberRoleAsync(
+                new ChangeWorkspaceMemberRoleCommand(team.WorkspaceId, team.Admin.UserId, team.ExtraAdmin!.UserId, WorkspaceRole.Member)));
+
+        Assert.Equal(WorkspaceRole.Admin, team.ExtraAdmin!.Role);
+    }
+
+    [Fact]
+    public async Task ChangeMemberRoleAsync_AssigningOwner_IsDenied()
+    {
+        var team = MemberTeam.Create();
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.ChangeMemberRoleAsync(
+                new ChangeWorkspaceMemberRoleCommand(team.WorkspaceId, team.Owner.UserId, team.Member.UserId, WorkspaceRole.Owner)));
+
+        Assert.Equal(WorkspaceRole.Member, team.Member.Role);
+    }
+
+    [Fact]
+    public async Task ChangeMemberRoleAsync_OwnerRoleCannotBeChanged()
+    {
+        var team = MemberTeam.Create();
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.ChangeMemberRoleAsync(
+                new ChangeWorkspaceMemberRoleCommand(team.WorkspaceId, team.Admin.UserId, team.Owner.UserId, WorkspaceRole.Member)));
+
+        Assert.Equal(WorkspaceRole.Owner, team.Owner.Role);
+    }
+
+    [Theory]
+    [InlineData(WorkspaceRole.Owner, WorkspaceRole.Owner)]
+    [InlineData(WorkspaceRole.Admin, WorkspaceRole.Owner)]
+    [InlineData(WorkspaceRole.Admin, WorkspaceRole.Admin)]
+    public async Task InviteAsync_CannotGrantMorePowerThanAllowed(WorkspaceRole inviterRole, WorkspaceRole invitedRole)
+    {
+        var team = MemberTeam.Create();
+        var inviter = inviterRole == WorkspaceRole.Owner ? team.Owner : team.Admin;
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.InviteAsync(new InviteWorkspaceMemberCommand(team.WorkspaceId, inviter.UserId, "new@rootflow.test", invitedRole)));
+    }
+
+    [Fact]
+    public async Task InviteAsync_AdminInvitesMember_IsAllowed()
+    {
+        var team = MemberTeam.Create();
+
+        var result = await team.Service.InviteAsync(
+            new InviteWorkspaceMemberCommand(team.WorkspaceId, team.Admin.UserId, "new@rootflow.test", WorkspaceRole.Member));
+
+        Assert.Equal(WorkspaceRole.Member, result.Role);
+    }
+
+    private sealed record MemberTeam(
+        WorkspaceCollaborationService Service,
+        Guid WorkspaceId,
+        WorkspaceMembership Owner,
+        WorkspaceMembership Admin,
+        WorkspaceMembership Member,
+        WorkspaceMembership? ExtraAdmin,
+        WorkspaceMembership? ExtraMember)
+    {
+        public static MemberTeam Create(bool extraAdmin = false, bool extraMember = false)
+        {
+            var clock = new FakeClock(new DateTime(2026, 11, 13, 12, 0, 0, DateTimeKind.Utc));
+            var authRepository = new FakeAuthRepository();
+            var workspaceRepository = new FakeWorkspaceRepository();
+            var membershipRepository = new FakeWorkspaceMembershipRepository();
+            var workspace = workspaceRepository.AddWorkspace("Acme Legal", "acme-legal", clock.UtcNow);
+
+            WorkspaceMembership Add(string email, WorkspaceRole role)
+            {
+                var account = authRepository.AddUser(email, email);
+                var membership = new WorkspaceMembership(Guid.NewGuid(), workspace.Id, account.Id, role, clock.UtcNow);
+                membershipRepository.AddExisting(membership);
+                return membership;
+            }
+
+            var owner = Add("owner@rootflow.test", WorkspaceRole.Owner);
+            var admin = Add("admin@rootflow.test", WorkspaceRole.Admin);
+            var member = Add("member@rootflow.test", WorkspaceRole.Member);
+            var secondAdmin = extraAdmin ? Add("admin2@rootflow.test", WorkspaceRole.Admin) : null;
+            var secondMember = extraMember ? Add("member2@rootflow.test", WorkspaceRole.Member) : null;
+
+            var service = CreateService(
+                authRepository,
+                workspaceRepository,
+                membershipRepository,
+                new FakeWorkspaceInvitationRepository(),
+                new FakeWorkspaceInvitationNotifier(),
+                clock);
+
+            return new MemberTeam(service, workspace.Id, owner, admin, member, secondAdmin, secondMember);
+        }
+    }
+
     private static WorkspaceCollaborationService CreateService(
         FakeAuthRepository authRepository,
         FakeWorkspaceRepository workspaceRepository,

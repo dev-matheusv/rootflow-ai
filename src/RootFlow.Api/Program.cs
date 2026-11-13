@@ -22,6 +22,7 @@ using RootFlow.Application.Billing.Queries;
 using RootFlow.Application.Auth.Commands;
 using RootFlow.Application.Abstractions.Documents;
 using RootFlow.Application.Abstractions.Persistence;
+using RootFlow.Application.Abstractions.Workspaces;
 using RootFlow.Application.Chat;
 using RootFlow.Application.Chat.Commands;
 using RootFlow.Application.DocumentTemplates;
@@ -116,6 +117,37 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = jwtOptions.Audience,
             IssuerSigningKey = JwtTokenGenerator.CreateSigningKey(jwtOptions.Key),
             ClockSkew = TimeSpan.FromMinutes(1)
+        };
+        // RF-11: the token lives for hours, so membership and role are revalidated on every request.
+        // A removed member loses access on the next call, and a role change applies immediately.
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                if (principal?.Identity is not ClaimsIdentity identity
+                    || !Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+                    || !Guid.TryParse(principal.FindFirstValue(RootFlowClaimTypes.WorkspaceId), out var workspaceId))
+                {
+                    context.Fail("Token is missing user or workspace claims.");
+                    return;
+                }
+
+                var validator = context.HttpContext.RequestServices.GetRequiredService<IWorkspaceAccessValidator>();
+                var currentRole = await validator.GetActiveRoleAsync(workspaceId, userId, context.HttpContext.RequestAborted);
+                if (currentRole is null)
+                {
+                    context.Fail("Workspace access was revoked.");
+                    return;
+                }
+
+                foreach (var roleClaim in identity.FindAll(ClaimTypes.Role).ToArray())
+                {
+                    identity.RemoveClaim(roleClaim);
+                }
+
+                identity.AddClaim(new Claim(ClaimTypes.Role, currentRole.Value.ToString()));
+            }
         };
     });
 builder.Services.AddAuthorization(options =>
@@ -1026,6 +1058,89 @@ workspaces.MapGet("/{workspaceId:guid}/members", async (
     catch (WorkspaceAccessDeniedException exception)
     {
         return Results.Json(new { error = exception.Message }, statusCode: StatusCodes.Status403Forbidden);
+    }
+});
+
+// RF-11: change a member's role (Owner/Admin only; rules in WorkspaceCollaborationService).
+workspaces.MapPatch("/{workspaceId:guid}/members/{memberUserId:guid}", async (
+    Guid workspaceId,
+    Guid memberUserId,
+    ChangeWorkspaceMemberRoleRequest request,
+    ClaimsPrincipal user,
+    WorkspaceCollaborationService workspaceCollaborationService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    if (user.GetRequiredWorkspaceId() != workspaceId)
+    {
+        return Results.Forbid();
+    }
+
+    if (!TryParseWorkspaceRole(request.Role, out var role))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["role"] = ["Role must be Admin or Member."]
+        });
+    }
+
+    try
+    {
+        var actorUserId = user.GetRequiredUserId();
+        var member = await workspaceCollaborationService.ChangeMemberRoleAsync(
+            new ChangeWorkspaceMemberRoleCommand(workspaceId, actorUserId, memberUserId, role),
+            cancellationToken);
+
+        logger.LogInformation(
+            "Workspace member role changed. WorkspaceId={WorkspaceId} ActorUserId={ActorUserId} MemberUserId={MemberUserId} Role={Role}",
+            workspaceId, actorUserId, memberUserId, role);
+
+        return Results.Ok(member.ToResponse());
+    }
+    catch (WorkspaceAccessDeniedException exception)
+    {
+        return Results.Json(new { error = exception.Message }, statusCode: StatusCodes.Status403Forbidden);
+    }
+    catch (WorkspaceMemberNotFoundException exception)
+    {
+        return Results.NotFound(new { error = exception.Message });
+    }
+});
+
+// RF-11: remove a member. Access ends on the member's next request (token revalidation).
+workspaces.MapDelete("/{workspaceId:guid}/members/{memberUserId:guid}", async (
+    Guid workspaceId,
+    Guid memberUserId,
+    ClaimsPrincipal user,
+    WorkspaceCollaborationService workspaceCollaborationService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    if (user.GetRequiredWorkspaceId() != workspaceId)
+    {
+        return Results.Forbid();
+    }
+
+    try
+    {
+        var actorUserId = user.GetRequiredUserId();
+        await workspaceCollaborationService.RemoveMemberAsync(
+            new RemoveWorkspaceMemberCommand(workspaceId, actorUserId, memberUserId),
+            cancellationToken);
+
+        logger.LogInformation(
+            "Workspace member removed. WorkspaceId={WorkspaceId} ActorUserId={ActorUserId} MemberUserId={MemberUserId}",
+            workspaceId, actorUserId, memberUserId);
+
+        return Results.NoContent();
+    }
+    catch (WorkspaceAccessDeniedException exception)
+    {
+        return Results.Json(new { error = exception.Message }, statusCode: StatusCodes.Status403Forbidden);
+    }
+    catch (WorkspaceMemberNotFoundException exception)
+    {
+        return Results.NotFound(new { error = exception.Message });
     }
 });
 
