@@ -119,8 +119,9 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
 
         var plans = await plansResponse.Content.ReadFromJsonAsync<List<BillingPlanResponse>>();
         Assert.NotNull(plans);
-        Assert.Equal(3, plans!.Count);
+        Assert.Equal(4, plans!.Count);
         Assert.Contains(plans, plan => string.Equals(plan.Code, "starter", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(plans, plan => string.Equals(plan.Code, "enterprise", StringComparison.OrdinalIgnoreCase));
 
         var summaryResponse = await client.GetAsync($"/api/workspaces/{session!.Workspace.Id}/billing/summary");
         summaryResponse.EnsureSuccessStatusCode();
