@@ -92,6 +92,7 @@ Por quê:
 | `Root.Ia.Documents` | Extração de PDF, DOCX, PPTX, XLSX, texto e imagem | PdfPig, OpenXml, ClosedXML |
 | `Root.Ia.Testing` | Implementações Fake determinísticas e testes de contrato que todo adaptador roda | xUnit |
 | `Root.Ia.Search.Postgres` (fase 2) | Busca híbrida com pgvector | Npgsql, Pgvector |
+| `Root.Ia.Knowledge` | Pacotes de conhecimento: carga, validação, ingestão idempotente, portões de segredo e dado pessoal (seção 4.6) | só o BCL |
 
 ## 4. Interface de cada peça
 
@@ -245,6 +246,39 @@ Mudanças em relação ao código atual do RootFlow:
 - **Busca semântica:** `ITextChunker`, `IVectorIndex` e a busca híbrida do `PostgresKnowledgeSearchService` em `Root.Ia.Search.Postgres`. O cortador de seções e o reordenador do MedlyCare entram como alternativas plugáveis. O `SemanticQueryExpander` (português e inglês) vira opção.
 - **RAG e chat:** montagem de contexto com citação e a regra "se não está nos documentos, diga que não encontrou".
 - **Ações com confirmação humana:** generalizar a proposta assinada de 15 minutos do MedlyCare (`ProposedAction` com assinatura HMAC e expiração). Nenhuma ferramenta que altera dados roda sem confirmação.
+
+### 4.6 Conhecimento padrão: a IA já nasce sabendo (card RF-33, pedido de 13/11/2026)
+
+Objetivo: no primeiro dia, a IA de cada produto já conhece o produto, o mercado e o que aprendemos, sem ninguém precisar subir documento.
+
+**Levantamento (13/11/2026):**
+
+| Origem | O que tem | Onde está | Já é usado pela IA? |
+|---|---|---|---|
+| RootBoost `knowledge/` | Playbook de copy, gatilhos, ganchos, checklist, limites e políticas por canal, formatos de vídeo, testes de anúncio, aprendizados por nicho (10 arquivos, 60 KB, validados por teste) | `C:\RootMark\knowledge` | Sim, pelo `FileKnowledgeBase` |
+| Fonte do conhecimento do RootBoost | Versão 1 em texto (anúncios, aprendizados, conferência, método de copy, persuasão, vídeo) | `Documents\RootBoost Conhecimento` | Indireto: já virou o `knowledge/` |
+| Docs do RootBoost | Visão geral, estúdio, publicação, Meta Ads, base de conhecimento, roadmap | `C:\RootMark\docs` | Não |
+| MedlyCare catálogo de funcionalidades | Como cada tela e fluxo do sistema funciona (250 linhas) | `Ia/Conhecimento/Fontes/funcionalidades.md` na branch da v14 | Sim, ingerido na subida da API (MC-384) |
+| Docs da IA do MedlyCare | Custos, LGPD, produção, desenho da v14 | `docs/ia-*.md` | Não (são para a equipe) |
+| RootFlow | Docs de produto e de treinamento | `C:\RootFlow\docs` | Não |
+| Notion, Jira, pastas de marketing | Decisões, cards, roteiros, relatórios de uso | Fora dos repositórios | Não |
+
+**Desenho: pacotes de conhecimento.** Cada produto tem um pacote versionado no próprio repositório, e o Root.IA oferece o mecanismo comum para carregar, validar e indexar.
+
+1. **Formato:** Markdown com cabeçalho (título, finalidade, data, origem, confiança, público: cliente ou equipe) e JSON quando for regra estruturada. É o modelo que o RootBoost já usa.
+2. **Mudança só por PR**, com o porquê. Teste que contradiz uma regra ganha da regra (regra do `knowledge/README.md` do RootBoost, vale para todos).
+3. **Ingestão na subida, idempotente:** só reindexa o que mudou (hash do trecho), em segundo plano, sem derrubar a API se falhar (modelo do MC-384).
+4. **Separado por produto e por público.** O pacote do MedlyCare nunca entra no RootBoost e vice versa. O que é para a equipe nunca vai para o cliente.
+5. **Portões de segurança no CI do pacote:** varredura de segredos (chave, token, senha, connection string), de dado pessoal (CPF, telefone, e-mail que não seja genérico) e de nome de cliente real. Pacote que falha não publica.
+
+**Código fonte, Notion e Jira: a IA aprende com eles, mas não lê direto.**
+
+- **Código fonte nunca vai para a IA do cliente.** Expõe como o sistema funciona por dentro, rotas, regras de permissão e, por engano, segredos. Em vez disso, a cada release um passo de "o que mudou" lê o código e os cards e **gera ou atualiza o catálogo de funcionalidades** em linguagem de usuário. Uma pessoa revisa no PR. É assim que a IA fica craque no produto sem ver o código.
+- **Notion e Jira entram curados, não despejados.** Card de Jira pode ter nome de cliente, print com dado de paciente e discussão interna. Só a decisão e o porquê viram conhecimento, reescritos de forma geral, como o `learnings.json` já faz.
+- **Pastas de marketing:** o que ensinou algo vira regra geral em `knowledge/`; o material do cliente fica no perfil da marca, no banco.
+- **Assistente da equipe (interno) é outra coisa.** Um assistente que lê código, docs e cards para ajudar a desenvolver pode existir, com acesso só da equipe, sem dado de cliente e sem dado de saúde. Hoje esse papel é do Claude Code com as memórias de cada projeto; não vale construir outro agora.
+
+**Ordem:** (1) mover o mecanismo de carga e validação do RootBoost para `Root.Ia.Knowledge`; (2) MedlyCare passa a usar o mesmo mecanismo para o `funcionalidades.md`; (3) RootFlow ganha o próprio catálogo (ajuda do produto dentro do chat); (4) gerador de "o que mudou" por release, com revisão humana; (5) portões de segredo e dado pessoal no CI dos três.
 
 ## 5. Ordem de migração
 
