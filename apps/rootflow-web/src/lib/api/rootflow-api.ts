@@ -179,6 +179,10 @@ export const rootflowApi = {
       parseAs: "none",
     }),
   listDocuments: () => apiRequest<DocumentSummary[]>("/api/documents"),
+  deleteDocument: (documentId: string) =>
+    apiRequest<void>(`/api/documents/${documentId}`, { method: "DELETE", parseAs: "none" }),
+  deleteConversation: (conversationId: string) =>
+    apiRequest<void>(`/api/conversations/${conversationId}`, { method: "DELETE", parseAs: "none" }),
   listConversations: () => apiRequest<ConversationSummary[]>("/api/conversations"),
   uploadDocument: async ({ file }: UploadDocumentPayload) => {
     const formData = new FormData();
