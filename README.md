@@ -21,7 +21,7 @@ This repository is focused on a practical MVP foundation, not a finished product
 
 ## Tech Stack
 
-- .NET 9
+- .NET 10 (LTS)
 - ASP.NET Core minimal API
 - PostgreSQL
 - pgvector
