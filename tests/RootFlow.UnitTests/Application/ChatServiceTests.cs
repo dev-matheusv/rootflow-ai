@@ -197,6 +197,15 @@ public sealed class ChatServiceTests
         private readonly Dictionary<Guid, Conversation> _conversations = [];
         private readonly Dictionary<Guid, List<ConversationMessage>> _messages = [];
 
+        public Task<bool> DeleteAsync(Guid workspaceId, Guid conversationId, CancellationToken cancellationToken = default)
+        {
+            var removed = _conversations.TryGetValue(conversationId, out var conversation)
+                && conversation.WorkspaceId == workspaceId
+                && _conversations.Remove(conversationId);
+            _messages.Remove(conversationId);
+            return Task.FromResult(removed);
+        }
+
         public int ConversationCount => _conversations.Count;
 
         public int TotalMessageCount => _messages.Values.Sum(static messages => messages.Count);

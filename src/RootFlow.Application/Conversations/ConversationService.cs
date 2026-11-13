@@ -13,6 +13,15 @@ public sealed class ConversationService
         _conversationRepository = conversationRepository;
     }
 
+    /// <summary>RF-12: deletes the conversation and its messages.</summary>
+    public Task<bool> DeleteAsync(
+        Guid workspaceId,
+        Guid conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        return _conversationRepository.DeleteAsync(workspaceId, conversationId, cancellationToken);
+    }
+
     public async Task<ConversationHistoryDto?> GetHistoryAsync(
         GetConversationHistoryQuery query,
         CancellationToken cancellationToken = default)
