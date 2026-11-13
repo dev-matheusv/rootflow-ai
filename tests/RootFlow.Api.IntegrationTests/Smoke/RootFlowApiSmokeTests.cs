@@ -119,9 +119,19 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
 
         var plans = await plansResponse.Content.ReadFromJsonAsync<List<BillingPlanResponse>>();
         Assert.NotNull(plans);
-        Assert.Equal(4, plans!.Count);
+        // RF-10: Enterprise is seeded but sold by contract, so a regular workspace never sees it.
+        Assert.Equal(3, plans!.Count);
         Assert.Contains(plans, plan => string.Equals(plan.Code, "starter", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(plans, plan => string.Equals(plan.Code, "enterprise", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(plans, plan => string.Equals(plan.Code, "enterprise", StringComparison.OrdinalIgnoreCase));
+
+        var creditPacks = await client.GetFromJsonAsync<List<System.Text.Json.JsonElement>>("/api/billing/credit-packs");
+        Assert.DoesNotContain(creditPacks!, pack => string.Equals(pack.GetProperty("code").GetString(), "enterprise", StringComparison.OrdinalIgnoreCase));
+
+        // ...and cannot buy it by self checkout, whichever checkout route is used.
+        var enterpriseCheckout = await client.PostAsJsonAsync("/api/billing/checkout/subscription", new { planCode = "enterprise" });
+        Assert.Equal(HttpStatusCode.Forbidden, enterpriseCheckout.StatusCode);
+        var enterprisePack = await client.PostAsJsonAsync("/api/billing/checkout/credits", new { creditPackCode = "enterprise" });
+        Assert.Equal(HttpStatusCode.Forbidden, enterprisePack.StatusCode);
 
         var summaryResponse = await client.GetAsync($"/api/workspaces/{session!.Workspace.Id}/billing/summary");
         summaryResponse.EnsureSuccessStatusCode();
