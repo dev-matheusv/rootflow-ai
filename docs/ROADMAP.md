@@ -1,6 +1,6 @@
 # RootFlow: roadmap
 
-Atualizado em 13/11/2026. Fonte da verdade do que falta fazer no RootFlow. Segue o formato do RootBoost (`C:\RootMark\docs\PLANO.md`) e o jeito de trabalhar do MedlyCare.
+Atualizado em 17/11/2026. Fonte da verdade do que falta fazer no RootFlow. Segue o formato do RootBoost (`C:\RootMark\docs\PLANO.md`) e o jeito de trabalhar do MedlyCare.
 
 Cards usam o prefixo **RF**. Cada card vira uma branch a partir da `develop` e um PR para ela. A `main` só recebe release (`develop` → `main`), que dispara o deploy.
 
@@ -32,6 +32,26 @@ Cards usam o prefixo **RF**. Cada card vira uma branch a partir da `develop` e u
 As 12 branches já mescladas (PRs #1 a #11) e dois worktrees antigos foram apagados. Os PRs continuam no GitHub, e cada branch pode ser restaurada pelo botão do PR.
 
 ---
+
+## 1.1 Andamento (17/11/2026)
+
+Na `develop`, esperando o release para produção:
+
+| Card | O que entrou | PR |
+|---|---|---|
+| RF-01 | .NET 10 LTS | #48 |
+| RF-10 | Enterprise só por contrato (inclui o antigo #12) | #53 |
+| RF-11 | Remover membro, mudar papel, acesso revalidado a cada requisição, convite sem escalar papel | #49 |
+| RF-12 | Apagar documento e conversa | #52 |
+| RF-18 | Conversa privada de quem começou | #54 |
+| RF-06 | Leitura de imagem desconta créditos | #55 |
+| RF-14 | Convite em lote | #56 |
+| RF-13 | Baixar meus dados e excluir minha conta | #57 |
+| RF-33 | Desenho dos pacotes de conhecimento do Root.IA | #50 |
+
+Decisões de 13/11 a 17/11: repositório volta a ser público até ter GitHub Pro (privado na conta gratuita bloqueou o CI); proteção da `main` recriada. Liberar o Enterprise para um cliente: `Billing__SalesLed__WorkspaceIds__0=<id do workspace>` no Railway.
+
+Pendente fora do código para o release: conferir o smoke depois do primeiro deploy em .NET 10 e a migração `202611170001_conversation_owner`.
 
 ## 2. Ondas
 
