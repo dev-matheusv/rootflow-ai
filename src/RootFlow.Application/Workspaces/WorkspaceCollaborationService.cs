@@ -150,6 +150,83 @@ public sealed class WorkspaceCollaborationService
             invitation.ExpiresAtUtc);
     }
 
+    /// <summary>Upper bound per request: protects the e-mail provider and keeps one call short.</summary>
+    public const int MaxBulkInvites = 200;
+
+    /// <summary>
+    /// RF-14: invites a list of people with the same role. Each address is handled on its own: one bad
+    /// address never blocks the others, and the result says what happened to each. Permission rules are
+    /// the same as a single invite (checked once up front, then again by InviteAsync).
+    /// </summary>
+    public async Task<BulkInviteResultDto> InviteManyAsync(
+        InviteWorkspaceMembersBulkCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.Emails.Count == 0)
+        {
+            throw new ArgumentException("At least one email is required.", nameof(command.Emails));
+        }
+
+        if (command.Emails.Count > MaxBulkInvites)
+        {
+            throw new ArgumentException($"At most {MaxBulkInvites} emails per request.", nameof(command.Emails));
+        }
+
+        // Fail fast on permission problems instead of returning N identical errors.
+        var inviterMembership = await RequireWorkspaceAccessAsync(command.WorkspaceId, command.InvitedByUserId, cancellationToken);
+        if (inviterMembership.Role is not (WorkspaceRole.Owner or WorkspaceRole.Admin))
+        {
+            throw new WorkspaceAccessDeniedException("Only workspace owners and admins can send invites.");
+        }
+
+        var items = new List<BulkInviteItemDto>(command.Emails.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var sent = 0;
+
+        foreach (var rawEmail in command.Emails)
+        {
+            var email = rawEmail?.Trim() ?? string.Empty;
+            if (email.Length == 0)
+            {
+                continue;
+            }
+
+            if (!seen.Add(email))
+            {
+                items.Add(new BulkInviteItemDto(email, "duplicate", null));
+                continue;
+            }
+
+            try
+            {
+                await InviteAsync(
+                    new InviteWorkspaceMemberCommand(command.WorkspaceId, command.InvitedByUserId, email, command.Role),
+                    cancellationToken);
+                items.Add(new BulkInviteItemDto(email, "sent", null));
+                sent++;
+            }
+            catch (ArgumentException)
+            {
+                items.Add(new BulkInviteItemDto(email, "invalid_email", "Email is invalid."));
+            }
+            catch (WorkspaceInviteConflictException exception)
+            {
+                items.Add(new BulkInviteItemDto(email, "already_member", exception.Message));
+            }
+            catch (WorkspaceAccessDeniedException)
+            {
+                throw;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // Delivery problems for one address (e.g. provider error) must not stop the batch.
+                items.Add(new BulkInviteItemDto(email, "failed", "The invite could not be sent. Try again later."));
+            }
+        }
+
+        return new BulkInviteResultDto(sent, items.Count - sent, items);
+    }
+
     public async Task<AuthSessionDto> AcceptInviteAsync(
         AcceptWorkspaceInviteCommand command,
         CancellationToken cancellationToken = default)

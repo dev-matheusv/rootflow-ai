@@ -17,6 +17,7 @@ import type {
   UpdateTrainingQuestionPayload,
   UploadDocumentPayload,
   WorkspaceRole,
+  BulkInviteWorkspaceMembersPayload,
 } from "@/lib/api/contracts";
 import { rootflowApi } from "@/lib/api/rootflow-api";
 import { queryKeys } from "@/lib/api/query-keys";
@@ -156,6 +157,12 @@ export function useRemoveWorkspaceMemberMutation(workspaceId?: string | null) {
         await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceMembers(workspaceId) });
       }
     },
+  });
+}
+
+export function useBulkInviteWorkspaceMembersMutation(workspaceId?: string | null) {
+  return useMutation({
+    mutationFn: (payload: BulkInviteWorkspaceMembersPayload) => rootflowApi.inviteWorkspaceMembersBulk(workspaceId!, payload),
   });
 }
 

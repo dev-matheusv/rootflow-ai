@@ -55,6 +55,8 @@ import type {
   TrainingCertificateSummary,
   PublicCertificateVerification,
   WorkspaceRole,
+  BulkInviteResult,
+  BulkInviteWorkspaceMembersPayload,
 } from "@/lib/api/contracts";
 import { apiRequest, apiRequestBlob } from "@/lib/api/client";
 
@@ -101,6 +103,14 @@ export const rootflowApi = {
     }),
   resetPassword: (payload: ResetPasswordPayload) =>
     apiRequest<MessageResponse>("/api/auth/reset-password", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }),
+  inviteWorkspaceMembersBulk: (workspaceId: string, payload: BulkInviteWorkspaceMembersPayload) =>
+    apiRequest<BulkInviteResult>(`/api/workspaces/${workspaceId}/invites/bulk`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

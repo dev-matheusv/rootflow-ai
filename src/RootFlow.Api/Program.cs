@@ -964,6 +964,53 @@ workspaces.MapPost("/{workspaceId:guid}/invites", async (
     }
 });
 
+// RF-14: bulk invite (paste a list). Same permission rules as a single invite; per-address result.
+workspaces.MapPost("/{workspaceId:guid}/invites/bulk", async (
+    Guid workspaceId,
+    BulkInviteWorkspaceMembersRequest request,
+    ClaimsPrincipal user,
+    WorkspaceCollaborationService workspaceCollaborationService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    if (user.GetRequiredWorkspaceId() != workspaceId)
+    {
+        return Results.Forbid();
+    }
+
+    if (!TryParseWorkspaceRole(request.Role, out var role))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["role"] = ["Role must be Admin or Member."]
+        });
+    }
+
+    try
+    {
+        var result = await workspaceCollaborationService.InviteManyAsync(
+            new InviteWorkspaceMembersBulkCommand(workspaceId, user.GetRequiredUserId(), request.Emails ?? [], role),
+            cancellationToken);
+
+        logger.LogInformation(
+            "Bulk invite processed. WorkspaceId={WorkspaceId} Sent={Sent} Skipped={Skipped}",
+            workspaceId, result.Sent, result.Skipped);
+
+        return Results.Ok(result);
+    }
+    catch (WorkspaceAccessDeniedException exception)
+    {
+        return Results.Json(new { error = exception.Message }, statusCode: StatusCodes.Status403Forbidden);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["emails"] = [exception.Message]
+        });
+    }
+}).RequireRateLimiting("billing_authenticated");
+
 workspaces.MapPost("/invites/accept", async (
     AcceptWorkspaceInviteRequest request,
     ClaimsPrincipal user,
