@@ -1,3 +1,5 @@
+using RootFlow.Application.Billing.Commands;
+using RootFlow.Application.Billing;
 using RootFlow.Application.Abstractions.AI;
 using RootFlow.Application.Abstractions.Documents;
 using RootFlow.Application.Abstractions.Persistence;
@@ -19,6 +21,7 @@ public sealed class DocumentService
     private readonly ITextChunker _textChunker;
     private readonly IEmbeddingService _embeddingService;
     private readonly IClock _clock;
+    private readonly WorkspaceBillingService _workspaceBillingService;
 
     public DocumentService(
         IWorkspaceRepository workspaceRepository,
@@ -28,8 +31,10 @@ public sealed class DocumentService
         IDocumentTextExtractor textExtractor,
         ITextChunker textChunker,
         IEmbeddingService embeddingService,
-        IClock clock)
+        IClock clock,
+        WorkspaceBillingService workspaceBillingService)
     {
+        _workspaceBillingService = workspaceBillingService;
         _workspaceRepository = workspaceRepository;
         _documentRepository = documentRepository;
         _chunkRepository = chunkRepository;
@@ -72,7 +77,28 @@ public sealed class DocumentService
             document.MarkProcessing();
             await _documentRepository.UpdateAsync(document, cancellationToken);
 
-            var extractedText = await _textExtractor.ExtractTextAsync(storedFile, cancellationToken);
+            // RF-06: reading an image calls an AI model. Check credits before and charge after, like the chat.
+            if (_textExtractor.RequiresAi(storedFile))
+            {
+                await _workspaceBillingService.EnsureAssistantUsageAllowedAsync(command.WorkspaceId, cancellationToken);
+            }
+
+            var extraction = await _textExtractor.ExtractAsync(storedFile, cancellationToken);
+            var extractedText = extraction.Text;
+            if (extraction.Usage is { } usage)
+            {
+                await _workspaceBillingService.RegisterUsageAsync(
+                    new RegisterWorkspaceUsageCommand(
+                        command.WorkspaceId,
+                        command.UserId,
+                        null,
+                        usage.Provider,
+                        usage.Model,
+                        usage.PromptTokens,
+                        usage.CompletionTokens,
+                        usage.TotalTokens),
+                    cancellationToken);
+            }
             if (string.IsNullOrWhiteSpace(extractedText))
             {
                 throw new InvalidOperationException("The uploaded file did not contain readable text.");

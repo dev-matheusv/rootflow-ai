@@ -45,6 +45,21 @@ public sealed class SimpleDocumentTextExtractor : IDocumentTextExtractor
         _openAiOptions = openAiOptions.Value;
     }
 
+    public bool RequiresAi(StoredFile file)
+        => ImageExtensions.Contains(Path.GetExtension(file.FileName).ToLowerInvariant());
+
+    public async Task<DocumentExtraction> ExtractAsync(StoredFile file, CancellationToken cancellationToken = default)
+    {
+        if (RequiresAi(file))
+        {
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var (text, usage) = await ExtractImageTextAsync(file.StoragePath, extension, cancellationToken);
+            return new DocumentExtraction(NormalizeText(text), usage);
+        }
+
+        return new DocumentExtraction(await ExtractTextAsync(file, cancellationToken), null);
+    }
+
     public async Task<string> ExtractTextAsync(StoredFile file, CancellationToken cancellationToken = default)
     {
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
@@ -75,7 +90,7 @@ public sealed class SimpleDocumentTextExtractor : IDocumentTextExtractor
 
         if (ImageExtensions.Contains(extension))
         {
-            var imageText = await ExtractImageTextAsync(file.StoragePath, extension, cancellationToken);
+            var (imageText, _) = await ExtractImageTextAsync(file.StoragePath, extension, cancellationToken);
             return NormalizeText(imageText);
         }
 
@@ -210,7 +225,7 @@ public sealed class SimpleDocumentTextExtractor : IDocumentTextExtractor
         return builder.ToString();
     }
 
-    private async Task<string> ExtractImageTextAsync(
+    private async Task<(string Text, DocumentExtractionUsage Usage)> ExtractImageTextAsync(
         string path,
         string extension,
         CancellationToken cancellationToken)
@@ -231,7 +246,7 @@ public sealed class SimpleDocumentTextExtractor : IDocumentTextExtractor
 
         var payload = new
         {
-            model = "gpt-4o-mini",
+            model = _openAiOptions.ChatModel,
             max_tokens = 2000,
             messages = new[]
             {
@@ -267,11 +282,25 @@ public sealed class SimpleDocumentTextExtractor : IDocumentTextExtractor
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
-        return document.RootElement
+        var root = document.RootElement;
+        var text = root
             .GetProperty("choices")[0]
             .GetProperty("message")
             .GetProperty("content")
             .GetString() ?? string.Empty;
+
+        var model = root.TryGetProperty("model", out var modelElement) && modelElement.ValueKind == JsonValueKind.String
+            ? modelElement.GetString() ?? _openAiOptions.ChatModel
+            : _openAiOptions.ChatModel;
+        int promptTokens = 0, completionTokens = 0, totalTokens = 0;
+        if (root.TryGetProperty("usage", out var usageElement) && usageElement.ValueKind == JsonValueKind.Object)
+        {
+            promptTokens = usageElement.TryGetProperty("prompt_tokens", out var p) ? p.GetInt32() : 0;
+            completionTokens = usageElement.TryGetProperty("completion_tokens", out var c) ? c.GetInt32() : 0;
+            totalTokens = usageElement.TryGetProperty("total_tokens", out var t) ? t.GetInt32() : promptTokens + completionTokens;
+        }
+
+        return (text, new DocumentExtractionUsage("openai", model, promptTokens, completionTokens, totalTokens));
     }
 
     private static string NormalizeText(string text)
