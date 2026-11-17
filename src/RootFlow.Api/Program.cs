@@ -1557,6 +1557,62 @@ conversations.MapDelete("/{conversationId:guid}", async (
     return Results.NoContent();
 });
 
+// RF-13 (LGPD art. 18): export my data and delete my account.
+app.MapGet("/api/me/export", async (
+    ClaimsPrincipal user,
+    RootFlow.Application.Account.AccountService accountService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    var userId = user.GetRequiredUserId();
+    var export = await accountService.ExportAsync(userId, cancellationToken);
+    if (export is null)
+    {
+        return Results.NotFound();
+    }
+
+    logger.LogInformation("Personal data exported. UserId={UserId}", userId);
+    var json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(export, new System.Text.Json.JsonSerializerOptions
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    });
+    return Results.File(json, "application/json", $"rootflow-meus-dados-{DateTime.UtcNow:yyyyMMdd}.json");
+})
+.RequireAuthorization()
+.RequireRateLimiting("billing_authenticated");
+
+app.MapPost("/api/me/delete", async (
+    DeleteAccountRequest request,
+    ClaimsPrincipal user,
+    RootFlow.Application.Account.AccountService accountService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    var userId = user.GetRequiredUserId();
+    try
+    {
+        await accountService.DeleteAccountAsync(userId, request.Password, cancellationToken);
+        logger.LogInformation("Account deleted at the user's request. UserId={UserId}", userId);
+        return Results.NoContent();
+    }
+    catch (UnauthorizedAccessException exception)
+    {
+        return Results.Json(new { error = exception.Message, code = "invalid_password" }, statusCode: StatusCodes.Status403Forbidden);
+    }
+    catch (RootFlow.Application.Account.AccountDeletionBlockedException exception)
+    {
+        return Results.Conflict(new
+        {
+            error = exception.Message,
+            code = exception.Blockers.SharedOwnedWorkspaces.Count > 0 ? "owns_shared_workspace" : "active_subscription",
+            workspaces = exception.Blockers.SharedOwnedWorkspaces.Concat(exception.Blockers.PaidSoleOwnedWorkspaces).ToArray()
+        });
+    }
+})
+.RequireAuthorization()
+.RequireRateLimiting("billing_authenticated");
+
 // ── Document Templates ───────────────────────────────────────────────────────
 
 documentTemplates.MapGet("/", async (

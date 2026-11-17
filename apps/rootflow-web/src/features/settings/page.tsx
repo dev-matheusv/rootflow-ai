@@ -1,4 +1,4 @@
-import { BellDot, CreditCard, Loader2, LockKeyhole, Search, SlidersHorizontal } from "lucide-react";
+import { BellDot, CreditCard, Loader2, LockKeyhole, Search, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useAuth } from "@/features/auth/auth-provider";
+import { PrivacyPanel } from "@/features/settings/components/privacy-panel";
 import { WorkspaceCollaborationPanel } from "@/features/settings/components/workspace-collaboration-panel";
 import { ApiError } from "@/lib/api/client";
 import { rootflowApi } from "@/lib/api/rootflow-api";
@@ -62,6 +63,13 @@ export function SettingsPage() {
       description: t("settings.accessDescription"),
       icon: LockKeyhole,
       upcoming: [t("settings.membersTitle"), t("settings.invites"), t("settings.role")],
+    },
+    {
+      id: "privacy",
+      title: t("settings.privacy.title"),
+      description: t("settings.privacy.description"),
+      icon: ShieldCheck,
+      upcoming: [t("settings.privacy.exportTitle"), t("settings.privacy.deleteTitle")],
     },
   ] as const;
   const [searchParams] = useSearchParams();
@@ -176,6 +184,8 @@ export function SettingsPage() {
 
             {activeSection === "access" ? (
               <WorkspaceCollaborationPanel />
+            ) : activeSection === "privacy" ? (
+              <PrivacyPanel />
             ) : (
               <div className="space-y-4">
                 <div className="rounded-[22px] border border-border/75 bg-card/72 p-4">

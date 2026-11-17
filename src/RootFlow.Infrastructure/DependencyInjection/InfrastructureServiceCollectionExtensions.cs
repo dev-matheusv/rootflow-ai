@@ -253,6 +253,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();
         services.AddScoped<WorkspaceCollaborationService>();
+        services.AddScoped<IPersonalDataRepository, PostgresPersonalDataRepository>();
+        services.AddScoped<RootFlow.Application.Account.AccountService>();
         var trainingOptions = configuration.GetSection("Training").Get<TrainingOptions>()
             ?? new TrainingOptions();
         services.AddSingleton(trainingOptions);
