@@ -1360,7 +1360,7 @@ documents.MapPost("", async (
         stream);
 
     var document = await documentService.UploadAsync(
-        new UploadDocumentCommand(user.GetRequiredWorkspaceId(), upload),
+        new UploadDocumentCommand(user.GetRequiredWorkspaceId(), upload, user.GetRequiredUserId()),
         cancellationToken);
 
     return Results.Created($"/api/documents/{document.Id}", document);
