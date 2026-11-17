@@ -229,9 +229,11 @@ public sealed class ChatService
                 command.ConversationId.Value,
                 cancellationToken);
 
-            if (existingConversation is null)
+            // RF-18: you can only continue a conversation you can see.
+            if (existingConversation is null
+                || !existingConversation.IsVisibleTo(command.UserId ?? Guid.Empty, command.IsWorkspaceAdmin))
             {
-                throw new InvalidOperationException("Conversation was not found.");
+                throw new ConversationNotFoundException();
             }
 
             return existingConversation;
@@ -241,7 +243,8 @@ public sealed class ChatService
             Guid.NewGuid(),
             command.WorkspaceId,
             CreateConversationTitle(command.Question),
-            _clock.UtcNow);
+            _clock.UtcNow,
+            command.UserId);
 
         await _conversationRepository.AddAsync(conversation, cancellationToken);
         return conversation;

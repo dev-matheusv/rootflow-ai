@@ -258,7 +258,7 @@ public sealed class ChatServiceTests
             return Task.FromResult<IReadOnlyList<ConversationMessage>>(Array.Empty<ConversationMessage>());
         }
 
-        public Task<IReadOnlyList<ConversationSummaryDto>> ListSummariesAsync(Guid workspaceId, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<ConversationSummaryDto>> ListSummariesAsync(Guid workspaceId, Guid userId, bool includeUnowned, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<ConversationSummaryDto>>(Array.Empty<ConversationSummaryDto>());
         }

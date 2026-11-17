@@ -8,7 +8,7 @@ public sealed class Conversation
     {
     }
 
-    public Conversation(Guid id, Guid workspaceId, string? title, DateTime createdAtUtc)
+    public Conversation(Guid id, Guid workspaceId, string? title, DateTime createdAtUtc, Guid? createdByUserId = null)
     {
         if (id == Guid.Empty)
         {
@@ -25,6 +25,7 @@ public sealed class Conversation
         Title = NormalizeTitle(title);
         CreatedAtUtc = createdAtUtc;
         UpdatedAtUtc = createdAtUtc;
+        CreatedByUserId = createdByUserId == Guid.Empty ? null : createdByUserId;
     }
 
     public Guid Id { get; private set; }
@@ -36,6 +37,20 @@ public sealed class Conversation
     public DateTime CreatedAtUtc { get; private set; }
 
     public DateTime UpdatedAtUtc { get; private set; }
+
+    /// <summary>Who started the conversation. Null only for conversations created before RF-18.</summary>
+    public Guid? CreatedByUserId { get; private set; }
+
+    /// <summary>
+    /// RF-18: a conversation is private to the person who started it. Conversations from before
+    /// RF-18 have no owner and are visible only to workspace Owners and Admins.
+    /// </summary>
+    public bool IsVisibleTo(Guid userId, bool isWorkspaceAdmin)
+    {
+        return CreatedByUserId.HasValue
+            ? userId != Guid.Empty && CreatedByUserId.Value == userId
+            : isWorkspaceAdmin;
+    }
 
     public void Rename(string? title)
     {

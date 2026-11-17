@@ -24,7 +24,10 @@ public interface IConversationRepository
         Guid conversationId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>RF-18: the user's own conversations, plus unowned (pre RF-18) ones when <paramref name="includeUnowned"/>.</summary>
     Task<IReadOnlyList<ConversationSummaryDto>> ListSummariesAsync(
         Guid workspaceId,
+        Guid userId,
+        bool includeUnowned,
         CancellationToken cancellationToken = default);
 }

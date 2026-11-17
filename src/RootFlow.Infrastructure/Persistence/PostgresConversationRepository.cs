@@ -18,8 +18,8 @@ public sealed class PostgresConversationRepository : IConversationRepository
     public async Task AddAsync(Conversation conversation, CancellationToken cancellationToken = default)
     {
         const string sql = """
-                           INSERT INTO conversations (id, workspace_id, title, created_at_utc, updated_at_utc)
-                           VALUES (@id, @workspaceId, @title, @createdAtUtc, @updatedAtUtc);
+                           INSERT INTO conversations (id, workspace_id, title, created_at_utc, updated_at_utc, created_by_user_id)
+                           VALUES (@id, @workspaceId, @title, @createdAtUtc, @updatedAtUtc, @createdByUserId);
                            """;
 
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
@@ -29,6 +29,10 @@ public sealed class PostgresConversationRepository : IConversationRepository
         command.Parameters.AddWithValue("title", conversation.Title);
         command.Parameters.AddWithValue("createdAtUtc", conversation.CreatedAtUtc);
         command.Parameters.AddWithValue("updatedAtUtc", conversation.UpdatedAtUtc);
+        command.Parameters.Add(new NpgsqlParameter("createdByUserId", NpgsqlDbType.Uuid)
+        {
+            Value = (object?)conversation.CreatedByUserId ?? DBNull.Value
+        });
 
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -114,7 +118,7 @@ public sealed class PostgresConversationRepository : IConversationRepository
         CancellationToken cancellationToken = default)
     {
         const string sql = """
-                           SELECT id, workspace_id, title, created_at_utc, updated_at_utc
+                           SELECT id, workspace_id, title, created_at_utc, updated_at_utc, created_by_user_id
                            FROM conversations
                            WHERE workspace_id = @workspaceId
                              AND id = @conversationId;
@@ -135,7 +139,8 @@ public sealed class PostgresConversationRepository : IConversationRepository
             reader.GetGuid(0),
             reader.GetGuid(1),
             reader.GetString(2),
-            reader.GetFieldValue<DateTime>(3));
+            reader.GetFieldValue<DateTime>(3),
+            reader.IsDBNull(5) ? null : reader.GetGuid(5));
 
         conversation.Touch(reader.GetFieldValue<DateTime>(4));
         return conversation;
@@ -184,6 +189,8 @@ public sealed class PostgresConversationRepository : IConversationRepository
 
     public async Task<IReadOnlyList<ConversationSummaryDto>> ListSummariesAsync(
         Guid workspaceId,
+        Guid userId,
+        bool includeUnowned,
         CancellationToken cancellationToken = default)
     {
         const string sql = """
@@ -202,6 +209,8 @@ public sealed class PostgresConversationRepository : IConversationRepository
                            FROM conversations AS c
                            LEFT JOIN conversation_messages AS m ON m.conversation_id = c.id
                            WHERE c.workspace_id = @workspaceId
+                             AND (c.created_by_user_id = @userId
+                                  OR (@includeUnowned AND c.created_by_user_id IS NULL))
                            GROUP BY c.id, c.title, c.created_at_utc, c.updated_at_utc
                            ORDER BY c.updated_at_utc DESC, c.id DESC;
                            """;
@@ -211,6 +220,8 @@ public sealed class PostgresConversationRepository : IConversationRepository
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue("workspaceId", workspaceId);
+        command.Parameters.AddWithValue("userId", userId);
+        command.Parameters.AddWithValue("includeUnowned", includeUnowned);
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))

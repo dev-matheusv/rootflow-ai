@@ -5,4 +5,5 @@ public sealed record AskQuestionCommand(
     string Question,
     Guid? ConversationId = null,
     int MaxContextChunks = 8,
-    Guid? UserId = null);
+    Guid? UserId = null,
+    bool IsWorkspaceAdmin = false);

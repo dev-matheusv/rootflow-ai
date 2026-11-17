@@ -804,6 +804,17 @@ public sealed class PostgresDatabaseInitializer
                 """
                 ALTER TABLE workspaces
                     ADD COLUMN IF NOT EXISTS training_enabled boolean NOT NULL DEFAULT false;
+                """),
+
+            new DatabaseMigration(
+                "202611170001_conversation_owner",
+                "RF-18: conversations belong to the person who started them",
+                """
+                ALTER TABLE conversations
+                    ADD COLUMN IF NOT EXISTS created_by_user_id uuid NULL REFERENCES app_users(id) ON DELETE SET NULL;
+
+                CREATE INDEX IF NOT EXISTS ix_conversations_workspace_owner_updated
+                    ON conversations (workspace_id, created_by_user_id, updated_at_utc DESC);
                 """)
         ];
     }

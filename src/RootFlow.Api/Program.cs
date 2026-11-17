@@ -1408,10 +1408,15 @@ app.MapPost("/api/chat", async (
                 request.Question,
                 request.ConversationId,
                 request.MaxContextChunks,
-                user.GetRequiredUserId()),
+                user.GetRequiredUserId(),
+                user.IsWorkspaceOwnerOrAdmin()),
             cancellationToken);
 
         return Results.Ok(answer);
+    }
+    catch (ConversationNotFoundException exception)
+    {
+        return Results.NotFound(new { error = exception.Message });
     }
     catch (WorkspaceSubscriptionInactiveException exception)
     {
@@ -1440,7 +1445,7 @@ conversations.MapGet("", async (
     CancellationToken cancellationToken) =>
 {
     var conversationList = await conversationService.ListAsync(
-        new ListConversationsQuery(user.GetRequiredWorkspaceId()),
+        new ListConversationsQuery(user.GetRequiredWorkspaceId(), user.GetRequiredUserId(), user.IsWorkspaceOwnerOrAdmin()),
         cancellationToken);
 
     return Results.Ok(conversationList);
@@ -1453,13 +1458,13 @@ conversations.MapGet("/{conversationId:guid}", async (
     CancellationToken cancellationToken) =>
 {
     var conversation = await conversationService.GetHistoryAsync(
-        new GetConversationHistoryQuery(user.GetRequiredWorkspaceId(), conversationId),
+        new GetConversationHistoryQuery(user.GetRequiredWorkspaceId(), conversationId, user.GetRequiredUserId(), user.IsWorkspaceOwnerOrAdmin()),
         cancellationToken);
 
     return conversation is null ? Results.NotFound() : Results.Ok(conversation);
 });
 
-// RF-12: delete a conversation (Owner/Admin while conversations are shared by the workspace, see RF-18).
+// RF-12/RF-18: delete a conversation. The person who started it can delete it; Owner/Admin only unowned ones.
 conversations.MapDelete("/{conversationId:guid}", async (
     Guid conversationId,
     ClaimsPrincipal user,
@@ -1468,7 +1473,8 @@ conversations.MapDelete("/{conversationId:guid}", async (
     CancellationToken cancellationToken) =>
 {
     var workspaceId = user.GetRequiredWorkspaceId();
-    var deleted = await conversationService.DeleteAsync(workspaceId, conversationId, cancellationToken);
+    var deleted = await conversationService.DeleteAsync(
+        workspaceId, conversationId, user.GetRequiredUserId(), user.IsWorkspaceOwnerOrAdmin(), cancellationToken);
     if (!deleted)
     {
         return Results.NotFound();
@@ -1478,7 +1484,7 @@ conversations.MapDelete("/{conversationId:guid}", async (
         "Conversation deleted. WorkspaceId={WorkspaceId} ConversationId={ConversationId} ActorUserId={ActorUserId}",
         workspaceId, conversationId, user.GetRequiredUserId());
     return Results.NoContent();
-}).RequireAuthorization("WorkspaceOwnerOrAdmin");
+});
 
 // ── Document Templates ───────────────────────────────────────────────────────
 

@@ -13,13 +13,24 @@ public sealed class ConversationService
         _conversationRepository = conversationRepository;
     }
 
-    /// <summary>RF-12: deletes the conversation and its messages.</summary>
-    public Task<bool> DeleteAsync(
+    /// <summary>
+    /// RF-12/RF-18: deletes the conversation and its messages. Only whoever can see it can delete it:
+    /// the person who started it, or an Owner/Admin for unowned (pre RF-18) conversations.
+    /// </summary>
+    public async Task<bool> DeleteAsync(
         Guid workspaceId,
         Guid conversationId,
+        Guid userId,
+        bool isWorkspaceAdmin,
         CancellationToken cancellationToken = default)
     {
-        return _conversationRepository.DeleteAsync(workspaceId, conversationId, cancellationToken);
+        var conversation = await _conversationRepository.GetByIdAsync(workspaceId, conversationId, cancellationToken);
+        if (conversation is null || !conversation.IsVisibleTo(userId, isWorkspaceAdmin))
+        {
+            return false;
+        }
+
+        return await _conversationRepository.DeleteAsync(workspaceId, conversationId, cancellationToken);
     }
 
     public async Task<ConversationHistoryDto?> GetHistoryAsync(
@@ -31,7 +42,8 @@ public sealed class ConversationService
             query.ConversationId,
             cancellationToken);
 
-        if (conversation is null)
+        // RF-18: someone else's conversation answers exactly like a missing one (no existence leak).
+        if (conversation is null || !conversation.IsVisibleTo(query.UserId, query.IsWorkspaceAdmin))
         {
             return null;
         }
@@ -59,6 +71,6 @@ public sealed class ConversationService
         ListConversationsQuery query,
         CancellationToken cancellationToken = default)
     {
-        return _conversationRepository.ListSummariesAsync(query.WorkspaceId, cancellationToken);
+        return _conversationRepository.ListSummariesAsync(query.WorkspaceId, query.UserId, query.IsWorkspaceAdmin, cancellationToken);
     }
 }
