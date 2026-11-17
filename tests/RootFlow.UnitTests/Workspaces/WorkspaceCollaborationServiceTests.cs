@@ -207,6 +207,57 @@ public sealed class WorkspaceCollaborationServiceTests
         Assert.Empty(notifier.Notifications);
     }
 
+    // RF-14: bulk invite.
+    [Fact]
+    public async Task InviteManyAsync_ReportsEachAddress_AndKeepsGoing()
+    {
+        var team = MemberTeam.Create();
+
+        var result = await team.Service.InviteManyAsync(new InviteWorkspaceMembersBulkCommand(
+            team.WorkspaceId,
+            team.Owner.UserId,
+            ["a@rootflow.test", " A@rootflow.test ", "not-an-email", "", "b@rootflow.test"],
+            WorkspaceRole.Member));
+
+        Assert.Equal(2, result.Sent);
+        Assert.Equal("sent", result.Items.Single(i => i.Email == "a@rootflow.test").Status);
+        Assert.Equal("duplicate", result.Items.Single(i => i.Email == "A@rootflow.test").Status);
+        Assert.Equal("invalid_email", result.Items.Single(i => i.Email == "not-an-email").Status);
+        Assert.Equal("sent", result.Items.Single(i => i.Email == "b@rootflow.test").Status);
+        Assert.Equal(4, result.Items.Count);
+    }
+
+    [Fact]
+    public async Task InviteManyAsync_MemberCannotBulkInvite()
+    {
+        var team = MemberTeam.Create();
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.InviteManyAsync(new InviteWorkspaceMembersBulkCommand(
+                team.WorkspaceId, team.Member.UserId, ["x@rootflow.test"], WorkspaceRole.Member)));
+    }
+
+    [Fact]
+    public async Task InviteManyAsync_AdminCannotBulkInviteAdmins()
+    {
+        var team = MemberTeam.Create();
+
+        await Assert.ThrowsAsync<WorkspaceAccessDeniedException>(() =>
+            team.Service.InviteManyAsync(new InviteWorkspaceMembersBulkCommand(
+                team.WorkspaceId, team.Admin.UserId, ["x@rootflow.test"], WorkspaceRole.Admin)));
+    }
+
+    [Fact]
+    public async Task InviteManyAsync_RejectsTooManyEmails()
+    {
+        var team = MemberTeam.Create();
+        var emails = Enumerable.Range(0, WorkspaceCollaborationService.MaxBulkInvites + 1).Select(i => $"u{i}@rootflow.test").ToArray();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            team.Service.InviteManyAsync(new InviteWorkspaceMembersBulkCommand(
+                team.WorkspaceId, team.Owner.UserId, emails, WorkspaceRole.Member)));
+    }
+
     // RF-11: member management rules.
 
     [Fact]

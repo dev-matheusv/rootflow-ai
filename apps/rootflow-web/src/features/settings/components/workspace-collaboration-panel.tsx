@@ -6,14 +6,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/features/auth/auth-provider";
 import {
+  useBulkInviteWorkspaceMembersMutation,
   useChangeWorkspaceMemberRoleMutation,
   useInviteWorkspaceMemberMutation,
   useRemoveWorkspaceMemberMutation,
   useWorkspaceMembersQuery,
 } from "@/hooks/use-rootflow-data";
-import type { WorkspaceMember, WorkspaceRole } from "@/lib/api/contracts";
+import type { BulkInviteResult, WorkspaceMember, WorkspaceRole } from "@/lib/api/contracts";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +42,12 @@ export function WorkspaceCollaborationPanel() {
   const changeRoleMutation = useChangeWorkspaceMemberRoleMutation(workspaceId);
   const removeMutation = useRemoveWorkspaceMemberMutation(workspaceId);
   const inviteRoles = getInviteRoles(currentRole);
+  // RF-14: paste many addresses at once.
+  const bulkInviteMutation = useBulkInviteWorkspaceMembersMutation(workspaceId);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkEmails, setBulkEmails] = useState("");
+  const [bulkResult, setBulkResult] = useState<BulkInviteResult | null>(null);
+  const parsedBulkEmails = bulkEmails.split(/[\s,;]+/).map((value) => value.trim()).filter(Boolean);
   const [memberActionError, setMemberActionError] = useState<string | null>(null);
   const [memberActionNotice, setMemberActionNotice] = useState<string | null>(null);
   const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
@@ -86,6 +94,21 @@ export function WorkspaceCollaborationPanel() {
     event.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
+    setBulkResult(null);
+
+    if (bulkMode) {
+      try {
+        const result = await bulkInviteMutation.mutateAsync({ emails: parsedBulkEmails, role });
+        setBulkResult(result);
+        setSuccessMessage(t("settings.bulkInviteSummary", { sent: result.sent, skipped: result.skipped }));
+        if (result.skipped === 0) {
+          setBulkEmails("");
+        }
+      } catch (error) {
+        setErrorMessage(error instanceof ApiError ? error.message : t("settings.inviteErrorFallback"));
+      }
+      return;
+    }
 
     try {
       const response = await inviteMutation.mutateAsync({
@@ -126,18 +149,48 @@ export function WorkspaceCollaborationPanel() {
             {canInvite ? (
               <form className="space-y-5" onSubmit={handleInviteSubmit}>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-foreground" htmlFor="invite-email">
-                    {t("common.labels.workEmail")}
-                  </label>
-                  <Input
-                    id="invite-email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="teammate@company.com"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    disabled={inviteMutation.isPending}
-                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-sm font-semibold text-foreground" htmlFor={bulkMode ? "invite-emails" : "invite-email"}>
+                      {bulkMode ? t("settings.bulkInviteLabel") : t("common.labels.workEmail")}
+                    </label>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-primary hover:underline"
+                      onClick={() => {
+                        setBulkMode((value) => !value);
+                        setBulkResult(null);
+                        setErrorMessage(null);
+                        setSuccessMessage(null);
+                      }}
+                    >
+                      {bulkMode ? t("settings.bulkInviteSingle") : t("settings.bulkInviteToggle")}
+                    </button>
+                  </div>
+                  {bulkMode ? (
+                    <>
+                      <Textarea
+                        id="invite-emails"
+                        rows={6}
+                        placeholder={"ana@escritorio.com.br\nbruno@escritorio.com.br"}
+                        value={bulkEmails}
+                        onChange={(event) => setBulkEmails(event.target.value)}
+                        disabled={bulkInviteMutation.isPending}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {t("settings.bulkInviteHint", { count: parsedBulkEmails.length })}
+                      </p>
+                    </>
+                  ) : (
+                    <Input
+                      id="invite-email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="teammate@company.com"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      disabled={inviteMutation.isPending}
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -173,10 +226,26 @@ export function WorkspaceCollaborationPanel() {
                   </div>
                 ) : null}
 
+                {bulkResult && bulkResult.items.some((item) => item.status !== "sent") ? (
+                  <ul className="space-y-1 rounded-[22px] border border-border/70 bg-card/72 px-4 py-3 text-xs text-muted-foreground">
+                    {bulkResult.items
+                      .filter((item) => item.status !== "sent")
+                      .map((item) => (
+                        <li key={`${item.email}-${item.status}`} className="[overflow-wrap:anywhere]">
+                          <span className="font-semibold text-foreground">{item.email}</span>: {t(`settings.bulkInviteStatus.${item.status}`)}
+                        </li>
+                      ))}
+                  </ul>
+                ) : null}
+
                 <Button
                   type="submit"
                   className="w-full justify-between"
-                  disabled={inviteMutation.isPending || email.trim().length === 0}
+                  disabled={
+                    bulkMode
+                      ? bulkInviteMutation.isPending || parsedBulkEmails.length === 0
+                      : inviteMutation.isPending || email.trim().length === 0
+                  }
                 >
                   {inviteMutation.isPending ? t("settings.preparingInvite") : t("common.actions.sendInvite")}
                   <MailPlus />

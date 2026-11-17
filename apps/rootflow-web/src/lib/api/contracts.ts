@@ -54,6 +54,25 @@ export interface ResetPasswordPayload {
   newPassword: string;
 }
 
+export interface BulkInviteWorkspaceMembersPayload {
+  emails: string[];
+  role: WorkspaceRole;
+}
+
+export type BulkInviteStatus = "sent" | "already_member" | "invalid_email" | "duplicate" | "failed";
+
+export interface BulkInviteItem {
+  email: string;
+  status: BulkInviteStatus;
+  message?: string | null;
+}
+
+export interface BulkInviteResult {
+  sent: number;
+  skipped: number;
+  items: BulkInviteItem[];
+}
+
 export interface InviteWorkspaceMemberPayload {
   email: string;
   role?: WorkspaceRole | null;
