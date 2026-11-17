@@ -165,6 +165,26 @@ export function useInviteWorkspaceMemberMutation(workspaceId?: string | null) {
   });
 }
 
+export function useDeleteDocumentMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (documentId: string) => rootflowApi.deleteDocument(documentId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.documents });
+    },
+  });
+}
+
+export function useDeleteConversationMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (conversationId: string) => rootflowApi.deleteConversation(conversationId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+    },
+  });
+}
+
 export function useUploadDocumentMutation() {
   const queryClient = useQueryClient();
 

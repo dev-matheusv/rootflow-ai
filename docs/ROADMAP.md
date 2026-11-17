@@ -57,6 +57,7 @@ As 12 branches já mescladas (PRs #1 a #11) e dois worktrees antigos foram apaga
 | **RF-14** | **Convite em lote** (colar lista de e-mails ou CSV, papel único, relatório de quem falhou) | Convidar 120 pessoas uma a uma não é viável |
 | **RF-15** | **Pacote LGPD comercial:** política de privacidade e termos atualizados, contrato de operador (DPA), lista de subprocessadores com país (OpenAI EUA, Supabase, Railway, Vercel, Stripe, Resend, Sentry), canal do encarregado | Escritório de advocacia vai ler isso antes de assinar. Transferência internacional precisa estar declarada (art. 33) |
 | **RF-16** | Registro de auditoria mínimo: login, convite, remoção, upload, exclusão, mudança de plano (quem, quando, o quê; sem conteúdo) | Pedido comum de cliente jurídico e base para o painel de auditoria (RF-42) |
+| **RF-18** | **Conversas por pessoa.** Hoje a conversa não tem dono: todo membro vê o chat de todos. Gravar quem criou, listar só as próprias, Admin vê todas se o cliente quiser (configuração por workspace) | Sigilo entre advogados e clientes diferentes dentro do mesmo escritório. Prioridade para o Renac |
 | **RF-17** | Indicação: 10% da mensalidade do indicado. Primeiro manual (planilha + cupom no Stripe); automatizar só quando houver volume | Decidido no deal Renac |
 
 ### Onda 2: qualidade da IA

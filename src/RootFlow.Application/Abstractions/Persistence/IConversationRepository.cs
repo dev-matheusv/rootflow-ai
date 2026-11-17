@@ -11,6 +11,9 @@ public interface IConversationRepository
 
     Task AddMessageAsync(ConversationMessage message, CancellationToken cancellationToken = default);
 
+    /// <summary>Deletes the conversation and, by cascade, its messages. Returns false when not found in the workspace.</summary>
+    Task<bool> DeleteAsync(Guid workspaceId, Guid conversationId, CancellationToken cancellationToken = default);
+
     Task<Conversation?> GetByIdAsync(
         Guid workspaceId,
         Guid conversationId,

@@ -49,6 +49,30 @@ public sealed class LocalFileStorage : IFileStorage
             file.SizeBytes);
     }
 
+    public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(storagePath))
+        {
+            return Task.CompletedTask;
+        }
+
+        // Only delete inside the storage root: a tampered path must never remove other files.
+        var rootPath = Path.GetFullPath(ResolveRootPath(_options.RootPath));
+        var fullPath = Path.GetFullPath(storagePath);
+        var rootWithSeparator = rootPath.EndsWith(Path.DirectorySeparatorChar) ? rootPath : rootPath + Path.DirectorySeparatorChar;
+        if (!fullPath.StartsWith(rootWithSeparator, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Refusing to delete a file outside the storage root.");
+        }
+
+        if (File.Exists(fullPath))
+        {
+            File.Delete(fullPath);
+        }
+
+        return Task.CompletedTask;
+    }
+
     private static string ResolveRootPath(string configuredPath)
     {
         if (Path.IsPathRooted(configuredPath))

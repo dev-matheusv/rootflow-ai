@@ -82,6 +82,9 @@ export const productMessages = {
       activeProcessing: "{{count}} active",
     },
     knowledgeBase: {
+      deleteAction: "Delete document",
+      deleteConfirm: "Delete {{name}}? It will stop appearing in answers. This cannot be undone.",
+      deleteErrorFallback: "We could not delete this document right now.",
       title: "Knowledge Base",
       description: "Upload, monitor, and keep the workspace context fresh for grounded answers.",
       documentsTitle: "Documents",
@@ -107,6 +110,9 @@ export const productMessages = {
       latestUpdate: "Latest update {{time}}",
     },
     conversations: {
+      deleteAction: "Delete",
+      deleteConfirm: "Delete this conversation and all its messages? This cannot be undone.",
+      deleteErrorFallback: "We could not delete this conversation right now.",
       title: "Conversations",
       description: "Review saved exchanges, reopen context, and continue grounded sessions.",
       sessionsTitle: "Sessions",
@@ -497,6 +503,9 @@ export const productMessages = {
       activeProcessing: "{{count}} ativos",
     },
     knowledgeBase: {
+      deleteAction: "Apagar documento",
+      deleteConfirm: "Apagar {{name}}? Ele deixa de aparecer nas respostas. Não dá para desfazer.",
+      deleteErrorFallback: "Não foi possível apagar este documento agora.",
       title: "Base de conhecimento",
       description: "Envie, acompanhe e mantenha o contexto do workspace sempre atualizado para respostas fundamentadas.",
       documentsTitle: "Documentos",
@@ -522,6 +531,9 @@ export const productMessages = {
       latestUpdate: "Última atualização {{time}}",
     },
     conversations: {
+      deleteAction: "Apagar",
+      deleteConfirm: "Apagar esta conversa e todas as mensagens? Não dá para desfazer.",
+      deleteErrorFallback: "Não foi possível apagar esta conversa agora.",
       title: "Conversas",
       description: "Revise trocas salvas, reabra contexto e continue sessões fundamentadas.",
       sessionsTitle: "Sessões",

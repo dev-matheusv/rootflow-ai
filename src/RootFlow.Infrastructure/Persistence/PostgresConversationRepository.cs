@@ -89,6 +89,25 @@ public sealed class PostgresConversationRepository : IConversationRepository
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task<bool> DeleteAsync(
+        Guid workspaceId,
+        Guid conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        // conversation_messages cascade; usage rows keep the record with conversation_id set to null.
+        const string sql = """
+                           DELETE FROM conversations
+                           WHERE workspace_id = @workspaceId
+                             AND id = @conversationId;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("workspaceId", workspaceId);
+        command.Parameters.AddWithValue("conversationId", conversationId);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
+
     public async Task<Conversation?> GetByIdAsync(
         Guid workspaceId,
         Guid conversationId,
