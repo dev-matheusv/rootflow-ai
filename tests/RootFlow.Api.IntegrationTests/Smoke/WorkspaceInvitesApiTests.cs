@@ -179,6 +179,58 @@ public sealed class WorkspaceInvitesApiTests : IClassFixture<RootFlowApiFactory>
         Assert.DoesNotContain(members!, candidate => candidate.Email == "lawyer@rootflow.test");
     }
 
+    // RF-18: a member never sees, continues or deletes someone else's conversation, not even an admin.
+    [Fact]
+    public async Task Conversations_ArePrivateToTheirAuthor()
+    {
+        await _factory.ResetStateAsync();
+        using var ownerClient = await _factory.CreateAuthenticatedClientAsync(
+            fullName: "Workspace Owner",
+            email: "owner@rootflow.test",
+            workspaceName: "Acme Legal");
+        var ownerSession = await ownerClient.GetFromJsonAsync<SessionResponse>("/api/auth/me");
+        var workspaceId = ownerSession!.Workspace.Id;
+
+        (await ownerClient.PostAsJsonAsync($"/api/workspaces/{workspaceId}/invites", new
+        {
+            email = "lawyer@rootflow.test",
+            role = "Member"
+        })).EnsureSuccessStatusCode();
+        var notification = _factory.GetLatestWorkspaceInvitationNotification("lawyer@rootflow.test");
+        using var lawyerClient = await _factory.CreateAuthenticatedClientAsync(
+            fullName: "Lawyer",
+            email: "lawyer@rootflow.test",
+            workspaceName: "Lawyer Personal");
+        var accept = await lawyerClient.PostAsJsonAsync("/api/workspaces/invites/accept", new { token = notification!.Token });
+        accept.EnsureSuccessStatusCode();
+        var acceptPayload = await accept.Content.ReadFromJsonAsync<AuthResponse>();
+        lawyerClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", acceptPayload!.Token);
+
+        // The member starts a conversation.
+        var chat = await lawyerClient.PostAsJsonAsync("/api/chat", new { question = "Confidential question about client X" });
+        chat.EnsureSuccessStatusCode();
+        var chatPayload = await chat.Content.ReadFromJsonAsync<ChatIdResponse>();
+        var conversationId = chatPayload!.ConversationId;
+
+        var lawyerList = await lawyerClient.GetFromJsonAsync<List<ConversationIdResponse>>("/api/conversations");
+        Assert.Contains(lawyerList!, c => c.ConversationId == conversationId);
+
+        // The owner (admin rights) cannot list, read, continue or delete it.
+        var ownerList = await ownerClient.GetFromJsonAsync<List<ConversationIdResponse>>("/api/conversations");
+        Assert.DoesNotContain(ownerList!, c => c.ConversationId == conversationId);
+        Assert.Equal(HttpStatusCode.NotFound, (await ownerClient.GetAsync($"/api/conversations/{conversationId}")).StatusCode);
+        var hijack = await ownerClient.PostAsJsonAsync("/api/chat", new { question = "Append to it", conversationId });
+        Assert.Equal(HttpStatusCode.NotFound, hijack.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await ownerClient.DeleteAsync($"/api/conversations/{conversationId}")).StatusCode);
+
+        // The author can delete their own conversation.
+        Assert.Equal(HttpStatusCode.NoContent, (await lawyerClient.DeleteAsync($"/api/conversations/{conversationId}")).StatusCode);
+    }
+
+    private sealed record ChatIdResponse(Guid ConversationId);
+
+    private sealed record ConversationIdResponse(Guid ConversationId);
+
     private sealed record AuthResponse(string Token, DateTime ExpiresAtUtc, SessionResponse Session);
 
     private sealed record SessionResponse(AuthUserResponse User, AuthWorkspaceResponse Workspace, string Role);

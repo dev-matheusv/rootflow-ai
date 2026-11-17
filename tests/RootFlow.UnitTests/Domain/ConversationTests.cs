@@ -29,4 +29,27 @@ public sealed class ConversationTests
 
         Assert.Equal("Support Chat", conversation.Title);
     }
+
+    // RF-18: conversations are private to whoever started them.
+    [Fact]
+    public void IsVisibleTo_OwnerOnly_EvenForAdmins()
+    {
+        var owner = Guid.NewGuid();
+        var conversation = new Conversation(Guid.NewGuid(), Guid.NewGuid(), "Case A", DateTime.UtcNow, owner);
+
+        Assert.True(conversation.IsVisibleTo(owner, isWorkspaceAdmin: false));
+        Assert.False(conversation.IsVisibleTo(Guid.NewGuid(), isWorkspaceAdmin: false));
+        Assert.False(conversation.IsVisibleTo(Guid.NewGuid(), isWorkspaceAdmin: true));
+        Assert.False(conversation.IsVisibleTo(Guid.Empty, isWorkspaceAdmin: true));
+    }
+
+    [Fact]
+    public void IsVisibleTo_UnownedLegacyConversation_OnlyAdmins()
+    {
+        var conversation = new Conversation(Guid.NewGuid(), Guid.NewGuid(), "Old", DateTime.UtcNow);
+
+        Assert.Null(conversation.CreatedByUserId);
+        Assert.True(conversation.IsVisibleTo(Guid.NewGuid(), isWorkspaceAdmin: true));
+        Assert.False(conversation.IsVisibleTo(Guid.NewGuid(), isWorkspaceAdmin: false));
+    }
 }

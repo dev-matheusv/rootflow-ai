@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { useConversationQuery, useConversationsQuery, useDeleteConversationMutation } from "@/hooks/use-rootflow-data";
-import { useAuth } from "@/features/auth/auth-provider";
 import { ApiError } from "@/lib/api/client";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 
@@ -30,9 +29,8 @@ export function ConversationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const conversationsQuery = useConversationsQuery();
   const deleteConversationMutation = useDeleteConversationMutation();
-  const { session } = useAuth();
-  // RF-12: Owner/Admin only while conversations are shared by the workspace (RF-18 makes them per user).
-  const canDeleteConversation = session?.role === "Owner" || session?.role === "Admin";
+  // RF-18: the list only holds conversations this person can see, and the author can delete their own.
+  const canDeleteConversation = true;
 
   const handleDeleteConversation = async (conversationId: string) => {
     if (!window.confirm(t("conversations.deleteConfirm"))) {
