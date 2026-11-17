@@ -247,6 +247,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<BillingMonitoringService>();
         services.AddScoped<WorkspaceBillingService>();
         services.AddScoped<WorkspacePaymentService>();
+        services.AddSingleton(new SalesLedCatalog(
+            configuration.GetSection("Billing:SalesLed").Get<SalesLedCatalogOptions>() ?? new SalesLedCatalogOptions()));
         services.AddScoped<DocumentService>();
         services.AddScoped<ChatService>();
         services.AddScoped<ConversationService>();
