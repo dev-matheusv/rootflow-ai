@@ -804,6 +804,32 @@ public sealed class PostgresDatabaseInitializer
                 """
                 ALTER TABLE workspaces
                     ADD COLUMN IF NOT EXISTS training_enabled boolean NOT NULL DEFAULT false;
+                """),
+
+            new DatabaseMigration(
+                "202608120001_enterprise_plan_seed",
+                "Add Enterprise billing plan (120 users, 300k credits, R$ 3.360)",
+                """
+                INSERT INTO billing_plans (
+                    id,
+                    code,
+                    name,
+                    monthly_price,
+                    currency_code,
+                    included_credits,
+                    max_users,
+                    is_active,
+                    created_at_utc
+                )
+                VALUES
+                    ('7d402ac6-b828-4df0-92de-d7d4bf79e004', 'enterprise', 'Enterprise', 3360.00, 'BRL', 300000, 120, TRUE, NOW())
+                ON CONFLICT (code) DO UPDATE
+                SET name = EXCLUDED.name,
+                    monthly_price = EXCLUDED.monthly_price,
+                    currency_code = EXCLUDED.currency_code,
+                    included_credits = EXCLUDED.included_credits,
+                    max_users = EXCLUDED.max_users,
+                    is_active = EXCLUDED.is_active;
                 """)
         ];
     }
