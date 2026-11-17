@@ -227,6 +227,60 @@ public sealed class WorkspaceInvitesApiTests : IClassFixture<RootFlowApiFactory>
         Assert.Equal(HttpStatusCode.NoContent, (await lawyerClient.DeleteAsync($"/api/conversations/{conversationId}")).StatusCode);
     }
 
+    // RF-13: export my data, then delete my account (LGPD art. 18).
+    [Fact]
+    public async Task DataSubject_CanExportAndDeleteAccount_WithSafeguards()
+    {
+        await _factory.ResetStateAsync();
+        using var ownerClient = await _factory.CreateAuthenticatedClientAsync(
+            fullName: "Workspace Owner",
+            email: "owner@rootflow.test",
+            workspaceName: "Acme Legal");
+        var ownerSession = await ownerClient.GetFromJsonAsync<SessionResponse>("/api/auth/me");
+
+        (await ownerClient.PostAsJsonAsync($"/api/workspaces/{ownerSession!.Workspace.Id}/invites", new
+        {
+            email = "leaver@rootflow.test",
+            role = "Member"
+        })).EnsureSuccessStatusCode();
+        var notification = _factory.GetLatestWorkspaceInvitationNotification("leaver@rootflow.test");
+
+        using var leaverClient = await _factory.CreateAuthenticatedClientAsync(
+            fullName: "Leaving Lawyer",
+            email: "leaver@rootflow.test",
+            workspaceName: "Leaver Personal");
+        (await leaverClient.PostAsJsonAsync("/api/workspaces/invites/accept", new { token = notification!.Token })).EnsureSuccessStatusCode();
+
+        // Export: a JSON file with the person's own data.
+        var export = await leaverClient.GetAsync("/api/me/export");
+        export.EnsureSuccessStatusCode();
+        Assert.Equal("application/json", export.Content.Headers.ContentType!.MediaType);
+        var exportBody = await export.Content.ReadAsStringAsync();
+        Assert.Contains("leaver@rootflow.test", exportBody);
+        Assert.Contains("Acme Legal", exportBody);
+        Assert.DoesNotContain("owner@rootflow.test", exportBody);
+
+        // Wrong password never deletes.
+        var wrongPassword = await leaverClient.PostAsJsonAsync("/api/me/delete", new { password = "not-the-password" });
+        Assert.Equal(HttpStatusCode.Forbidden, wrongPassword.StatusCode);
+
+        // The owner of a workspace other people use cannot delete the account (would erase their company).
+        var ownerDelete = await ownerClient.PostAsJsonAsync("/api/me/delete", new { password = "Password123!" });
+        Assert.Equal(HttpStatusCode.Conflict, ownerDelete.StatusCode);
+
+        // The member deletes: their solo personal workspace is closed with the account, sessions stop working.
+        var delete = await leaverClient.PostAsJsonAsync("/api/me/delete", new { password = "Password123!" });
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await leaverClient.GetAsync("/api/auth/me")).StatusCode);
+
+        using var anonymous = _factory.CreateClient();
+        var login = await anonymous.PostAsJsonAsync("/api/auth/login", new { email = "leaver@rootflow.test", password = "Password123!" });
+        Assert.Equal(HttpStatusCode.Unauthorized, login.StatusCode);
+
+        var members = await ownerClient.GetFromJsonAsync<List<WorkspaceMemberResponse>>($"/api/workspaces/{ownerSession.Workspace.Id}/members");
+        Assert.DoesNotContain(members!, m => m.Email == "leaver@rootflow.test");
+    }
+
     private sealed record ChatIdResponse(Guid ConversationId);
 
     private sealed record ConversationIdResponse(Guid ConversationId);
