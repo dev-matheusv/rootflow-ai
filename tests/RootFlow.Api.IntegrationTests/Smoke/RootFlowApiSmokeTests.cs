@@ -103,6 +103,27 @@ public sealed class RootFlowApiSmokeTests : IClassFixture<RootFlowApiFactory>
         Assert.Equal(2, conversations[0].MessageCount);
         Assert.Equal("How does RootFlow answer questions?", conversations[0].Title);
         Assert.Contains("RootFlow helps businesses answer questions", conversations[0].LastMessagePreview, StringComparison.OrdinalIgnoreCase);
+
+        // RF-12: deleting the conversation removes it and its messages.
+        var deleteConversation = await client.DeleteAsync($"/api/conversations/{chat.ConversationId}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteConversation.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/conversations/{chat.ConversationId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.DeleteAsync($"/api/conversations/{chat.ConversationId}")).StatusCode);
+
+        // RF-12: deleting the document removes it from the list and from search, so answers stop citing it.
+        var deleteDocument = await client.DeleteAsync($"/api/documents/{createdDocument.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleteDocument.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/documents/{createdDocument.Id}")).StatusCode);
+        Assert.Empty((await client.GetFromJsonAsync<List<DocumentResponse>>("/api/documents"))!);
+
+        var chatAfterDelete = await client.PostAsJsonAsync("/api/chat", new
+        {
+            question = "How does RootFlow answer questions?",
+            maxContextChunks = 3
+        });
+        chatAfterDelete.EnsureSuccessStatusCode();
+        var answerAfterDelete = await chatAfterDelete.Content.ReadFromJsonAsync<ChatResponse>();
+        Assert.Empty(answerAfterDelete!.Sources);
     }
 
     [Fact]

@@ -6,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/app/providers/i18n-provider";
-import { useDocumentsQuery, useUploadDocumentMutation } from "@/hooks/use-rootflow-data";
+import { useDeleteDocumentMutation, useDocumentsQuery, useUploadDocumentMutation } from "@/hooks/use-rootflow-data";
+import { useAuth } from "@/features/auth/auth-provider";
+import { ApiError } from "@/lib/api/client";
 import { formatFileSize, formatRelativeDate, getDocumentTypeLabel } from "@/lib/formatting/formatters";
 import { useRef, useState, type ChangeEvent } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, FileText, Filter, FolderKanban, UploadCloud } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, FileText, Filter, FolderKanban, Trash2, UploadCloud } from "lucide-react";
 
 export function KnowledgeBasePage() {
   const { locale, t } = useI18n();
@@ -18,6 +20,23 @@ export function KnowledgeBasePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const documentsQuery = useDocumentsQuery({ autoRefreshProcessing: true });
   const uploadMutation = useUploadDocumentMutation();
+  const deleteMutation = useDeleteDocumentMutation();
+  const { session } = useAuth();
+  // RF-12: only Owner/Admin delete (the API enforces it too).
+  const canDelete = session?.role === "Owner" || session?.role === "Admin";
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleDelete = async (documentId: string, fileName: string) => {
+    if (!window.confirm(t("knowledgeBase.deleteConfirm", { name: fileName }))) {
+      return;
+    }
+    setDeleteError(null);
+    try {
+      await deleteMutation.mutateAsync(documentId);
+    } catch (error) {
+      setDeleteError(error instanceof ApiError ? error.message : t("knowledgeBase.deleteErrorFallback"));
+    }
+  };
 
   const documents = documentsQuery.data ?? [];
   const processingCount = documents.filter((document) => document.status === 2).length;
@@ -149,6 +168,9 @@ export function KnowledgeBasePage() {
               </div>
             ) : (
               <div className="overflow-hidden rounded-[22px] border border-border/80 bg-card/76">
+                {deleteError ? (
+                  <div className="border-b border-destructive/20 bg-destructive/8 px-4 py-3 text-sm text-destructive">{deleteError}</div>
+                ) : null}
                 {visibleDocuments.map((document) => (
                   <div
                     key={document.id}
@@ -162,6 +184,20 @@ export function KnowledgeBasePage() {
                         <div className="truncate text-sm font-semibold text-foreground">{document.originalFileName}</div>
                         <div className="text-xs font-medium text-muted-foreground">{formatFileSize(document.sizeBytes)}</div>
                       </div>
+                      {canDelete ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="ml-auto size-8 shrink-0 text-muted-foreground hover:text-destructive"
+                          title={t("knowledgeBase.deleteAction")}
+                          aria-label={t("knowledgeBase.deleteAction")}
+                          disabled={deleteMutation.isPending}
+                          onClick={() => handleDelete(document.id, document.originalFileName)}
+                        >
+                          <Trash2 />
+                        </Button>
+                      ) : null}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       <div className="font-medium text-foreground/88">{t("common.labels.status")}</div>

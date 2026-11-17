@@ -1,4 +1,4 @@
-import { Clock3, FileDown, Pin, Sparkles } from "lucide-react";
+import { Clock3, FileDown, Pin, Sparkles, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -11,7 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
-import { useConversationQuery, useConversationsQuery } from "@/hooks/use-rootflow-data";
+import { useConversationQuery, useConversationsQuery, useDeleteConversationMutation } from "@/hooks/use-rootflow-data";
+import { useAuth } from "@/features/auth/auth-provider";
+import { ApiError } from "@/lib/api/client";
 import { formatRelativeDate } from "@/lib/formatting/formatters";
 
 const emptyConversations: Array<{
@@ -27,6 +29,22 @@ export function ConversationsPage() {
   const { locale, t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const conversationsQuery = useConversationsQuery();
+  const deleteConversationMutation = useDeleteConversationMutation();
+  const { session } = useAuth();
+  // RF-12: Owner/Admin only while conversations are shared by the workspace (RF-18 makes them per user).
+  const canDeleteConversation = session?.role === "Owner" || session?.role === "Admin";
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    if (!window.confirm(t("conversations.deleteConfirm"))) {
+      return;
+    }
+    try {
+      await deleteConversationMutation.mutateAsync(conversationId);
+      setSearchParams({}, { replace: true });
+    } catch (error) {
+      window.alert(error instanceof ApiError ? error.message : t("conversations.deleteErrorFallback"));
+    }
+  };
   const conversations = conversationsQuery.data ?? emptyConversations;
   const requestedConversationId = searchParams.get("conversationId");
   const selectedConversationId =
@@ -159,6 +177,18 @@ export function ConversationsPage() {
                       <Button variant="outline" size="sm" asChild>
                         <Link to={`/assistant?conversationId=${selectedConversationId}`}>{t("common.actions.continueConversation")}</Link>
                       </Button>
+                      {canDeleteConversation && selectedConversationId ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          disabled={deleteConversationMutation.isPending}
+                          onClick={() => handleDeleteConversation(selectedConversationId)}
+                        >
+                          <Trash2 className="size-3.5" />
+                          {t("conversations.deleteAction")}
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}

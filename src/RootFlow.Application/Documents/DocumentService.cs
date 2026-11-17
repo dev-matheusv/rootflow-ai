@@ -136,6 +136,31 @@ public sealed class DocumentService
         return document is null ? null : Map(document);
     }
 
+    /// <summary>
+    /// RF-12: removes the document, its chunks and embeddings (so it stops appearing in search and answers)
+    /// and the stored file. The database row goes first: if the file delete fails, the document is already
+    /// out of search and only an orphan file is left.
+    /// </summary>
+    public async Task<bool> DeleteAsync(
+        Guid workspaceId,
+        Guid documentId,
+        CancellationToken cancellationToken = default)
+    {
+        var document = await _documentRepository.GetByIdAsync(workspaceId, documentId, cancellationToken);
+        if (document is null)
+        {
+            return false;
+        }
+
+        if (!await _documentRepository.DeleteAsync(workspaceId, documentId, cancellationToken))
+        {
+            return false;
+        }
+
+        await _fileStorage.DeleteAsync(document.StoragePath, cancellationToken);
+        return true;
+    }
+
     public async Task<IReadOnlyList<DocumentDto>> ListAsync(
         ListDocumentsQuery query,
         CancellationToken cancellationToken = default)

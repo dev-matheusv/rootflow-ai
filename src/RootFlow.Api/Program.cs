@@ -1368,6 +1368,27 @@ documents.MapGet("/{documentId:guid}", async (
     return document is null ? Results.NotFound() : Results.Ok(document);
 });
 
+// RF-12: delete a document, its chunks/embeddings and the stored file (Owner/Admin).
+documents.MapDelete("/{documentId:guid}", async (
+    Guid documentId,
+    ClaimsPrincipal user,
+    DocumentService documentService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    var workspaceId = user.GetRequiredWorkspaceId();
+    var deleted = await documentService.DeleteAsync(workspaceId, documentId, cancellationToken);
+    if (!deleted)
+    {
+        return Results.NotFound();
+    }
+
+    logger.LogInformation(
+        "Document deleted. WorkspaceId={WorkspaceId} DocumentId={DocumentId} ActorUserId={ActorUserId}",
+        workspaceId, documentId, user.GetRequiredUserId());
+    return Results.NoContent();
+}).RequireAuthorization("WorkspaceOwnerOrAdmin");
+
 app.MapPost("/api/chat", async (
     AskQuestionRequest request,
     ClaimsPrincipal user,
@@ -1437,6 +1458,27 @@ conversations.MapGet("/{conversationId:guid}", async (
 
     return conversation is null ? Results.NotFound() : Results.Ok(conversation);
 });
+
+// RF-12: delete a conversation (Owner/Admin while conversations are shared by the workspace, see RF-18).
+conversations.MapDelete("/{conversationId:guid}", async (
+    Guid conversationId,
+    ClaimsPrincipal user,
+    ConversationService conversationService,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    var workspaceId = user.GetRequiredWorkspaceId();
+    var deleted = await conversationService.DeleteAsync(workspaceId, conversationId, cancellationToken);
+    if (!deleted)
+    {
+        return Results.NotFound();
+    }
+
+    logger.LogInformation(
+        "Conversation deleted. WorkspaceId={WorkspaceId} ConversationId={ConversationId} ActorUserId={ActorUserId}",
+        workspaceId, conversationId, user.GetRequiredUserId());
+    return Results.NoContent();
+}).RequireAuthorization("WorkspaceOwnerOrAdmin");
 
 // ── Document Templates ───────────────────────────────────────────────────────
 

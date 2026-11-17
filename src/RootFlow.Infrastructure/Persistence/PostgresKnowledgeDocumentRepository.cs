@@ -70,6 +70,25 @@ public sealed class PostgresKnowledgeDocumentRepository : IKnowledgeDocumentRepo
         await ExecuteAsync(sql, document, cancellationToken);
     }
 
+    public async Task<bool> DeleteAsync(
+        Guid workspaceId,
+        Guid documentId,
+        CancellationToken cancellationToken = default)
+    {
+        // document_chunks cascade; training_questions.source_document_id is set to null.
+        const string sql = """
+                           DELETE FROM knowledge_documents
+                           WHERE workspace_id = @workspaceId
+                             AND id = @documentId;
+                           """;
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("workspaceId", workspaceId);
+        command.Parameters.AddWithValue("documentId", documentId);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
+    }
+
     public async Task<KnowledgeDocument?> GetByIdAsync(
         Guid workspaceId,
         Guid documentId,
