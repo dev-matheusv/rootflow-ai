@@ -210,6 +210,26 @@ builder.Services.AddRootFlowInfrastructure(builder.Configuration);
 var app = builder.Build();
 var allowedCorsOrigins = ResolveAllowedCorsOrigins(app.Configuration, app.Environment);
 
+// RF-18: production must not run silently without payments or e-mail. Log what is missing (names only).
+if (app.Environment.IsProduction())
+{
+    var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    var stripe = app.Services.GetRequiredService<StripeBillingOptions>();
+    using var readinessScope = app.Services.CreateScope();
+    var email = readinessScope.ServiceProvider.GetRequiredService<RootFlow.Infrastructure.Email.IEmailSender>();
+    var missing = new List<string>();
+    if (string.IsNullOrWhiteSpace(stripe.SecretKey)) missing.Add("Stripe secret key");
+    if (string.IsNullOrWhiteSpace(stripe.WebhookSecret)) missing.Add("ROOTFLOW_STRIPE_WEBHOOK_SECRET");
+    if (stripe.PlanPrices.Any(price => string.IsNullOrWhiteSpace(price.PriceId))) missing.Add("Stripe plan price ids");
+    if (!email.IsConfigured) missing.Add("outbound e-mail (ROOTFLOW_EMAIL_*)");
+    if (missing.Count > 0)
+    {
+        startupLogger.LogError(
+            "Production configuration incomplete: {Missing}. Checkout, webhooks or invite e-mails will not work until these are set.",
+            string.Join(", ", missing));
+    }
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

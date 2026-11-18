@@ -247,6 +247,7 @@ export const productMessages = {
       removeMemberConfirm: "Remove {{name}} from this workspace? Access ends immediately.",
       memberRemoved: "{{name}} was removed from the workspace.",
       memberActionErrorFallback: "We could not update this member right now.",
+      inviteNotDelivered: "The invite was created, but e-mail sending is not configured yet, so the person was not notified. Ask the platform admin to configure e-mail.",
       bulkInviteToggle: "Invite several people",
       bulkInviteSingle: "Invite one person",
       bulkInviteLabel: "Work emails",
@@ -254,6 +255,7 @@ export const productMessages = {
       bulkInviteSummary: "{{sent}} invite(s) sent, {{skipped}} not sent.",
       bulkInviteStatus: {
         sent: "invite sent",
+        not_delivered: "invite created, but e-mail is not configured yet",
         already_member: "already in the workspace",
         invalid_email: "invalid email",
         duplicate: "repeated in the list",
@@ -696,6 +698,7 @@ export const productMessages = {
       removeMemberConfirm: "Remover {{name}} deste workspace? O acesso termina na hora.",
       memberRemoved: "{{name}} saiu do workspace.",
       memberActionErrorFallback: "Não foi possível atualizar este membro agora.",
+      inviteNotDelivered: "O convite foi criado, mas o envio de e-mail ainda não está configurado, então a pessoa não foi avisada. Peça ao administrador da plataforma para configurar o e-mail.",
       bulkInviteToggle: "Convidar várias pessoas",
       bulkInviteSingle: "Convidar uma pessoa",
       bulkInviteLabel: "E-mails de trabalho",
@@ -703,6 +706,7 @@ export const productMessages = {
       bulkInviteSummary: "{{sent}} convite(s) enviado(s), {{skipped}} não enviado(s).",
       bulkInviteStatus: {
         sent: "convite enviado",
+        not_delivered: "convite criado, mas o envio de e-mail ainda não está configurado",
         already_member: "já está no workspace",
         invalid_email: "e-mail inválido",
         duplicate: "repetido na lista",

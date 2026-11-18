@@ -84,6 +84,11 @@ public sealed class LoggingWorkspaceInvitationNotifier : IWorkspaceInvitationNot
             notification.Email);
     }
 
+    public bool CanDeliver =>
+        _emailSender.IsConfigured
+        || _hostEnvironment.IsDevelopment()
+        || _hostEnvironment.IsEnvironment("IntegrationTesting");
+
     private string BuildInviteLink(string token, bool requireAbsoluteUrl)
     {
         return _appLinkBuilder.BuildWorkspaceInviteLink(token, requireAbsoluteUrl);

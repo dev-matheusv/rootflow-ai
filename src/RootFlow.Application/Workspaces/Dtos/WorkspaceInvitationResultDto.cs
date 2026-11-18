@@ -6,4 +6,5 @@ public sealed record WorkspaceInvitationResultDto(
     string Message,
     string Email,
     WorkspaceRole Role,
-    DateTime ExpiresAtUtc);
+    DateTime ExpiresAtUtc,
+    bool EmailDelivered = true);

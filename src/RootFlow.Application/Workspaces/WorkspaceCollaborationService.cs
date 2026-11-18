@@ -18,6 +18,7 @@ public sealed class WorkspaceCollaborationService
 {
     private static readonly TimeSpan InvitationLifetime = TimeSpan.FromDays(7);
     private const string InviteSuccessMessage = "Invite sent. If the address can access this workspace, they can use the link to join.";
+    private const string InviteNotDeliveredMessage = "The invite was created, but e-mail delivery is not configured yet, so the person was not notified.";
     private const string InvalidInvitationMessage = "This workspace invite is invalid or has expired.";
     private readonly IAuthRepository _authRepository;
     private readonly IWorkspaceRepository _workspaceRepository;
@@ -143,11 +144,13 @@ public sealed class WorkspaceCollaborationService
                 invitation.ExpiresAtUtc),
             cancellationToken);
 
+        var delivered = _workspaceInvitationNotifier.CanDeliver;
         return new WorkspaceInvitationResultDto(
-            InviteSuccessMessage,
+            delivered ? InviteSuccessMessage : InviteNotDeliveredMessage,
             invitation.Email,
             invitation.Role,
-            invitation.ExpiresAtUtc);
+            invitation.ExpiresAtUtc,
+            delivered);
     }
 
     /// <summary>Upper bound per request: protects the e-mail provider and keeps one call short.</summary>
@@ -199,11 +202,18 @@ public sealed class WorkspaceCollaborationService
 
             try
             {
-                await InviteAsync(
+                var result = await InviteAsync(
                     new InviteWorkspaceMemberCommand(command.WorkspaceId, command.InvitedByUserId, email, command.Role),
                     cancellationToken);
-                items.Add(new BulkInviteItemDto(email, "sent", null));
-                sent++;
+                if (result.EmailDelivered)
+                {
+                    items.Add(new BulkInviteItemDto(email, "sent", null));
+                    sent++;
+                }
+                else
+                {
+                    items.Add(new BulkInviteItemDto(email, "not_delivered", result.Message));
+                }
             }
             catch (ArgumentException)
             {

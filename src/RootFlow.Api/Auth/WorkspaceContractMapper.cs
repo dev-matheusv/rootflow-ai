@@ -11,7 +11,8 @@ public static class WorkspaceContractMapper
             invitation.Message,
             invitation.Email,
             invitation.Role.ToString(),
-            invitation.ExpiresAtUtc);
+            invitation.ExpiresAtUtc,
+            invitation.EmailDelivered);
     }
 
     public static WorkspaceMemberResponse ToResponse(this WorkspaceMemberDto member)
