@@ -244,6 +244,15 @@ Build and deploy details are documented in [deployment.md](C:/RootFlow/docs/depl
 5. Ask a question against the uploaded knowledge.
 6. Check the saved conversation history.
 
+## Como trabalhamos
+
+- **Cards no Jira**, projeto RF (nativalabs.atlassian.net). Cada lote é um épico com a versão no nome (v1.1.0, v1.2.0...).
+- **Um card, uma branch, um PR para a `develop`.** CI verde é obrigatório para mesclar (`develop` e `main` protegidas, histórico linear). Card vai para "In Review" quando entra na `develop`.
+- **Release por lote:** quando o lote fecha, a `main` avança até a `develop` sem merge commit (`git push origin <sha da develop>:main`), o Railway e a Vercel publicam, o smoke confere produção, criamos a tag e o GitHub Release `vX.Y.0`, e os cards do lote vão para "Done".
+- **Smoke** roda a cada deploy na `main` e a cada 15 minutos; falha avisa por e-mail.
+- **Segredos só em variável de ambiente** no Railway e na Vercel. Nunca no código.
+- Roadmap completo em [`docs/ROADMAP.md`](docs/ROADMAP.md); plano do motor de IA em [`docs/root-ia-plano.md`](docs/root-ia-plano.md).
+
 ## Roadmap
 
 The next product phases may add:
