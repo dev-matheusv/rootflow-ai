@@ -4,4 +4,5 @@ public sealed record WorkspaceInvitationResponse(
     string Message,
     string Email,
     string Role,
-    DateTime ExpiresAtUtc);
+    DateTime ExpiresAtUtc,
+    bool EmailDelivered);

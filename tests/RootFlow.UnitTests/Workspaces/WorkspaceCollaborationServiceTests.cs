@@ -207,6 +207,28 @@ public sealed class WorkspaceCollaborationServiceTests
         Assert.Empty(notifier.Notifications);
     }
 
+    // RF-18: without outbound e-mail the API must say the invite was not delivered.
+    [Fact]
+    public async Task InviteAsync_WhenEmailCannotBeDelivered_ReportsNotDelivered()
+    {
+        var clock = new FakeClock(new DateTime(2026, 11, 18, 12, 0, 0, DateTimeKind.Utc));
+        var authRepository = new FakeAuthRepository();
+        var workspaceRepository = new FakeWorkspaceRepository();
+        var membershipRepository = new FakeWorkspaceMembershipRepository();
+        var notifier = new FakeWorkspaceInvitationNotifier { CanDeliver = false };
+        var owner = authRepository.AddUser("owner@rootflow.test", "Owner User");
+        var workspace = workspaceRepository.AddWorkspace("Acme", "acme", clock.UtcNow);
+        membershipRepository.AddExisting(new WorkspaceMembership(Guid.NewGuid(), workspace.Id, owner.Id, WorkspaceRole.Owner, clock.UtcNow));
+        var service = CreateService(authRepository, workspaceRepository, membershipRepository, new FakeWorkspaceInvitationRepository(), notifier, clock);
+
+        var single = await service.InviteAsync(new InviteWorkspaceMemberCommand(workspace.Id, owner.Id, "a@rootflow.test", WorkspaceRole.Member));
+        var bulk = await service.InviteManyAsync(new InviteWorkspaceMembersBulkCommand(workspace.Id, owner.Id, ["b@rootflow.test"], WorkspaceRole.Member));
+
+        Assert.False(single.EmailDelivered);
+        Assert.Equal(0, bulk.Sent);
+        Assert.Equal("not_delivered", bulk.Items.Single().Status);
+    }
+
     // RF-14: bulk invite.
     [Fact]
     public async Task InviteManyAsync_ReportsEachAddress_AndKeepsGoing()
@@ -680,6 +702,8 @@ public sealed class WorkspaceCollaborationServiceTests
     private sealed class FakeWorkspaceInvitationNotifier : IWorkspaceInvitationNotifier
     {
         public List<WorkspaceInvitationNotification> Notifications { get; } = [];
+
+        public bool CanDeliver { get; set; } = true;
 
         public Task SendInviteLinkAsync(WorkspaceInvitationNotification notification, CancellationToken cancellationToken = default)
         {

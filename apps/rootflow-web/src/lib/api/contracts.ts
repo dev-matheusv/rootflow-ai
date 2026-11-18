@@ -59,7 +59,7 @@ export interface BulkInviteWorkspaceMembersPayload {
   role: WorkspaceRole;
 }
 
-export type BulkInviteStatus = "sent" | "already_member" | "invalid_email" | "duplicate" | "failed";
+export type BulkInviteStatus = "sent" | "not_delivered" | "already_member" | "invalid_email" | "duplicate" | "failed";
 
 export interface BulkInviteItem {
   email: string;
@@ -102,6 +102,7 @@ export interface WorkspaceInvitationResult {
   email: string;
   role: WorkspaceRole;
   expiresAtUtc: string;
+  emailDelivered: boolean;
 }
 
 export interface WorkspaceMember {

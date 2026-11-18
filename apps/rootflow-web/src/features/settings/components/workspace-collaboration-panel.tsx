@@ -116,7 +116,12 @@ export function WorkspaceCollaborationPanel() {
         role,
       });
 
-      setSuccessMessage(response.message);
+      // RF-18: never claim the invite was sent when the e-mail could not go out.
+      if (response.emailDelivered) {
+        setSuccessMessage(response.message);
+      } else {
+        setErrorMessage(t("settings.inviteNotDelivered"));
+      }
       setEmail("");
       setRole("Member");
     } catch (error) {
